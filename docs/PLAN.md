@@ -238,7 +238,7 @@ Golem AI is deliberately milestone-late: it's the highest-effort, lowest-couplin
 
 **Name/IP.** Original name, original assets, original aspect names and lore text. "Inspired by Thaumcraft" in the description is fine; anything closer isn't. Name collisions checked on Modrinth/CurseForge 2026-07-14 (see note at top); nothing registered yet.
 
-**Open questions to settle before M1** (name/id settled 2026-07-14; language locked to Java 21 in CLAUDE.md): art direction (TC's engraved-brass look vs something new — affects every texture); whether aspect *names* use invented Latin-alikes or plain English (Latin-alikes read as homage without copying TC's exact set).
+**Open questions to settle before M1** (name/id settled 2026-07-14; language locked to Java 21 in CLAUDE.md; aspect naming settled 2026-07-14 — original Latin coinages, six TC-style primals + 35 compounds with colors, see `docs/aspects.md`): art direction (TC's engraved-brass look vs something new — affects every texture).
 
 ---
 
