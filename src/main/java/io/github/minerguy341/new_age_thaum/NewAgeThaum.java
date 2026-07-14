@@ -18,8 +18,8 @@ public final class NewAgeThaum {
 
     public static void init(PlatformInfo platform) {
         //? if fabric {
-        /*LOGGER.info("Loader-constant branch active: FABRIC");*/
-        //?} else {
+        /*LOGGER.info("Loader-constant branch active: FABRIC");
+        *///?} else {
         LOGGER.info("Loader-constant branch active: NEOFORGE");
         //?}
         LOGGER.info("PlatformInfo resolved: loader={}, developmentEnvironment={}",

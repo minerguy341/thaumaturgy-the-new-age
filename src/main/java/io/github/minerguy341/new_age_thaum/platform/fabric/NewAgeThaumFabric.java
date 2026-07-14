@@ -9,5 +9,5 @@ public final class NewAgeThaumFabric implements ModInitializer {
     public void onInitialize() {
         NewAgeThaum.init(new FabricPlatformInfo());
     }
-}*/
-//?}
+}
+*///?}

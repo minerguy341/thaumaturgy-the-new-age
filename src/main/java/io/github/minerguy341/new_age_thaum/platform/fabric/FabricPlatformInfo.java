@@ -14,5 +14,5 @@ public final class FabricPlatformInfo implements PlatformInfo {
     public boolean isDevelopmentEnvironment() {
         return FabricLoader.getInstance().isDevelopmentEnvironment();
     }
-}*/
-//?}
+}
+*///?}

@@ -25,8 +25,8 @@ public class ProofOfForgeGameTest {
     //? if neoforge {
     @GameTest(template = "empty")
     //?} else {
-    /*@GameTest(template = "new_age_thaum:empty")*/
-    //?}
+    /*@GameTest(template = "new_age_thaum:empty")
+    *///?}
     public void proofItemIsRegistered(GameTestHelper helper) {
         ResourceLocation id = ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, "proof_of_forge");
         helper.assertTrue(BuiltInRegistries.ITEM.containsKey(id),
