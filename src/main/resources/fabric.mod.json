@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "id": "${id}",
+  "version": "${version}",
+
+  "name": "${name}",
+  "description": "${description}",
+  "authors": ["minerguy341"],
+  "contact": {
+    "sources": "https://github.com/minerguy341/thaumaturgy-the-new-age",
+    "issues": "https://github.com/minerguy341/thaumaturgy-the-new-age/issues"
+  },
+  "license": "MIT",
+
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "${group}.platform.fabric.NewAgeThaumFabric"
+    ],
+    "fabric-gametest": [
+      "${group}.gametest.ProofOfForgeGameTest"
+    ]
+  },
+  "depends": {
+    "fabricloader": "*",
+    "fabric-api": ">=${fabricVersion}",
+    "architectury": "*",
+    "minecraft": ">=${minecraftVersion}"
+  }
+}
