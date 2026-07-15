@@ -18,7 +18,8 @@
       "${group}.platform.fabric.NewAgeThaumFabric"
     ],
     "fabric-gametest": [
-      "${group}.gametest.ProofOfForgeGameTest"
+      "${group}.gametest.ProofOfForgeGameTest",
+      "${group}.gametest.AspectGameTest"
     ]
   },
   "depends": {

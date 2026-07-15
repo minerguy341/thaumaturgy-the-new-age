@@ -1,7 +1,13 @@
 package io.github.minerguy341.new_age_thaum;
 
+import dev.architectury.event.events.common.PlayerEvent;
+import dev.architectury.registry.ReloadListenerRegistry;
 import io.github.minerguy341.new_age_thaum.core.ModRegistries;
+import io.github.minerguy341.new_age_thaum.core.aspect.AspectReloadListener;
+import io.github.minerguy341.new_age_thaum.network.NewAgeThaumNetwork;
 import io.github.minerguy341.new_age_thaum.platform.PlatformInfo;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.PackType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,5 +32,9 @@ public final class NewAgeThaum {
                 platform.loaderName(), platform.isDevelopmentEnvironment());
 
         ModRegistries.init();
+        NewAgeThaumNetwork.init();
+        ReloadListenerRegistry.register(PackType.SERVER_DATA, new AspectReloadListener(),
+                ResourceLocation.fromNamespaceAndPath(MOD_ID, "aspects"));
+        PlayerEvent.PLAYER_JOIN.register(NewAgeThaumNetwork::syncAspectsTo);
     }
 }
