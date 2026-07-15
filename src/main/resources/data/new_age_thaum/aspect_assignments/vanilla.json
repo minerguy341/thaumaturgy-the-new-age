@@ -1,0 +1,26 @@
+{
+  "entries": [
+    { "matches": ["#minecraft:stone_crafting_materials", "minecraft:stone", "minecraft:cobblestone"], "aspects": { "new_age_thaum:tellus": 2 } },
+    { "matches": ["minecraft:dirt", "minecraft:coarse_dirt", "minecraft:rooted_dirt"], "aspects": { "new_age_thaum:tellus": 1 } },
+    { "matches": ["#minecraft:logs"], "aspects": { "new_age_thaum:silva": 3, "new_age_thaum:flora": 1 } },
+    { "matches": ["#minecraft:leaves", "#minecraft:saplings"], "aspects": { "new_age_thaum:flora": 2 } },
+    { "matches": ["minecraft:water_bucket"], "aspects": { "new_age_thaum:unda": 8 } },
+    { "matches": ["minecraft:lava_bucket"], "aspects": { "new_age_thaum:flamma": 8 } },
+    { "matches": ["minecraft:coal", "minecraft:charcoal"], "aspects": { "new_age_thaum:flamma": 2 } },
+    { "matches": ["#minecraft:coals", "minecraft:blaze_powder"], "aspects": { "new_age_thaum:flamma": 3 } },
+    { "matches": ["minecraft:feather"], "aspects": { "new_age_thaum:ventus": 2, "new_age_thaum:ala": 1 } },
+    { "matches": ["#minecraft:wool"], "aspects": { "new_age_thaum:fera": 1, "new_age_thaum:forma": 1 } },
+    { "matches": ["#c:ingots/iron", "minecraft:iron_ingot", "minecraft:raw_iron"], "aspects": { "new_age_thaum:aes": 2, "new_age_thaum:tellus": 1 } },
+    { "matches": ["#c:ingots/gold", "minecraft:gold_ingot", "minecraft:raw_gold"], "aspects": { "new_age_thaum:aes": 2, "new_age_thaum:opes": 2 } },
+    { "matches": ["minecraft:diamond"], "aspects": { "new_age_thaum:gemma": 4, "new_age_thaum:opes": 2 } },
+    { "matches": ["minecraft:emerald"], "aspects": { "new_age_thaum:gemma": 3, "new_age_thaum:opes": 3 } },
+    { "matches": ["minecraft:redstone", "minecraft:redstone_block"], "aspects": { "new_age_thaum:vigor": 2, "new_age_thaum:mutatio": 1 } },
+    { "matches": ["minecraft:glowstone_dust", "minecraft:glowstone", "minecraft:torch"], "aspects": { "new_age_thaum:lumen": 2 } },
+    { "matches": ["minecraft:ender_pearl"], "aspects": { "new_age_thaum:inane": 2, "new_age_thaum:impetus": 2 } },
+    { "matches": ["minecraft:rotten_flesh"], "aspects": { "new_age_thaum:caro": 2, "new_age_thaum:letum": 1 } },
+    { "matches": ["#minecraft:bones", "minecraft:bone_meal"], "aspects": { "new_age_thaum:letum": 1, "new_age_thaum:larva": 1 } },
+    { "matches": ["minecraft:spider_eye", "minecraft:poisonous_potato"], "aspects": { "new_age_thaum:toxicum": 2 } },
+    { "matches": ["#minecraft:fishes", "#minecraft:meat", "minecraft:wheat", "minecraft:apple", "minecraft:carrot", "minecraft:potato"], "aspects": { "new_age_thaum:vita": 2 } },
+    { "matches": ["minecraft:nether_star", "minecraft:end_crystal"], "aspects": { "new_age_thaum:arcanum": 4, "new_age_thaum:aether": 2 } }
+  ]
+}

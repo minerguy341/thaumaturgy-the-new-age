@@ -19,7 +19,8 @@
     ],
     "fabric-gametest": [
       "${group}.gametest.ProofOfForgeGameTest",
-      "${group}.gametest.AspectGameTest"
+      "${group}.gametest.AspectGameTest",
+      "${group}.gametest.AspectResolutionGameTest"
     ]
   },
   "depends": {

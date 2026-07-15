@@ -4,6 +4,7 @@ import dev.architectury.networking.NetworkManager;
 import dev.architectury.platform.Platform;
 import dev.architectury.utils.Env;
 import io.github.minerguy341.new_age_thaum.core.aspect.Aspect;
+import io.github.minerguy341.new_age_thaum.core.aspect.AspectAssignments;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectRegistry;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -30,8 +31,11 @@ public final class NewAgeThaumNetwork {
                         }
                         AspectRegistry.reload(incoming);
                     });
+            NetworkManager.registerReceiver(NetworkManager.s2c(), AssignmentSyncPayload.TYPE, AssignmentSyncPayload.STREAM_CODEC,
+                    (payload, context) -> AspectAssignments.accept(payload.byItem(), payload.byTag()));
         } else {
             NetworkManager.registerS2CPayloadType(AspectSyncPayload.TYPE, AspectSyncPayload.STREAM_CODEC);
+            NetworkManager.registerS2CPayloadType(AssignmentSyncPayload.TYPE, AssignmentSyncPayload.STREAM_CODEC);
         }
     }
 
@@ -41,6 +45,19 @@ public final class NewAgeThaumNetwork {
 
     public static void syncAspectsToAll(MinecraftServer server) {
         AspectSyncPayload payload = new AspectSyncPayload(List.copyOf(AspectRegistry.all()));
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            NetworkManager.sendToPlayer(player, payload);
+        }
+    }
+
+    public static void syncAssignmentsTo(ServerPlayer player) {
+        NetworkManager.sendToPlayer(player,
+                new AssignmentSyncPayload(AspectAssignments.itemAssignments(), AspectAssignments.tagAssignments()));
+    }
+
+    public static void syncAssignmentsToAll(MinecraftServer server) {
+        AssignmentSyncPayload payload =
+                new AssignmentSyncPayload(AspectAssignments.itemAssignments(), AspectAssignments.tagAssignments());
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             NetworkManager.sendToPlayer(player, payload);
         }
