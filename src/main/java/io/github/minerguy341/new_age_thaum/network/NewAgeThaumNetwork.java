@@ -6,8 +6,10 @@ import dev.architectury.utils.Env;
 import io.github.minerguy341.new_age_thaum.core.aspect.Aspect;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectAssignments;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectRegistry;
+import io.github.minerguy341.new_age_thaum.core.codex.CodexRegistry;
 import io.github.minerguy341.new_age_thaum.core.player.PlayerProgress;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -37,10 +39,19 @@ public final class NewAgeThaumNetwork {
                     (payload, context) -> AspectAssignments.accept(payload.byItem(), payload.byTag()));
             NetworkManager.registerReceiver(NetworkManager.s2c(), PlayerProgressSyncPayload.TYPE, PlayerProgressSyncPayload.STREAM_CODEC,
                     (payload, context) -> io.github.minerguy341.new_age_thaum.client.ClientPlayerProgress.set(payload.progress()));
+            NetworkManager.registerReceiver(NetworkManager.s2c(), CodexSyncPayload.TYPE, CodexSyncPayload.STREAM_CODEC,
+                    (payload, context) -> {
+                        Map<ResourceLocation, io.github.minerguy341.new_age_thaum.core.codex.CodexEntry> incoming = new HashMap<>();
+                        for (var entry : payload.entries()) {
+                            incoming.put(entry.id(), entry);
+                        }
+                        io.github.minerguy341.new_age_thaum.core.codex.CodexRegistry.reload(incoming);
+                    });
         } else {
             NetworkManager.registerS2CPayloadType(AspectSyncPayload.TYPE, AspectSyncPayload.STREAM_CODEC);
             NetworkManager.registerS2CPayloadType(AssignmentSyncPayload.TYPE, AssignmentSyncPayload.STREAM_CODEC);
             NetworkManager.registerS2CPayloadType(PlayerProgressSyncPayload.TYPE, PlayerProgressSyncPayload.STREAM_CODEC);
+            NetworkManager.registerS2CPayloadType(CodexSyncPayload.TYPE, CodexSyncPayload.STREAM_CODEC);
         }
     }
 
@@ -58,6 +69,16 @@ public final class NewAgeThaumNetwork {
 
     public static void syncProgressTo(ServerPlayer player, PlayerProgress progress) {
         sendIfPossible(player, new PlayerProgressSyncPayload(progress), PlayerProgressSyncPayload.TYPE);
+    }
+
+    public static void syncCodexTo(ServerPlayer player) {
+        sendIfPossible(player, new CodexSyncPayload(List.copyOf(CodexRegistry.all())), CodexSyncPayload.TYPE);
+    }
+
+    public static void syncCodexToAll(MinecraftServer server) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            syncCodexTo(player);
+        }
     }
 
     public static void syncAspectsTo(ServerPlayer player) {

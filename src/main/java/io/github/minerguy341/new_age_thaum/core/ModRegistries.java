@@ -5,6 +5,7 @@ import dev.architectury.registry.registries.DeferredRegister;
 import dev.architectury.registry.registries.RegistrySupplier;
 import io.github.minerguy341.new_age_thaum.NewAgeThaum;
 import io.github.minerguy341.new_age_thaum.content.AetherlensItem;
+import io.github.minerguy341.new_age_thaum.content.CodexItem;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.CreativeModeTab;
@@ -31,11 +32,16 @@ public final class ModRegistries {
     public static final RegistrySupplier<Item> AETHERLENS = ITEMS.register("aetherlens",
             () -> new AetherlensItem(new Item.Properties().stacksTo(1)));
 
+    /** Opens the Codex (progression journal). */
+    public static final RegistrySupplier<Item> CODEX = ITEMS.register("codex",
+            () -> new CodexItem(new Item.Properties().stacksTo(1)));
+
     public static final RegistrySupplier<CreativeModeTab> MAIN_TAB = TABS.register("main",
             () -> CreativeTabRegistry.create(builder -> builder
                     .title(Component.translatable("itemGroup.new_age_thaum.main"))
-                    .icon(() -> new ItemStack(AETHERLENS.get()))
+                    .icon(() -> new ItemStack(CODEX.get()))
                     .displayItems((parameters, output) -> {
+                        output.accept(CODEX.get());
                         output.accept(AETHERLENS.get());
                         output.accept(PROOF_OF_FORGE.get());
                     })));

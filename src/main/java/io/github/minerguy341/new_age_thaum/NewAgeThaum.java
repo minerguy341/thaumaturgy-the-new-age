@@ -5,6 +5,7 @@ import dev.architectury.registry.ReloadListenerRegistry;
 import io.github.minerguy341.new_age_thaum.core.ModRegistries;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectAssignments;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectReloadListener;
+import io.github.minerguy341.new_age_thaum.core.codex.CodexReloadListener;
 import io.github.minerguy341.new_age_thaum.network.NewAgeThaumNetwork;
 import io.github.minerguy341.new_age_thaum.platform.PlatformInfo;
 import net.minecraft.resources.ResourceLocation;
@@ -38,9 +39,12 @@ public final class NewAgeThaum {
                 ResourceLocation.fromNamespaceAndPath(MOD_ID, "aspects"));
         ReloadListenerRegistry.register(PackType.SERVER_DATA, new AspectAssignments(),
                 ResourceLocation.fromNamespaceAndPath(MOD_ID, "aspect_assignments"));
+        ReloadListenerRegistry.register(PackType.SERVER_DATA, new CodexReloadListener(),
+                ResourceLocation.fromNamespaceAndPath(MOD_ID, "codex_entries"));
         PlayerEvent.PLAYER_JOIN.register(player -> {
             NewAgeThaumNetwork.syncAspectsTo(player);
             NewAgeThaumNetwork.syncAssignmentsTo(player);
+            NewAgeThaumNetwork.syncCodexTo(player);
             io.github.minerguy341.new_age_thaum.core.player.PlayerProgressService.syncOnJoin(player);
         });
         dev.architectury.utils.EnvExecutor.runInEnv(dev.architectury.utils.Env.CLIENT,

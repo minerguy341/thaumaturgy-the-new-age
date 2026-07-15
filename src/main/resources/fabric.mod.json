@@ -22,7 +22,8 @@
       "${group}.gametest.AspectGameTest",
       "${group}.gametest.AspectResolutionGameTest",
       "${group}.gametest.PlayerProgressGameTest",
-      "${group}.gametest.AetherlensGameTest"
+      "${group}.gametest.AetherlensGameTest",
+      "${group}.gametest.CodexGameTest"
     ]
   },
   "depends": {
