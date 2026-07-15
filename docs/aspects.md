@@ -79,6 +79,20 @@ JSON format lands in M1.
 **Totals:** 6 primals + 35 compounds = 41 aspects. Extensible by datapack once
 the M1 JSON format exists; keep new compounds to exactly two components.
 
+## Icon direction (decided 2026-07-14)
+
+- Aspect icons are **hexagonal**, in the spirit of TC's research grid. One icon
+  per aspect, HD resolution: author masters at 512x512, ship at **256x256**
+  (icons render at 16-64 px in GUIs; 41 aspects x 512^2 is ~43 MB of texture
+  vs ~11 MB at 256^2). Until real art exists, a flat hexagon filled with the
+  aspect's palette color is the placeholder.
+- The research linking minigame plays on a **rotatable globe**: a spherical
+  hex grid (Goldberg polyhedron — hexagons plus the 12 pentagons any such
+  tiling requires). Puzzle size scales with research difficulty via the
+  subdivision level: GP(1,1) = 20 hex + 12 pent, GP(2,0) = 30 + 12,
+  GP(3,0) = 80 + 12. The 12 pentagons are reserved for special cells
+  (wildcards, sealed cells, bonus nodes) rather than ordinary aspect slots.
+
 ## Naming notes
 
 - Names deliberately avoid Thaumcraft's exact coinages (Ignis, Aqua, Ordo,

@@ -154,7 +154,7 @@ Two interlocking loops:
 
 **Loop 1 — Theorycrafting (TC6, breadth).** A **Scriptorium** table consumes paper + ink + observation points and runs the card-draw minigame: each round offers 2–3 actions (varying by table surroundings — nearby bookshelves, artifacts, and aura strength unlock better cards), building **Theory** in one or more disciplines. Theories unlock the *ordinary* entries in each category.
 
-**Loop 2 — Aspect-linking breakthroughs (TC4, depth).** Milestone entries — the ones that gate whole systems (first wand, infusion, golem animation, eldritch) — instead demand a **linking puzzle**: a hex grid seeded with fixed aspect endpoints that the player must connect by placing aspects from their pool, where adjacent aspects must be related (compound↔component). Consumes aspect points; failed layouts refund partially. This preserves TC4's "I *solved* magic" feeling at the moments that matter, without making every single unlock a puzzle (the fatigue that TC6 was reacting to).
+**Loop 2 — Aspect-linking breakthroughs (TC4, depth).** Milestone entries — the ones that gate whole systems (first wand, infusion, golem animation, eldritch) — instead demand a **linking puzzle**: a hex grid seeded with fixed aspect endpoints that the player must connect by placing aspects from their pool, where adjacent aspects must be related (compound↔component). *Decided 2026-07-14:* the puzzle surface is a **rotatable globe** — a spherical hex grid (Goldberg polyhedron; hexagons + the 12 mandatory pentagons, which become special cells), with puzzle size scaling via subdivision level (see `docs/aspects.md`). M2 may ship a flat-grid MVP first if globe rendering threatens the milestone; the puzzle logic (graph adjacency) is identical either way and must be written surface-agnostic. Consumes aspect points; failed layouts refund partially. This preserves TC4's "I *solved* magic" feeling at the moments that matter, without making every single unlock a puzzle (the fatigue that TC6 was reacting to).
 
 Warp-flavored **forbidden research** arrives via a third channel: certain scans/events grant sealed entries that require both theory *and* a linking puzzle *and* a warp cost.
 
@@ -238,7 +238,7 @@ Golem AI is deliberately milestone-late: it's the highest-effort, lowest-couplin
 
 **Name/IP.** Original name, original assets, original aspect names and lore text. "Inspired by Thaumcraft" in the description is fine; anything closer isn't. Name collisions checked on Modrinth/CurseForge 2026-07-14 (see note at top); nothing registered yet.
 
-**Open questions to settle before M1** (name/id settled 2026-07-14; language locked to Java 21 in CLAUDE.md; aspect naming settled 2026-07-14 — original Latin coinages, six TC-style primals + 35 compounds with colors, see `docs/aspects.md`): art direction (TC's engraved-brass look vs something new — affects every texture).
+**Open questions to settle before M1** (name/id settled 2026-07-14; language locked to Java 21 in CLAUDE.md; aspect naming settled 2026-07-14 — original Latin coinages, six TC-style primals + 35 compounds with colors, see `docs/aspects.md`; aspect icon format settled 2026-07-14 — hexagonal HD icons, 256px shipped, and the linking minigame on a rotatable Goldberg-sphere hex grid): overall art direction for items/blocks (TC's engraved-brass look vs something new — affects every texture).
 
 ---
 
