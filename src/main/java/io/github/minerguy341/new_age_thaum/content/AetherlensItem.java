@@ -91,7 +91,7 @@ public class AetherlensItem extends Item {
     private static MutableComponent aspectList(AspectBag aspects) {
         MutableComponent list = Component.empty();
         boolean first = true;
-        for (Map.Entry<ResourceLocation, Integer> entry : aspects.amounts().entrySet()) {
+        for (Map.Entry<ResourceLocation, Integer> entry : aspects.ordered()) {
             if (!first) {
                 list.append(Component.literal(", ").withStyle(ChatFormatting.GRAY));
             }

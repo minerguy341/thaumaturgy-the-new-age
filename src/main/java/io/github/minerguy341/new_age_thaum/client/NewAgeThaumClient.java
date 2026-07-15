@@ -30,7 +30,7 @@ public final class NewAgeThaumClient {
                 return;
             }
             lines.add(Component.translatable("tooltip.new_age_thaum.aspects").withStyle(ChatFormatting.GRAY));
-            for (Map.Entry<ResourceLocation, Integer> entry : bag.amounts().entrySet()) {
+            for (Map.Entry<ResourceLocation, Integer> entry : bag.ordered()) {
                 lines.add(Component.literal("  ")
                         .append(AspectNames.colored(entry.getKey()))
                         .append(Component.literal(" ×" + entry.getValue()).withStyle(ChatFormatting.DARK_GRAY)));

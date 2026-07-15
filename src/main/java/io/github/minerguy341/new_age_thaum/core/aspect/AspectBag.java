@@ -3,7 +3,9 @@ package io.github.minerguy341.new_age_thaum.core.aspect;
 import com.mojang.serialization.Codec;
 import net.minecraft.resources.ResourceLocation;
 
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /** Immutable bag of aspect amounts. The empty bag doubles as an explicit opt-out. */
@@ -16,6 +18,17 @@ public record AspectBag(Map<ResourceLocation, Integer> amounts) {
 
     public boolean isEmpty() {
         return amounts.isEmpty();
+    }
+
+    /**
+     * Entries in a stable display order — largest amount first, ties broken by aspect id.
+     * The backing map is unordered, so tooltips and the scan HUD use this for consistency.
+     */
+    public List<Map.Entry<ResourceLocation, Integer>> ordered() {
+        return amounts.entrySet().stream()
+                .sorted(Comparator.<Map.Entry<ResourceLocation, Integer>>comparingInt(Map.Entry::getValue).reversed()
+                        .thenComparing(entry -> entry.getKey().toString()))
+                .toList();
     }
 
     public int total() {
