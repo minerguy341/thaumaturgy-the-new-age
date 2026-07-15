@@ -238,7 +238,7 @@ Golem AI is deliberately milestone-late: it's the highest-effort, lowest-couplin
 
 **Name/IP.** Original name, original assets, original aspect names and lore text. "Inspired by Thaumcraft" in the description is fine; anything closer isn't. Name collisions checked on Modrinth/CurseForge 2026-07-14 (see note at top); nothing registered yet.
 
-**Open questions to settle before M1** (name/id settled 2026-07-14; language locked to Java 21 in CLAUDE.md; aspect naming settled 2026-07-14 — original Latin coinages, six TC-style primals + 35 compounds with colors, see `docs/aspects.md`; aspect icon format settled 2026-07-14 — hexagonal HD icons, 256px shipped, and the linking minigame on a rotatable Goldberg-sphere hex grid): overall art direction for items/blocks (TC's engraved-brass look vs something new — affects every texture).
+**Open questions to settle before M1 — ALL SETTLED as of 2026-07-14:** name/id (`new_age_thaum`); language (Java 21, locked in CLAUDE.md); aspect naming (original Latin coinages, six TC-style primals + 35 compounds with colors — `docs/aspects.md`); aspect icon format (hexagonal HD icons, 256px shipped; linking minigame on a rotatable Goldberg-sphere hex grid); art direction (vanilla+Create-compatible 16x textures, mid-value palette, greatwood/silverwood homage trees, brass + aetherium metals, gilded plank decor family — `docs/art-direction.md`). Naming-rule carve-out: generic English compounds like greatwood/silverwood are acceptable homage; TC's distinctive coinages remain off-limits.
 
 ---
 
