@@ -4,6 +4,7 @@ import dev.architectury.registry.CreativeTabRegistry;
 import dev.architectury.registry.registries.DeferredRegister;
 import dev.architectury.registry.registries.RegistrySupplier;
 import io.github.minerguy341.new_age_thaum.NewAgeThaum;
+import io.github.minerguy341.new_age_thaum.content.AetherlensItem;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.CreativeModeTab;
@@ -26,11 +27,18 @@ public final class ModRegistries {
     public static final RegistrySupplier<Item> PROOF_OF_FORGE = ITEMS.register("proof_of_forge",
             () -> new Item(new Item.Properties()));
 
+    /** The scanning tool: turns blocks and entities into observation points. */
+    public static final RegistrySupplier<Item> AETHERLENS = ITEMS.register("aetherlens",
+            () -> new AetherlensItem(new Item.Properties().stacksTo(1)));
+
     public static final RegistrySupplier<CreativeModeTab> MAIN_TAB = TABS.register("main",
             () -> CreativeTabRegistry.create(builder -> builder
                     .title(Component.translatable("itemGroup.new_age_thaum.main"))
-                    .icon(() -> new ItemStack(PROOF_OF_FORGE.get()))
-                    .displayItems((parameters, output) -> output.accept(PROOF_OF_FORGE.get()))));
+                    .icon(() -> new ItemStack(AETHERLENS.get()))
+                    .displayItems((parameters, output) -> {
+                        output.accept(AETHERLENS.get());
+                        output.accept(PROOF_OF_FORGE.get());
+                    })));
 
     private ModRegistries() {
     }

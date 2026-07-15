@@ -1,7 +1,11 @@
 {
   "item.new_age_thaum.proof_of_forge": "Proof of Forge",
+  "item.new_age_thaum.aetherlens": "Aetherlens",
   "itemGroup.new_age_thaum.main": "Thaumaturgy: The New Age",
   "tooltip.new_age_thaum.aspects": "Aspects:",
+  "message.new_age_thaum.scan.discovered": "Discovered %s",
+  "message.new_age_thaum.scan.known": "Already studied",
+  "message.new_age_thaum.scan.none": "Nothing to study here",
   "aspect.new_age_thaum.ventus": "Ventus",
   "aspect.new_age_thaum.tellus": "Tellus",
   "aspect.new_age_thaum.flamma": "Flamma",

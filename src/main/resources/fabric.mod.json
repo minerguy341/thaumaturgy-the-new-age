@@ -21,7 +21,8 @@
       "${group}.gametest.ProofOfForgeGameTest",
       "${group}.gametest.AspectGameTest",
       "${group}.gametest.AspectResolutionGameTest",
-      "${group}.gametest.PlayerProgressGameTest"
+      "${group}.gametest.PlayerProgressGameTest",
+      "${group}.gametest.AetherlensGameTest"
     ]
   },
   "depends": {
