@@ -41,6 +41,7 @@ public final class NewAgeThaum {
         PlayerEvent.PLAYER_JOIN.register(player -> {
             NewAgeThaumNetwork.syncAspectsTo(player);
             NewAgeThaumNetwork.syncAssignmentsTo(player);
+            io.github.minerguy341.new_age_thaum.core.player.PlayerProgressService.syncOnJoin(player);
         });
         dev.architectury.utils.EnvExecutor.runInEnv(dev.architectury.utils.Env.CLIENT,
                 () -> io.github.minerguy341.new_age_thaum.client.NewAgeThaumClient::init);
