@@ -64,4 +64,35 @@ public class GoldbergGridGameTest {
         }
         return false;
     }
+
+    //? if neoforge {
+    @GameTest(template = "empty")
+    //?} else {
+    /*@GameTest(template = "new_age_thaum:empty")
+    *///?}
+    public void gridIsFullyConnected(GameTestHelper helper) {
+        // A breadth-first walk from any cell must reach every cell — a subdivision bug
+        // could leave a locally-valid but disconnected island, which the count/degree
+        // invariants alone would not catch.
+        for (int f = 1; f <= 4; f++) {
+            GoldbergGrid grid = GoldbergGrid.generate(f);
+            boolean[] seen = new boolean[grid.size()];
+            java.util.ArrayDeque<Integer> queue = new java.util.ArrayDeque<>();
+            seen[0] = true;
+            queue.add(0);
+            int reached = 1;
+            while (!queue.isEmpty()) {
+                for (int neighbor : grid.cell(queue.poll()).neighbors()) {
+                    if (!seen[neighbor]) {
+                        seen[neighbor] = true;
+                        reached++;
+                        queue.add(neighbor);
+                    }
+                }
+            }
+            helper.assertTrue(reached == grid.size(),
+                    "f=" + f + " grid is disconnected: reached " + reached + " of " + grid.size() + " cells");
+        }
+        helper.succeed();
+    }
 }
