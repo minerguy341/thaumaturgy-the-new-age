@@ -42,11 +42,17 @@ public final class AspectRegistry {
 
     /** Replace contents from a reload or a server sync. Returns the accepted map size. */
     public static int reload(Map<ResourceLocation, Aspect> incoming) {
-        aspects = Map.copyOf(validate(incoming));
+        aspects = Map.copyOf(filterValid(incoming));
         return aspects.size();
     }
 
-    private static Map<ResourceLocation, Aspect> validate(Map<ResourceLocation, Aspect> incoming) {
+    /**
+     * Returns the subset of {@code incoming} that forms a valid aspect graph, dropping
+     * (with a log line) any aspect whose component count is wrong, whose components are
+     * missing, or that sits on a cycle — cascading, so a compound that loses a component
+     * is dropped too. Pure: does not touch the live registry, so it is directly testable.
+     */
+    public static Map<ResourceLocation, Aspect> filterValid(Map<ResourceLocation, Aspect> incoming) {
         Map<ResourceLocation, Aspect> valid = new HashMap<>(incoming);
 
         boolean changed = true;
