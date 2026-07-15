@@ -20,6 +20,7 @@ public final class NewAgeThaumClient {
     }
 
     public static void init() {
+        WandColors.register();
         ClientTooltipEvent.ITEM.register((stack, lines, context, flag) -> {
             var level = Minecraft.getInstance().level;
             if (level == null) {

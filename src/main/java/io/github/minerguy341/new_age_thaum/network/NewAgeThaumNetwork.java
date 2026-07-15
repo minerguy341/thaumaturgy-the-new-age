@@ -47,11 +47,20 @@ public final class NewAgeThaumNetwork {
                         }
                         io.github.minerguy341.new_age_thaum.core.codex.CodexRegistry.reload(incoming);
                     });
+            NetworkManager.registerReceiver(NetworkManager.s2c(), WandMaterialSyncPayload.TYPE, WandMaterialSyncPayload.STREAM_CODEC,
+                    (payload, context) -> {
+                        Map<ResourceLocation, io.github.minerguy341.new_age_thaum.core.casting.WandMaterial> incoming = new HashMap<>();
+                        for (var material : payload.materials()) {
+                            incoming.put(material.id(), material);
+                        }
+                        io.github.minerguy341.new_age_thaum.core.casting.WandMaterialRegistry.reload(incoming);
+                    });
         } else {
             NetworkManager.registerS2CPayloadType(AspectSyncPayload.TYPE, AspectSyncPayload.STREAM_CODEC);
             NetworkManager.registerS2CPayloadType(AssignmentSyncPayload.TYPE, AssignmentSyncPayload.STREAM_CODEC);
             NetworkManager.registerS2CPayloadType(PlayerProgressSyncPayload.TYPE, PlayerProgressSyncPayload.STREAM_CODEC);
             NetworkManager.registerS2CPayloadType(CodexSyncPayload.TYPE, CodexSyncPayload.STREAM_CODEC);
+            NetworkManager.registerS2CPayloadType(WandMaterialSyncPayload.TYPE, WandMaterialSyncPayload.STREAM_CODEC);
         }
     }
 
@@ -78,6 +87,19 @@ public final class NewAgeThaumNetwork {
     public static void syncCodexToAll(MinecraftServer server) {
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             syncCodexTo(player);
+        }
+    }
+
+    public static void syncWandMaterialsTo(ServerPlayer player) {
+        sendIfPossible(player,
+                new WandMaterialSyncPayload(List.copyOf(
+                        io.github.minerguy341.new_age_thaum.core.casting.WandMaterialRegistry.all())),
+                WandMaterialSyncPayload.TYPE);
+    }
+
+    public static void syncWandMaterialsToAll(MinecraftServer server) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            syncWandMaterialsTo(player);
         }
     }
 
