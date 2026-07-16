@@ -16,7 +16,11 @@ import net.minecraft.resources.ResourceLocation;
  * ColorHandlerRegistry. Client-only; registered from {@link NewAgeThaumClient}.
  */
 public final class WandColors {
-    private static final int UNTINTED = 0xFFFFFF;
+    // Full-alpha white. Tint colors MUST carry alpha 0xFF: the 1.21 item renderer reads
+    // the tint as ARGB, so a color like 0x007A5B3C (alpha 0) renders the face fully
+    // transparent — the whole tinted model turns invisible with no error logged.
+    private static final int UNTINTED = 0xFFFFFFFF;
+    private static final int OPAQUE = 0xFF000000;
 
     private WandColors() {
     }
@@ -53,6 +57,6 @@ public final class WandColors {
         if (materialId == null) {
             return UNTINTED;
         }
-        return WandMaterialRegistry.get(materialId).map(WandMaterial::color).orElse(UNTINTED);
+        return WandMaterialRegistry.get(materialId).map(m -> OPAQUE | m.color()).orElse(UNTINTED);
     }
 }
