@@ -1,6 +1,3 @@
 {
-  "parent": "minecraft:item/generated",
-  "textures": {
-    "layer0": "new_age_thaum:item/wand_cap_tip"
-  }
+  "parent": "new_age_thaum:item/wand_cap_base"
 }
