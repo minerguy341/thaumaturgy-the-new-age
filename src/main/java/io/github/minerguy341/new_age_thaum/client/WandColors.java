@@ -22,6 +22,10 @@ public final class WandColors {
     }
 
     public static void register() {
+        // Pass the RegistrySuppliers, not .get(): the Supplier overload resolves the
+        // items lazily at the color-registration event, which fires AFTER item
+        // registration. Resolving eagerly here crashes on NeoForge (items are still
+        // being registered while this runs during client setup).
         ColorHandlerRegistry.registerItemColors((stack, tintIndex) -> {
             WandComponent component = stack.get(ModComponents.WAND.get());
             if (component == null) {
@@ -34,15 +38,15 @@ public final class WandColors {
                 default -> null;
             };
             return colorOf(materialId);
-        }, ModRegistries.WAND.get(), ModRegistries.STAVE.get());
+        }, ModRegistries.WAND, ModRegistries.STAVE);
 
         ColorHandlerRegistry.registerItemColors((stack, tintIndex) -> {
             if (tintIndex != 0 || !(stack.getItem() instanceof WandPartItem part)) {
                 return UNTINTED;
             }
             return colorOf(part.materialId());
-        }, ModRegistries.GREATWOOD_ROD.get(), ModRegistries.SILVERWOOD_ROD.get(),
-                ModRegistries.BRASS_CAP.get(), ModRegistries.AETHERIUM_CAP.get());
+        }, ModRegistries.GREATWOOD_ROD, ModRegistries.SILVERWOOD_ROD,
+                ModRegistries.BRASS_CAP, ModRegistries.AETHERIUM_CAP);
     }
 
     private static int colorOf(ResourceLocation materialId) {

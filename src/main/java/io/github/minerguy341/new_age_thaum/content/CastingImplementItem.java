@@ -23,7 +23,10 @@ public class CastingImplementItem extends Item {
     private final WandForm form;
 
     public CastingImplementItem(Properties properties, WandForm form) {
-        super(properties.stacksTo(1).component(ModComponents.WAND.get(), null));
+        // Do NOT reference ModComponents here: the data-component registry may not be
+        // populated yet while items are being constructed (client-side registration
+        // order). The WAND component is optional and set at assembly time.
+        super(properties.stacksTo(1));
         this.form = form;
     }
 
