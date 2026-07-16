@@ -44,7 +44,9 @@ public class CodexScreen extends Screen {
     }
 
     private int iconY(CodexEntry entry) {
-        return panelTop + 32 + entry.y() * CELL;
+        // Start the node grid well below the category label (drawn at panelTop + 26)
+        // so the icons don't sit on top of it.
+        return panelTop + 48 + entry.y() * CELL;
     }
 
     @Override
