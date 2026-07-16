@@ -25,7 +25,8 @@
       "${group}.gametest.AetherlensGameTest",
       "${group}.gametest.CodexGameTest",
       "${group}.gametest.AspectValidationGameTest",
-      "${group}.gametest.AspectBagGameTest"
+      "${group}.gametest.AspectBagGameTest",
+      "${group}.gametest.WandAssemblyGameTest"
     ]
   },
   "depends": {

@@ -34,6 +34,7 @@ public final class NewAgeThaum {
                 platform.loaderName(), platform.isDevelopmentEnvironment());
 
         ModRegistries.init();
+        io.github.minerguy341.new_age_thaum.core.ModRecipes.init();
         NewAgeThaumNetwork.init();
         ReloadListenerRegistry.register(PackType.SERVER_DATA, new AspectReloadListener(),
                 ResourceLocation.fromNamespaceAndPath(MOD_ID, "aspects"));
@@ -41,10 +42,14 @@ public final class NewAgeThaum {
                 ResourceLocation.fromNamespaceAndPath(MOD_ID, "aspect_assignments"));
         ReloadListenerRegistry.register(PackType.SERVER_DATA, new CodexReloadListener(),
                 ResourceLocation.fromNamespaceAndPath(MOD_ID, "codex_entries"));
+        ReloadListenerRegistry.register(PackType.SERVER_DATA,
+                new io.github.minerguy341.new_age_thaum.core.casting.WandMaterialReloadListener(),
+                ResourceLocation.fromNamespaceAndPath(MOD_ID, "wand_materials"));
         PlayerEvent.PLAYER_JOIN.register(player -> {
             NewAgeThaumNetwork.syncAspectsTo(player);
             NewAgeThaumNetwork.syncAssignmentsTo(player);
             NewAgeThaumNetwork.syncCodexTo(player);
+            NewAgeThaumNetwork.syncWandMaterialsTo(player);
             io.github.minerguy341.new_age_thaum.core.player.PlayerProgressService.syncOnJoin(player);
         });
         dev.architectury.utils.EnvExecutor.runInEnv(dev.architectury.utils.Env.CLIENT,
