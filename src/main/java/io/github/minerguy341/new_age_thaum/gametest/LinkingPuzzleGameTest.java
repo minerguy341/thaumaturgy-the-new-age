@@ -9,11 +9,12 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
- * Puzzle rules over the real loaded aspect set. Lumen = Flamma + Ventus, so Lumen is
- * related to each of its components but the two primals are not related to each other —
- * the canonical shape of the adjacency constraint.
+ * Rule model: unrelated adjacency is ignored (not an error); a filled cell is "linked"
+ * iff at least one neighbor holds a related aspect; unlinked cells are what surfaces
+ * grey out. Lumen = Flamma + Ventus is the canonical relatedness triple.
  */
 //? if neoforge {
 @net.neoforged.neoforge.gametest.GameTestHolder(NewAgeThaum.MOD_ID)
@@ -35,7 +36,8 @@ public class LinkingPuzzleGameTest {
         ResourceLocation flamma = aspect("flamma");
         ResourceLocation ventus = aspect("ventus");
 
-        helper.assertTrue(AspectRelations.related(flamma, flamma), "An aspect is related to itself");
+        helper.assertFalse(AspectRelations.related(flamma, flamma),
+                "Identical aspects do not link — a link is a derivation step, not repetition");
         helper.assertTrue(AspectRelations.related(lumen, flamma), "Lumen is related to its component Flamma");
         helper.assertTrue(AspectRelations.related(ventus, lumen), "Relatedness is symmetric (Ventus/Lumen)");
         helper.assertFalse(AspectRelations.related(flamma, ventus), "Sibling primals are not related");
@@ -47,20 +49,19 @@ public class LinkingPuzzleGameTest {
     //?} else {
     /*@GameTest(template = "new_age_thaum:empty")
     *///?}
-    public void adjacentUnrelatedAspectsConflict(GameTestHelper helper) {
+    public void unrelatedNeighborsAreIgnoredNotErrors(GameTestHelper helper) {
         GoldbergGrid grid = GoldbergGrid.generate(1);
         int a = 0;
         int b = grid.cell(a).neighbors()[0];
-        LinkingPuzzle puzzle = new LinkingPuzzle(grid, Map.of());
 
-        puzzle.place(a, aspect("flamma"));
-        puzzle.place(b, aspect("lumen"));
-        helper.assertTrue(puzzle.isValidPlacement(), "Flamma next to its compound Lumen is a valid link");
+        // Flamma next to unrelated Ventus: no link either way — both merely unlinked.
+        Set<Integer> unlinked = LinkingPuzzle.unlinked(grid, Map.of(a, aspect("flamma"), b, aspect("ventus")));
+        helper.assertTrue(unlinked.contains(a) && unlinked.contains(b) && unlinked.size() == 2,
+                "Unrelated neighbors should both be unlinked (ignored, not errors), got " + unlinked);
 
-        puzzle.place(b, aspect("ventus"));
-        helper.assertFalse(puzzle.isValidPlacement(), "Flamma next to unrelated Ventus is a conflict");
-        helper.assertTrue(puzzle.conflictingCells().contains(a) && puzzle.conflictingCells().contains(b),
-                "Both endpoints of the bad link should be flagged");
+        // Replace Ventus with Lumen: a valid link — both light up.
+        helper.assertTrue(LinkingPuzzle.unlinked(grid, Map.of(a, aspect("flamma"), b, aspect("lumen"))).isEmpty(),
+                "A compound next to its component links both cells");
         helper.succeed();
     }
 
@@ -69,15 +70,78 @@ public class LinkingPuzzleGameTest {
     //?} else {
     /*@GameTest(template = "new_age_thaum:empty")
     *///?}
-    public void filledBoardOfOneAspectIsComplete(GameTestHelper helper) {
+    public void oneValidLinkIsEnough(GameTestHelper helper) {
+        // Jacob's scenario: a cell with one unrelated neighbor AND one related neighbor
+        // counts as linked; only the cell with no valid connection greys out.
         GoldbergGrid grid = GoldbergGrid.generate(1);
+        int a = 0;
+        int b = grid.cell(a).neighbors()[0];
+        int c = -1;
+        for (int candidate : grid.cell(a).neighbors()) {
+            boolean adjacentToB = false;
+            for (int n : grid.cell(candidate).neighbors()) {
+                if (n == b) {
+                    adjacentToB = true;
+                    break;
+                }
+            }
+            if (candidate != b && !adjacentToB) {
+                c = candidate;
+                break;
+            }
+        }
+        helper.assertTrue(c >= 0, "Grid should offer a neighbor of a that is not adjacent to b");
+
+        Set<Integer> unlinked = LinkingPuzzle.unlinked(grid,
+                Map.of(a, aspect("flamma"), b, aspect("ventus"), c, aspect("lumen")));
+        helper.assertTrue(!unlinked.contains(a), "Flamma links via Lumen despite the unrelated Ventus neighbor");
+        helper.assertTrue(!unlinked.contains(c), "Lumen links via Flamma");
+        helper.assertTrue(unlinked.contains(b), "Ventus has no valid connection and should grey out");
+        helper.succeed();
+    }
+
+    //? if neoforge {
+    @GameTest(template = "empty")
+    //?} else {
+    /*@GameTest(template = "new_age_thaum:empty")
+    *///?}
+    public void solitaryAndPredictiveChecks(GameTestHelper helper) {
+        GoldbergGrid grid = GoldbergGrid.generate(1);
+        int a = 0;
+        int b = grid.cell(a).neighbors()[0];
+
+        helper.assertTrue(LinkingPuzzle.unlinked(grid, Map.of(a, aspect("flamma"))).contains(a),
+                "A solitary aspect has no valid connection yet");
+        helper.assertFalse(LinkingPuzzle.wouldLink(grid, Map.of(b, aspect("ventus")), a, aspect("flamma")),
+                "wouldLink is false next to only-unrelated neighbors");
+        helper.assertTrue(LinkingPuzzle.wouldLink(grid, Map.of(b, aspect("lumen")), a, aspect("flamma")),
+                "wouldLink is true next to a related neighbor");
+        helper.succeed();
+    }
+
+    //? if neoforge {
+    @GameTest(template = "empty")
+    //?} else {
+    /*@GameTest(template = "new_age_thaum:empty")
+    *///?}
+    public void sameAspectNeighborsDoNotLink(GameTestHelper helper) {
+        GoldbergGrid grid = GoldbergGrid.generate(1);
+        int a = 0;
+        int b = grid.cell(a).neighbors()[0];
+
+        Set<Integer> unlinked = LinkingPuzzle.unlinked(grid, Map.of(a, aspect("flamma"), b, aspect("flamma")));
+        helper.assertTrue(unlinked.contains(a) && unlinked.contains(b),
+                "Two adjacent identical aspects must both stay unlinked, got " + unlinked);
+        helper.assertFalse(LinkingPuzzle.wouldLink(grid, Map.of(b, aspect("flamma")), a, aspect("flamma")),
+                "wouldLink must be false next to the same aspect");
+
         LinkingPuzzle puzzle = new LinkingPuzzle(grid, Map.of());
         helper.assertFalse(puzzle.isComplete(), "An empty board is not complete");
-
         for (GoldbergGrid.Cell cell : grid.cells()) {
             puzzle.place(cell.index(), aspect("flamma"));
         }
-        helper.assertTrue(puzzle.isComplete(), "A board filled with one aspect links to itself everywhere");
+        helper.assertFalse(puzzle.isComplete(),
+                "A board of one repeated aspect has no derivation links and is not complete");
         helper.succeed();
     }
 

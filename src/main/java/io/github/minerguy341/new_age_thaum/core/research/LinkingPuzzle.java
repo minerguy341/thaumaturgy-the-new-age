@@ -10,10 +10,12 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * The research linking puzzle, surface-agnostic (PLAN.md §4.2): a {@link GoldbergGrid}
- * seeded with fixed endpoint aspects that the player fills in, where every pair of
- * adjacent filled cells must be {@link AspectRelations#related related}. The globe
- * renderer and the flat-grid MVP both drive this same model — it holds no UI state.
+ * The research linking puzzle, surface-agnostic (PLAN.md §4.2). Rule model (Jacob,
+ * 2026-07-16): adjacency between unrelated aspects is simply NOT a link — it is ignored,
+ * not an error. A placed aspect is "linked" when at least one neighbor holds a
+ * {@link AspectRelations#related related} aspect; cells with no valid connection are the
+ * ones a surface should grey out. The globe renderer and any flat-grid MVP both drive
+ * this same model — it holds no UI state.
  */
 public final class LinkingPuzzle {
     private final GoldbergGrid grid;
@@ -51,40 +53,62 @@ public final class LinkingPuzzle {
         return placed.remove(cellIndex) != null;
     }
 
-    /** True if no two adjacent filled cells hold unrelated aspects. */
-    public boolean isValidPlacement() {
-        return conflictingCells().isEmpty();
+    /** Filled cells (fixed + placed) that have no valid connection to any neighbor. */
+    public Set<Integer> unlinkedCells() {
+        return unlinked(grid, combined());
     }
 
-    /** True once every cell is filled and the whole board is conflict-free. */
+    /** True when every filled cell participates in at least one valid link. */
+    public boolean isFullyLinked() {
+        return unlinkedCells().isEmpty();
+    }
+
+    /** True once every cell on the sphere is filled and fully linked. */
     public boolean isComplete() {
         for (GoldbergGrid.Cell cell : grid.cells()) {
             if (aspectAt(cell.index()) == null) {
                 return false;
             }
         }
-        return isValidPlacement();
+        return isFullyLinked();
     }
 
-    /** Every cell that participates in at least one unrelated-adjacent pair. */
-    public Set<Integer> conflictingCells() {
-        Set<Integer> conflicts = new HashSet<>();
-        for (GoldbergGrid.Cell cell : grid.cells()) {
-            ResourceLocation here = aspectAt(cell.index());
-            if (here == null) {
-                continue;
-            }
-            for (int neighbor : cell.neighbors()) {
-                if (neighbor <= cell.index()) {
-                    continue; // consider each edge once
-                }
-                ResourceLocation there = aspectAt(neighbor);
-                if (there != null && !AspectRelations.related(here, there)) {
-                    conflicts.add(cell.index());
-                    conflicts.add(neighbor);
-                }
+    private Map<Integer, ResourceLocation> combined() {
+        Map<Integer, ResourceLocation> combined = new HashMap<>(placed);
+        combined.putAll(fixed);
+        return combined;
+    }
+
+    // --- pure rule API (any surface can consume a raw cell map) -----------------
+
+    /**
+     * Every filled cell of {@code cells} with no related filled neighbor — including
+     * solitary cells with no filled neighbors at all. Unrelated adjacencies are ignored.
+     */
+    public static Set<Integer> unlinked(GoldbergGrid grid, Map<Integer, ResourceLocation> cells) {
+        Set<Integer> unlinked = new HashSet<>();
+        for (Map.Entry<Integer, ResourceLocation> entry : cells.entrySet()) {
+            if (!isLinked(grid, cells, entry.getKey(), entry.getValue())) {
+                unlinked.add(entry.getKey());
             }
         }
-        return conflicts;
+        return unlinked;
+    }
+
+    /** Would placing {@code aspect} at {@code cellIndex} immediately have a valid link? */
+    public static boolean wouldLink(GoldbergGrid grid, Map<Integer, ResourceLocation> cells,
+            int cellIndex, ResourceLocation aspect) {
+        return isLinked(grid, cells, cellIndex, aspect);
+    }
+
+    private static boolean isLinked(GoldbergGrid grid, Map<Integer, ResourceLocation> cells,
+            int cellIndex, ResourceLocation aspect) {
+        for (int neighbor : grid.cell(cellIndex).neighbors()) {
+            ResourceLocation there = cells.get(neighbor);
+            if (there != null && AspectRelations.related(aspect, there)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

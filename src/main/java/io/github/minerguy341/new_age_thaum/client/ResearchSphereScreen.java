@@ -16,9 +16,13 @@ import io.github.minerguy341.new_age_thaum.core.aspect.AspectRegistry;
 import io.github.minerguy341.new_age_thaum.core.research.grid.GoldbergGrid;
 import io.github.minerguy341.new_age_thaum.network.NewAgeThaumNetwork;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.resources.sounds.SimpleSoundInstance;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundEvents;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -170,7 +174,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         super.render(graphics, mouseX, mouseY, partialTick);
         graphics.flush();
-        renderSphere(graphics);
+        renderSphere(graphics, mouseX, mouseY);
         if (!hasPaper()) {
             Component hint = Component.translatable("screen.new_age_thaum.insert_paper");
             graphics.drawCenteredString(this.font, hint, (int) sphereCx,
@@ -217,8 +221,22 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         }
     }
 
-    private void renderSphere(GuiGraphics graphics) {
+    private void renderSphere(GuiGraphics graphics, int mouseX, int mouseY) {
         Map<Integer, ResourceLocation> placed = placedMap();
+        java.util.Set<Integer> unlinked = unlinkedFor(placed);
+
+        // Drop preview: while dragging, the target cell gets a rim — white when the drop
+        // would immediately link to a related neighbor, dim grey when it would sit unlinked.
+        int previewCell = -1;
+        boolean previewLinks = false;
+        if (dragging != null && hasPaper() && inSphere(mouseX, mouseY)) {
+            previewCell = pickCell(mouseX, mouseY);
+            if (previewCell >= 0) {
+                previewLinks = io.github.minerguy341.new_age_thaum.core.research.LinkingPuzzle
+                        .wouldLink(grid, placed, previewCell, dragging);
+            }
+        }
+
         List<GoldbergGrid.Cell> front = new ArrayList<>();
         for (GoldbergGrid.Cell cell : grid.cells()) {
             if (rotate(cell.x(), cell.y(), cell.z()).z > 0) {
@@ -236,25 +254,27 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
 
         for (GoldbergGrid.Cell cell : front) {
             int rgb = placed.containsKey(cell.index()) ? colorOf(placed.get(cell.index())) : EMPTY_CELL;
-            int r = (rgb >> 16) & 0xFF;
-            int g = (rgb >> 8) & 0xFF;
-            int b = rgb & 0xFF;
+            // No valid connection -> greyed out (unrelated neighbors are ignored, not errors).
+            if (unlinked.contains(cell.index())) {
+                rgb = blend(rgb, 0x45434E, 0.65);
+            }
 
             double[] pc = project(rotate(cell.x(), cell.y(), cell.z()));
             double[][] corners = cell.corners();
             int n = corners.length;
+            double[][] full = new double[n][];
             double[][] pts = new double[n][];
             for (int i = 0; i < n; i++) {
                 double[] p = project(rotate(corners[i][0], corners[i][1], corners[i][2]));
+                full[i] = p;
                 pts[i] = new double[]{pc[0] + (p[0] - pc[0]) * CELL_SHRINK, pc[1] + (p[1] - pc[1]) * CELL_SHRINK};
             }
-            for (int i = 0; i < n; i++) {
-                double[] p1 = pts[i];
-                double[] p2 = pts[(i + 1) % n];
-                buffer.addVertex(matrix, (float) pc[0], (float) pc[1], 0).setColor(r, g, b, 255);
-                buffer.addVertex(matrix, (float) p1[0], (float) p1[1], 0).setColor(r, g, b, 255);
-                buffer.addVertex(matrix, (float) p2[0], (float) p2[1], 0).setColor(r, g, b, 255);
+
+            // Preview rim first (full, un-shrunk face), fill on top.
+            if (cell.index() == previewCell) {
+                addPolygon(buffer, matrix, pc, full, previewLinks ? 0xFFFFFF : 0x8A8794, 200);
             }
+            addPolygon(buffer, matrix, pc, pts, rgb, 255);
         }
 
         MeshData mesh = buffer.build();
@@ -262,6 +282,40 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             BufferUploader.drawWithShader(mesh);
         }
         RenderSystem.disableBlend();
+    }
+
+    private void addPolygon(BufferBuilder buffer, Matrix4f matrix, double[] center, double[][] pts,
+            int rgb, int alpha) {
+        int r = (rgb >> 16) & 0xFF;
+        int g = (rgb >> 8) & 0xFF;
+        int b = rgb & 0xFF;
+        int n = pts.length;
+        for (int i = 0; i < n; i++) {
+            double[] p1 = pts[i];
+            double[] p2 = pts[(i + 1) % n];
+            buffer.addVertex(matrix, (float) center[0], (float) center[1], 0).setColor(r, g, b, alpha);
+            buffer.addVertex(matrix, (float) p1[0], (float) p1[1], 0).setColor(r, g, b, alpha);
+            buffer.addVertex(matrix, (float) p2[0], (float) p2[1], 0).setColor(r, g, b, alpha);
+        }
+    }
+
+    private static int blend(int from, int to, double factor) {
+        int r = (int) (((from >> 16) & 0xFF) * (1 - factor) + ((to >> 16) & 0xFF) * factor);
+        int g = (int) (((from >> 8) & 0xFF) * (1 - factor) + ((to >> 8) & 0xFF) * factor);
+        int b = (int) ((from & 0xFF) * (1 - factor) + (to & 0xFF) * factor);
+        return (r << 16) | (g << 8) | b;
+    }
+
+    // Unlinked cells recomputed only when the paper's sphere data actually changes.
+    private Map<Integer, ResourceLocation> lastLinkInput;
+    private java.util.Set<Integer> lastUnlinked = java.util.Set.of();
+
+    private java.util.Set<Integer> unlinkedFor(Map<Integer, ResourceLocation> placed) {
+        if (!placed.equals(lastLinkInput)) {
+            lastLinkInput = Map.copyOf(placed);
+            lastUnlinked = io.github.minerguy341.new_age_thaum.core.research.LinkingPuzzle.unlinked(grid, placed);
+        }
+        return lastUnlinked;
     }
 
     private List<Component> tooltipFor(ResourceLocation id) {
@@ -330,6 +384,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             ResourceLocation id = aspectRowAt(mouseX, mouseY);
             if (id != null && button == 0) {
                 dragging = id;
+                playUi(SoundEvents.ITEM_PICKUP, 1.3f);
                 return true;
             }
         } else if (inSphere(mouseX, mouseY)) {
@@ -390,12 +445,16 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
 
     private void paintCell(int cell, ResourceLocation aspect) {
         if (!hasPaper()) {
+            // Audible refusal — a silent no-op here reads as "placement is broken".
+            playUi(SoundEvents.VILLAGER_NO, 1.0f);
             return;
         }
         net.minecraft.world.item.ItemStack paper = paperStack();
         paper.set(ModComponents.RESEARCH_SPHERE.get(),
                 paper.getOrDefault(ModComponents.RESEARCH_SPHERE.get(), ResearchSphereData.EMPTY).with(cell, aspect));
         NewAgeThaumNetwork.sendOrreryEdit(this.menu.pos(), cell, Optional.of(aspect));
+        // Each aspect chimes at its own pitch.
+        playUi(SoundEvents.AMETHYST_CLUSTER_PLACE, 0.9f + Math.floorMod(aspect.hashCode(), 6) * 0.08f);
     }
 
     private void clearCell(int cell) {
@@ -484,6 +543,10 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
 
     private double[] project(Vector3f rotated) {
         return new double[]{sphereCx + rotated.x * sphereR, sphereCy - rotated.y * sphereR};
+    }
+
+    private static void playUi(SoundEvent sound, float pitch) {
+        Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(sound, pitch));
     }
 
     private static int colorOf(ResourceLocation aspectId) {
