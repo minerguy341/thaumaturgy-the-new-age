@@ -339,8 +339,11 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             }
             double[] p1 = project(ra);
             double[] p2 = project(rb);
-            int c1 = colorOf(placed.get(from));
-            int c2 = colorOf(placed.get(to));
+            boolean custom = io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.customCurrentColors();
+            int c1 = custom ? io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.currentBaseColor
+                    : colorOf(placed.get(from));
+            int c2 = custom ? io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.currentBaseColor
+                    : colorOf(placed.get(to));
             // Chain phase makes crests continue cell-to-cell along the web; the hash
             // jitter keeps parallel links from moving in lockstep.
             int depth = lastFlowDepth.getOrDefault(from, 0);
@@ -400,12 +403,23 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
      * A bright pulse travelling in the flow direction. The wave lives in global chain
      * coordinates (depth + t), so a pulse leaves one link exactly as it enters the
      * next — a continuous relay along the whole web. No per-link jitter here.
+     * In custom color mode the pulse itself grades pulseFrom→pulseTo with intensity.
      */
     private static int glinted(int rgb, double t, double time, double speed, int chainDepth) {
         double s = (chainDepth + t) / GLINT_WAVELENGTH;
         double wave = Math.sin(2 * Math.PI * (s - time * speed * 0.5));
-        double glint = Math.pow(Math.max(0, wave), 3) * 0.55;
-        return glint <= 0 ? rgb : blend(rgb, 0xFFFFFF, glint);
+        double strength = Math.pow(Math.max(0, wave), 3);
+        if (strength <= 0) {
+            return rgb;
+        }
+        int pulseColor;
+        if (io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.customCurrentColors()) {
+            pulseColor = blend(io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.currentPulseFrom,
+                    io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.currentPulseTo, strength);
+        } else {
+            pulseColor = 0xFFFFFF;
+        }
+        return blend(rgb, pulseColor, strength * 0.55);
     }
 
     private void quad(BufferBuilder buffer, Matrix4f matrix, double[] l0, double[] r0, double[] r1, double[] l1,
