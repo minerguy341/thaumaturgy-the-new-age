@@ -62,6 +62,35 @@ public final class NewAgeThaumNetwork {
             NetworkManager.registerS2CPayloadType(CodexSyncPayload.TYPE, CodexSyncPayload.STREAM_CODEC);
             NetworkManager.registerS2CPayloadType(WandMaterialSyncPayload.TYPE, WandMaterialSyncPayload.STREAM_CODEC);
         }
+
+        // C2S: registered on both sides (client needs the type to send; the handler only
+        // runs server-side). Reads happen on the game thread via context.queue.
+        // The paper slot needs no custom packet: it is a real menu slot now.
+        NetworkManager.registerReceiver(NetworkManager.c2s(), OrreryEditPayload.TYPE, OrreryEditPayload.STREAM_CODEC,
+                (payload, context) -> context.queue(() -> handleOrreryEdit(payload, context)));
+    }
+
+    private static io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity orreryInReach(
+            NetworkManager.PacketContext context, net.minecraft.core.BlockPos pos) {
+        if (!(context.getPlayer() instanceof ServerPlayer player)) {
+            return null;
+        }
+        if (player.distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(pos)) > 64.0) {
+            return null;
+        }
+        return player.level().getBlockEntity(pos)
+                instanceof io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity orrery ? orrery : null;
+    }
+
+    private static void handleOrreryEdit(OrreryEditPayload payload, NetworkManager.PacketContext context) {
+        var orrery = orreryInReach(context, payload.pos());
+        if (orrery != null) {
+            orrery.editSphere(payload.cell(), payload.aspect());
+        }
+    }
+
+    public static void sendOrreryEdit(net.minecraft.core.BlockPos pos, int cell, java.util.Optional<ResourceLocation> aspect) {
+        NetworkManager.sendToServer(new OrreryEditPayload(pos, cell, aspect));
     }
 
     /**

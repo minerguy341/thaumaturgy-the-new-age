@@ -7,15 +7,20 @@ import io.github.minerguy341.new_age_thaum.NewAgeThaum;
 import io.github.minerguy341.new_age_thaum.content.AetherlensItem;
 import io.github.minerguy341.new_age_thaum.content.CastingImplementItem;
 import io.github.minerguy341.new_age_thaum.content.CodexItem;
+import io.github.minerguy341.new_age_thaum.content.ResearchSphereBlock;
 import io.github.minerguy341.new_age_thaum.content.WandPartItem;
 import io.github.minerguy341.new_age_thaum.core.casting.WandForm;
 import io.github.minerguy341.new_age_thaum.core.casting.WandMaterial;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockBehaviour;
+import net.minecraft.world.level.material.MapColor;
 
 /**
  * All game-object registration goes through Architectury's {@link DeferredRegister}
@@ -28,6 +33,15 @@ public final class ModRegistries {
             DeferredRegister.create(NewAgeThaum.MOD_ID, Registries.CREATIVE_MODE_TAB);
     public static final DeferredRegister<Item> ITEMS =
             DeferredRegister.create(NewAgeThaum.MOD_ID, Registries.ITEM);
+    public static final DeferredRegister<Block> BLOCKS =
+            DeferredRegister.create(NewAgeThaum.MOD_ID, Registries.BLOCK);
+
+    /** Opens the research sphere (linking-puzzle) UI on right-click. */
+    public static final RegistrySupplier<Block> ARCANE_ORRERY = BLOCKS.register("arcane_orrery",
+            () -> new ResearchSphereBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_PURPLE).strength(2.0f).requiresCorrectToolForDrops().lightLevel(s -> 6)));
+    public static final RegistrySupplier<Item> ARCANE_ORRERY_ITEM = ITEMS.register("arcane_orrery",
+            () -> new BlockItem(ARCANE_ORRERY.get(), new Item.Properties()));
 
     /** Throwaway walking-skeleton item; proves DeferredRegister works on both loaders. */
     public static final RegistrySupplier<Item> PROOF_OF_FORGE = ITEMS.register("proof_of_forge",
@@ -40,6 +54,10 @@ public final class ModRegistries {
     /** Opens the Codex (progression journal). */
     public static final RegistrySupplier<Item> CODEX = ITEMS.register("codex",
             () -> new CodexItem(new Item.Properties().stacksTo(1)));
+
+    /** Input for the research sphere; each paper is a unique document, so no stacking. */
+    public static final RegistrySupplier<Item> RESEARCH_PAPER = ITEMS.register("research_paper",
+            () -> new Item(new Item.Properties().stacksTo(1)));
 
     // Wand parts: rods (cores) and caps. Each is bound to a wand-material id.
     public static final RegistrySupplier<Item> GREATWOOD_ROD = rod("greatwood_rod", "greatwood");
@@ -58,6 +76,8 @@ public final class ModRegistries {
                     .title(Component.translatable("itemGroup.new_age_thaum.main"))
                     .icon(() -> new ItemStack(WAND.get()))
                     .displayItems((parameters, output) -> {
+                        output.accept(ARCANE_ORRERY_ITEM.get());
+                        output.accept(RESEARCH_PAPER.get());
                         output.accept(WAND.get());
                         output.accept(STAVE.get());
                         output.accept(GREATWOOD_ROD.get());
@@ -84,6 +104,7 @@ public final class ModRegistries {
 
     public static void init() {
         ModComponents.init();
+        BLOCKS.register();
         TABS.register();
         ITEMS.register();
     }

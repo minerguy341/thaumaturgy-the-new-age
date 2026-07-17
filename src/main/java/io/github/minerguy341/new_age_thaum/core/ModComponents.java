@@ -18,6 +18,14 @@ public final class ModComponents {
                     .networkSynchronized(WandComponent.STREAM_CODEC)
                     .build());
 
+    /** The painted research sphere, carried by the research paper itself. */
+    public static final RegistrySupplier<DataComponentType<io.github.minerguy341.new_age_thaum.core.research.ResearchSphereData>> RESEARCH_SPHERE =
+            COMPONENTS.register("research_sphere",
+                    () -> DataComponentType.<io.github.minerguy341.new_age_thaum.core.research.ResearchSphereData>builder()
+                            .persistent(io.github.minerguy341.new_age_thaum.core.research.ResearchSphereData.CODEC)
+                            .networkSynchronized(io.github.minerguy341.new_age_thaum.core.research.ResearchSphereData.STREAM_CODEC)
+                            .build());
+
     private ModComponents() {
     }
 

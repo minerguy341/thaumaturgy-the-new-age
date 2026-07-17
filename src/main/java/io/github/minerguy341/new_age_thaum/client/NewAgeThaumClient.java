@@ -1,6 +1,8 @@
 package io.github.minerguy341.new_age_thaum.client;
 
 import dev.architectury.event.events.client.ClientTooltipEvent;
+import dev.architectury.registry.menu.MenuRegistry;
+import io.github.minerguy341.new_age_thaum.core.ModMenus;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectBag;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectNames;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectResolver;
@@ -21,6 +23,11 @@ public final class NewAgeThaumClient {
 
     public static void init() {
         WandColors.register();
+        // listen() fires the moment the menu type is actually registered: late enough to
+        // avoid the NeoForge early-.get() crash, early enough for RegisterMenuScreensEvent
+        // (CLIENT_SETUP would be too late — the screen factory would never register).
+        ModMenus.ARCANE_ORRERY.listen(type ->
+                MenuRegistry.registerScreenFactory(type, ResearchSphereScreen::new));
         ClientTooltipEvent.ITEM.register((stack, lines, context, flag) -> {
             var level = Minecraft.getInstance().level;
             if (level == null) {

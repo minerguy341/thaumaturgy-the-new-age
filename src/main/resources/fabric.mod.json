@@ -26,7 +26,10 @@
       "${group}.gametest.CodexGameTest",
       "${group}.gametest.AspectValidationGameTest",
       "${group}.gametest.AspectBagGameTest",
-      "${group}.gametest.WandAssemblyGameTest"
+      "${group}.gametest.WandAssemblyGameTest",
+      "${group}.gametest.GoldbergGridGameTest",
+      "${group}.gametest.LinkingPuzzleGameTest",
+      "${group}.gametest.ArcaneOrreryPersistenceGameTest"
     ]
   },
   "depends": {
