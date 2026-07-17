@@ -52,7 +52,12 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     private static final int SWATCH = 12;
     private static final int SCROLLBAR_W = 5;
     private static final int EMPTY_CELL = 0x2A2438;
-    private static final double CELL_SHRINK = 0.86;
+
+    /** Fill shrink derived from the configurable border width (1.0 config = classic 0.86). */
+    private static double cellShrink() {
+        double width = io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.cellBorderWidth;
+        return Math.max(0.5, Math.min(1.0, 1.0 - 0.14 * width));
+    }
     private static final double ROTATE_SPEED = 0.008;
     private static final Quaternionf DEFAULT_ORIENTATION = new Quaternionf().rotateY(0.6f).rotateX(-0.35f);
 
@@ -86,6 +91,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     @Override
     protected void init() {
         super.init();
+        io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.maybeReload();
 
         // Discovery: the six primals are always listed; compounds only once the player
         // has ever earned points of them (m2-gameplay-spec §A).
@@ -260,6 +266,8 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
 
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
+        // The ribbon quads' winding depends on line direction — never let culling eat them.
+        RenderSystem.disableCull();
         RenderSystem.setShader(GameRenderer::getPositionColorShader);
         Matrix4f matrix = graphics.pose().last().pose();
         Tesselator tesselator = Tesselator.getInstance();
@@ -275,12 +283,13 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             double[] pc = project(rotate(cell.x(), cell.y(), cell.z()));
             double[][] corners = cell.corners();
             int n = corners.length;
+            double shrink = cellShrink();
             double[][] full = new double[n][];
             double[][] pts = new double[n][];
             for (int i = 0; i < n; i++) {
                 double[] p = project(rotate(corners[i][0], corners[i][1], corners[i][2]));
                 full[i] = p;
-                pts[i] = new double[]{pc[0] + (p[0] - pc[0]) * CELL_SHRINK, pc[1] + (p[1] - pc[1]) * CELL_SHRINK};
+                pts[i] = new double[]{pc[0] + (p[0] - pc[0]) * shrink, pc[1] + (p[1] - pc[1]) * shrink};
             }
 
             // Preview rim first (full, un-shrunk face), fill on top.
@@ -294,7 +303,125 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         if (mesh != null) {
             BufferUploader.drawWithShader(mesh);
         }
+
+        renderCurrents(matrix, placed);
+        RenderSystem.enableCull();
         RenderSystem.disableBlend();
+    }
+
+    /**
+     * Flowing energy currents between validly linked adjacent cells: an anchored ribbon
+     * distorted by two layered travelling sine waves, colored as a gradient between the
+     * two aspects. Drawn on top of the fills; both cells must face the viewer.
+     */
+    private void renderCurrents(Matrix4f matrix, Map<Integer, ResourceLocation> placed) {
+        List<int[]> pairs = linkedPairsFor(placed);
+        if (pairs.isEmpty()) {
+            return;
+        }
+        double time = net.minecraft.Util.getMillis() / 1000.0;
+        BufferBuilder buffer = Tesselator.getInstance().begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+
+        for (int[] pair : pairs) {
+            // Orient the link downstream: the current flows from lower chain depth to higher.
+            int from = pair[0];
+            int to = pair[1];
+            if (lastFlowDepth.getOrDefault(to, 0) < lastFlowDepth.getOrDefault(from, 0)) {
+                from = pair[1];
+                to = pair[0];
+            }
+            GoldbergGrid.Cell a = grid.cell(from);
+            GoldbergGrid.Cell b = grid.cell(to);
+            Vector3f ra = rotate(a.x(), a.y(), a.z());
+            Vector3f rb = rotate(b.x(), b.y(), b.z());
+            if (ra.z <= 0.05f || rb.z <= 0.05f) {
+                continue;
+            }
+            double[] p1 = project(ra);
+            double[] p2 = project(rb);
+            int c1 = colorOf(placed.get(from));
+            int c2 = colorOf(placed.get(to));
+            // Chain phase makes crests continue cell-to-cell along the web; the hash
+            // jitter keeps parallel links from moving in lockstep.
+            int depth = lastFlowDepth.getOrDefault(from, 0);
+            double chainPhase = depth * 2.2;
+            double jitter = (pair[0] * 31 + pair[1] * 17) % 97 / 97.0 * 0.9;
+            float widthScale = (float) io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.currentWidth;
+            ribbon(buffer, matrix, p1, p2, c1, c2, 3.8f * widthScale, 70, time, chainPhase + jitter, depth);   // soft glow
+            ribbon(buffer, matrix, p1, p2, c1, c2, 1.6f * widthScale, 235, time, chainPhase + jitter, depth);  // bright core
+        }
+
+        MeshData mesh = buffer.build();
+        if (mesh != null) {
+            BufferUploader.drawWithShader(mesh);
+        }
+    }
+
+    private void ribbon(BufferBuilder buffer, Matrix4f matrix, double[] p1, double[] p2,
+            int rgb1, int rgb2, float width, int alpha, double time, double phase, int chainDepth) {
+        double dx = p2[0] - p1[0];
+        double dy = p2[1] - p1[1];
+        double len = Math.hypot(dx, dy);
+        if (len < 1.0e-3) {
+            return;
+        }
+        double nx = -dy / len;
+        double ny = dx / len;
+        final int segments = 10;
+
+        double[][] left = new double[segments + 1][2];
+        double[][] right = new double[segments + 1][2];
+        double amp = io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.currentAmplitude;
+        double speed = io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.currentSpeed;
+        for (int i = 0; i <= segments; i++) {
+            double t = (double) i / segments;
+            // Envelope anchors the current at both cell centres; both waves travel in
+            // the flow direction (phase continues cell-to-cell via the chain phase).
+            double envelope = Math.sin(Math.PI * t);
+            double disp = envelope * amp * (1.9 * Math.sin(2 * Math.PI * 1.3 * t - time * speed * 2.4 + phase)
+                    + 1.1 * Math.sin(2 * Math.PI * 2.7 * t - time * speed * 3.3 + phase * 1.7));
+            double cx = p1[0] + dx * t + nx * disp;
+            double cy = p1[1] + dy * t + ny * disp;
+            double half = width * (0.55 + 0.45 * envelope) / 2.0;
+            left[i] = new double[]{cx + nx * half, cy + ny * half};
+            right[i] = new double[]{cx - nx * half, cy - ny * half};
+        }
+        for (int i = 0; i < segments; i++) {
+            int colA = glinted(blend(rgb1, rgb2, (double) i / segments), (double) i / segments, time, speed, chainDepth);
+            int colB = glinted(blend(rgb1, rgb2, (double) (i + 1) / segments), (double) (i + 1) / segments, time, speed, chainDepth);
+            quad(buffer, matrix, left[i], right[i], right[i + 1], left[i + 1], colA, colB, alpha);
+        }
+    }
+
+    /** Wavelength of the travelling pulse, measured in links of the chain. */
+    private static final double GLINT_WAVELENGTH = 2.6;
+
+    /**
+     * A bright pulse travelling in the flow direction. The wave lives in global chain
+     * coordinates (depth + t), so a pulse leaves one link exactly as it enters the
+     * next — a continuous relay along the whole web. No per-link jitter here.
+     */
+    private static int glinted(int rgb, double t, double time, double speed, int chainDepth) {
+        double s = (chainDepth + t) / GLINT_WAVELENGTH;
+        double wave = Math.sin(2 * Math.PI * (s - time * speed * 0.5));
+        double glint = Math.pow(Math.max(0, wave), 3) * 0.55;
+        return glint <= 0 ? rgb : blend(rgb, 0xFFFFFF, glint);
+    }
+
+    private void quad(BufferBuilder buffer, Matrix4f matrix, double[] l0, double[] r0, double[] r1, double[] l1,
+            int colorNear, int colorFar, int alpha) {
+        int rN = (colorNear >> 16) & 0xFF;
+        int gN = (colorNear >> 8) & 0xFF;
+        int bN = colorNear & 0xFF;
+        int rF = (colorFar >> 16) & 0xFF;
+        int gF = (colorFar >> 8) & 0xFF;
+        int bF = colorFar & 0xFF;
+        buffer.addVertex(matrix, (float) l0[0], (float) l0[1], 0).setColor(rN, gN, bN, alpha);
+        buffer.addVertex(matrix, (float) r0[0], (float) r0[1], 0).setColor(rN, gN, bN, alpha);
+        buffer.addVertex(matrix, (float) r1[0], (float) r1[1], 0).setColor(rF, gF, bF, alpha);
+        buffer.addVertex(matrix, (float) l0[0], (float) l0[1], 0).setColor(rN, gN, bN, alpha);
+        buffer.addVertex(matrix, (float) r1[0], (float) r1[1], 0).setColor(rF, gF, bF, alpha);
+        buffer.addVertex(matrix, (float) l1[0], (float) l1[1], 0).setColor(rF, gF, bF, alpha);
     }
 
     private void addPolygon(BufferBuilder buffer, Matrix4f matrix, double[] center, double[][] pts,
@@ -319,16 +446,68 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         return (r << 16) | (g << 8) | b;
     }
 
-    // Unlinked cells recomputed only when the paper's sphere data actually changes.
+    // Link caches recomputed only when the paper's sphere data actually changes.
     private Map<Integer, ResourceLocation> lastLinkInput;
     private java.util.Set<Integer> lastUnlinked = java.util.Set.of();
+    private List<int[]> lastPairs = List.of();
+    private Map<Integer, Integer> lastFlowDepth = Map.of();
+
+    private void refreshLinkCaches(Map<Integer, ResourceLocation> placed) {
+        if (placed.equals(lastLinkInput)) {
+            return;
+        }
+        lastLinkInput = Map.copyOf(placed);
+        lastUnlinked = io.github.minerguy341.new_age_thaum.core.research.LinkingPuzzle.unlinked(grid, placed);
+        List<int[]> pairs = new ArrayList<>();
+        Map<Integer, List<Integer>> linkAdjacency = new java.util.HashMap<>();
+        for (Map.Entry<Integer, ResourceLocation> entry : placed.entrySet()) {
+            for (int neighbor : grid.cell(entry.getKey()).neighbors()) {
+                if (neighbor <= entry.getKey()) {
+                    continue; // each edge once
+                }
+                ResourceLocation there = placed.get(neighbor);
+                if (there != null && io.github.minerguy341.new_age_thaum.core.aspect.AspectRelations
+                        .related(entry.getValue(), there)) {
+                    pairs.add(new int[]{entry.getKey(), neighbor});
+                    linkAdjacency.computeIfAbsent(entry.getKey(), k -> new ArrayList<>()).add(neighbor);
+                    linkAdjacency.computeIfAbsent(neighbor, k -> new ArrayList<>()).add(entry.getKey());
+                }
+            }
+        }
+        lastPairs = pairs;
+
+        // Flow depths: BFS each link-component from its lowest cell index (the "chain
+        // start" — endpoints will take this role once puzzles exist), so the current's
+        // wave phase propagates outward along the web, branch by branch.
+        Map<Integer, Integer> depth = new java.util.HashMap<>();
+        for (Integer start : linkAdjacency.keySet().stream().sorted().toList()) {
+            if (depth.containsKey(start)) {
+                continue;
+            }
+            depth.put(start, 0);
+            java.util.ArrayDeque<Integer> queue = new java.util.ArrayDeque<>();
+            queue.add(start);
+            while (!queue.isEmpty()) {
+                int current = queue.poll();
+                for (int next : linkAdjacency.get(current)) {
+                    if (!depth.containsKey(next)) {
+                        depth.put(next, depth.get(current) + 1);
+                        queue.add(next);
+                    }
+                }
+            }
+        }
+        lastFlowDepth = depth;
+    }
 
     private java.util.Set<Integer> unlinkedFor(Map<Integer, ResourceLocation> placed) {
-        if (!placed.equals(lastLinkInput)) {
-            lastLinkInput = Map.copyOf(placed);
-            lastUnlinked = io.github.minerguy341.new_age_thaum.core.research.LinkingPuzzle.unlinked(grid, placed);
-        }
+        refreshLinkCaches(placed);
         return lastUnlinked;
+    }
+
+    private List<int[]> linkedPairsFor(Map<Integer, ResourceLocation> placed) {
+        refreshLinkCaches(placed);
+        return lastPairs;
     }
 
     private List<Component> tooltipFor(ResourceLocation id) {

@@ -33,6 +33,7 @@ public final class NewAgeThaum {
         LOGGER.info("PlatformInfo resolved: loader={}, developmentEnvironment={}",
                 platform.loaderName(), platform.isDevelopmentEnvironment());
 
+        io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.load();
         ModRegistries.init();
         io.github.minerguy341.new_age_thaum.core.ModBlockEntities.init();
         io.github.minerguy341.new_age_thaum.core.ModMenus.init();
