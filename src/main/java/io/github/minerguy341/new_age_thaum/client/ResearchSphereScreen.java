@@ -87,9 +87,14 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     protected void init() {
         super.init();
 
+        // Discovery: the six primals are always listed; compounds only once the player
+        // has ever earned points of them (m2-gameplay-spec §A).
         aspects = new ArrayList<>();
+        var progress = ClientPlayerProgress.get();
         for (Aspect aspect : AspectRegistry.all()) {
-            aspects.add(aspect.id());
+            if (aspect.isPrimal() || progress.hasDiscovered(aspect.id())) {
+                aspects.add(aspect.id());
+            }
         }
         aspects.sort(Comparator.comparing((ResourceLocation id) ->
                 AspectRegistry.get(id).map(Aspect::isPrimal).orElse(false) ? 0 : 1)
@@ -195,17 +200,25 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     }
 
     private void renderList(GuiGraphics graphics, int mouseX, int mouseY) {
+        var progress = ClientPlayerProgress.get();
         graphics.enableScissor(listLeft, listTop, listLeft + rowW, listTop + listH);
         int y = listTop - (int) scroll;
         for (ResourceLocation id : aspects) {
             if (y + ROW_HEIGHT >= listTop && y <= listTop + listH) {
+                int points = progress.points(id);
+                boolean broke = points <= 0;
                 boolean hover = mouseX >= listLeft && mouseX < listLeft + rowW && mouseY >= y && mouseY < y + ROW_HEIGHT;
                 if (hover) {
                     graphics.fill(listLeft, y, listLeft + rowW, y + ROW_HEIGHT, 0x40FFFFFF);
                 }
-                graphics.fill(listLeft + 4, y + 3, listLeft + 4 + SWATCH, y + 3 + SWATCH, 0xFF000000 | colorOf(id));
+                int swatch = broke ? blend(colorOf(id), 0x1A1524, 0.6) : colorOf(id);
+                graphics.fill(listLeft + 4, y + 3, listLeft + 4 + SWATCH, y + 3 + SWATCH, 0xFF000000 | swatch);
                 graphics.renderOutline(listLeft + 4, y + 3, SWATCH, SWATCH, 0xFF000000);
-                graphics.drawString(this.font, AspectNames.displayName(id), listLeft + 22, y + 5, 0xD8CCEE, false);
+                graphics.drawString(this.font, AspectNames.displayName(id), listLeft + 22, y + 5,
+                        broke ? 0x5F5876 : 0xD8CCEE, false);
+                String count = String.valueOf(points);
+                graphics.drawString(this.font, count, listLeft + rowW - 4 - this.font.width(count), y + 5,
+                        broke ? 0x4A4560 : 0x9A8CBF, false);
             }
             y += ROW_HEIGHT;
         }
@@ -444,8 +457,9 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     // --- edits (optimistic client + C2S; server persists onto the paper) --------
 
     private void paintCell(int cell, ResourceLocation aspect) {
-        if (!hasPaper()) {
+        if (!hasPaper() || ClientPlayerProgress.get().points(aspect) < 1) {
             // Audible refusal — a silent no-op here reads as "placement is broken".
+            // No paper, or can't afford the 1-point placement cost (server re-checks).
             playUi(SoundEvents.VILLAGER_NO, 1.0f);
             return;
         }

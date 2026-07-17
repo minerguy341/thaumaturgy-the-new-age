@@ -46,4 +46,30 @@ public final class PlayerProgressService {
     public static void syncOnJoin(ServerPlayer player) {
         NewAgeThaumNetwork.syncProgressTo(player, get(player));
     }
+
+    /**
+     * Spends observation points if the balance allows. Returns false (no change)
+     * when the player cannot afford it.
+     */
+    public static boolean trySpend(ServerPlayer player, net.minecraft.resources.ResourceLocation aspect, int amount) {
+        PlayerProgress spent = get(player).withSpent(aspect, amount);
+        if (spent == null) {
+            return false;
+        }
+        set(player, spent);
+        return true;
+    }
+
+    /**
+     * Design seam for the future research unlock that grants a small chance to refund
+     * a cleared aspect (m2-gameplay-spec §A). Always 0 until that research exists.
+     */
+    public static double refundChance(ServerPlayer player) {
+        return 0.0;
+    }
+
+    /** Grants points without a scan (refunds, future rewards). */
+    public static void scanlessGrant(ServerPlayer player, net.minecraft.resources.ResourceLocation aspect, int amount) {
+        set(player, get(player).withGained(aspect, amount));
+    }
 }

@@ -84,9 +84,45 @@ public final class NewAgeThaumNetwork {
 
     private static void handleOrreryEdit(OrreryEditPayload payload, NetworkManager.PacketContext context) {
         var orrery = orreryInReach(context, payload.pos());
-        if (orrery != null) {
-            orrery.editSphere(payload.cell(), payload.aspect());
+        if (orrery == null || !(context.getPlayer() instanceof ServerPlayer player)) {
+            return;
         }
+        if (!applyOrreryEdit(player, orrery, payload.cell(), payload.aspect())) {
+            // Rejected (can't afford / no paper / unknown aspect): the client painted
+            // optimistically, so force a full menu resync to roll it back.
+            player.containerMenu.broadcastFullState();
+        }
+    }
+
+    /**
+     * The authoritative edit: placing costs 1 observation point of the placed aspect
+     * (m2-gameplay-spec §A — repainting pays for the new aspect, the old is lost);
+     * clearing refunds only via the future research seam ({@code refundChance}, 0 now).
+     * Public so gametests can drive the exact server path.
+     */
+    public static boolean applyOrreryEdit(ServerPlayer player,
+            io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity orrery,
+            int cell, java.util.Optional<ResourceLocation> aspect) {
+        if (!orrery.canEditSphere()) {
+            return false;
+        }
+        if (aspect.isPresent()) {
+            if (!AspectRegistry.exists(aspect.get())) {
+                return false;
+            }
+            if (!io.github.minerguy341.new_age_thaum.core.player.PlayerProgressService.trySpend(player, aspect.get(), 1)) {
+                return false;
+            }
+            orrery.editSphere(cell, aspect);
+            return true;
+        }
+        ResourceLocation cleared = orrery.aspectAt(cell);
+        orrery.editSphere(cell, aspect);
+        if (cleared != null && player.getRandom().nextDouble()
+                < io.github.minerguy341.new_age_thaum.core.player.PlayerProgressService.refundChance(player)) {
+            io.github.minerguy341.new_age_thaum.core.player.PlayerProgressService.scanlessGrant(player, cleared, 1);
+        }
+        return true;
     }
 
     public static void sendOrreryEdit(net.minecraft.core.BlockPos pos, int cell, java.util.Optional<ResourceLocation> aspect) {

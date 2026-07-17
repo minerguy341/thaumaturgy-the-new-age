@@ -42,9 +42,20 @@ public class ArcaneOrreryBlockEntity extends BlockEntity implements Container {
         sync();
     }
 
+    /** True when the slot holds a research paper whose sphere can be edited. */
+    public boolean canEditSphere() {
+        return paper.is(ModRegistries.RESEARCH_PAPER.get());
+    }
+
+    /** The aspect currently painted at {@code cell}, or null. */
+    public ResourceLocation aspectAt(int cell) {
+        return paper.getOrDefault(ModComponents.RESEARCH_SPHERE.get(), ResearchSphereData.EMPTY)
+                .cells().get(cell);
+    }
+
     /** Paints (aspect present) or clears (empty) a cell on the held paper's sphere. */
     public void editSphere(int cell, Optional<ResourceLocation> aspect) {
-        if (!paper.is(ModRegistries.RESEARCH_PAPER.get())) {
+        if (!canEditSphere()) {
             return;
         }
         ResearchSphereData data = paper.getOrDefault(ModComponents.RESEARCH_SPHERE.get(), ResearchSphereData.EMPTY);
