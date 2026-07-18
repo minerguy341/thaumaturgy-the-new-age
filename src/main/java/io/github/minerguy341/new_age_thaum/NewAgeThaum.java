@@ -66,7 +66,7 @@ public final class NewAgeThaum {
         PlayerEvent.PLAYER_JOIN.register(NewAgeThaum::syncAllTo);
         // Respawn rebuilds the client player: resync so the mirrors can't go stale
         // (and so any client-side reset around the respawn edge heals immediately).
-        PlayerEvent.PLAYER_RESPAWN.register((player, conqueredEnd) -> syncAllTo(player));
+        PlayerEvent.PLAYER_RESPAWN.register((player, conqueredEnd, removalReason) -> syncAllTo(player));
         dev.architectury.utils.EnvExecutor.runInEnv(dev.architectury.utils.Env.CLIENT,
                 () -> io.github.minerguy341.new_age_thaum.client.NewAgeThaumClient::init);
     }
