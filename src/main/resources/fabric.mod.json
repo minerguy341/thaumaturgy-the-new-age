@@ -33,7 +33,8 @@
       "${group}.gametest.AspectEconomyGameTest",
       "${group}.gametest.PuzzleGeneratorGameTest",
       "${group}.gametest.OrrerySolveGameTest",
-      "${group}.gametest.OrreryValidationGameTest"
+      "${group}.gametest.OrreryValidationGameTest",
+      "${group}.gametest.AuraGameTest"
     ]
   },
   "depends": {
