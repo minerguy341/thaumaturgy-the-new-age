@@ -52,9 +52,14 @@ public class AuraNodeRenderer implements BlockEntityRenderer<AuraNodeBlockEntity
         float toCamZ = (float) (camera.getPosition().z - (origin.getZ() + 0.5));
         Quaternionf facing;
         if (toCamX * toCamX + toCamY * toCamY + toCamZ * toCamZ > 1.0e-6f) {
-            // Local +Z ends up pointing away from the camera, same convention as the
-            // screen-aligned billboard, so the far-to-near layer depths below still hold.
-            facing = new Quaternionf().rotationTo(0f, 0f, 1f, -toCamX, -toCamY, -toCamZ);
+            // Roll-free look-at: yaw about Y, then pitch about X, up stays world-up.
+            // (rotationTo's shortest-arc solution carries an arbitrary roll that drifts
+            // with the view direction — the orb visibly twisted as you walked around it.)
+            // Local +Z still ends up pointing away from the camera, so the far-to-near
+            // layer depths below hold.
+            float yaw = (float) Math.atan2(-toCamX, -toCamZ);
+            float pitch = (float) Math.atan2(toCamY, Math.sqrt(toCamX * toCamX + toCamZ * toCamZ));
+            facing = new Quaternionf().rotationYXZ(yaw, pitch, 0f);
         } else {
             facing = camera.rotation(); // camera inside the node; any facing works
         }
