@@ -58,7 +58,13 @@ public class AspectEconomyGameTest {
         ResourceLocation flamma = aspect("flamma");
         ArcaneOrreryBlockEntity orrery = new ArcaneOrreryBlockEntity(BlockPos.ZERO,
                 ModRegistries.ARCANE_ORRERY.get().defaultBlockState());
-        orrery.setPaper(new ItemStack(ModRegistries.PAPER_FLEDGLING.get()));
+        // Hand-stamped puzzle (unstamped papers reject all edits): endpoints far from
+        // the cells under test, unconnectable, so no edit can accidentally solve it.
+        ItemStack paper = new ItemStack(ModRegistries.PAPER_FLEDGLING.get());
+        paper.set(io.github.minerguy341.new_age_thaum.core.ModComponents.RESEARCH_PUZZLE.get(),
+                new io.github.minerguy341.new_age_thaum.core.research.ResearchPuzzle(
+                        3, Map.of(0, flamma, 30, flamma), java.util.Set.of()));
+        orrery.setPaper(paper);
 
         PlayerProgressService.scan(player, "test/economy2", new AspectBag(Map.of(flamma, 1)));
 
