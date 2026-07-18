@@ -35,15 +35,30 @@ public final class AspectGraph {
             }
             graph.neighbors.computeIfAbsent(aspect.id(), k -> new ArrayList<>());
         }
+        Set<ResourceLocation> visiting = new HashSet<>();
         for (Aspect aspect : AspectRegistry.all()) {
-            graph.depth.put(aspect.id(), computeDepth(aspect.id(), new HashSet<>()));
+            graph.computeDepth(aspect.id(), visiting);
         }
         return graph;
     }
 
-    private static int computeDepth(ResourceLocation id, Set<ResourceLocation> visiting) {
+    /**
+     * Memoized into {@link #depth}: without the memo a diamond-shaped derivation ladder
+     * (each layer's compounds built from the previous layer's) is re-explored once per
+     * path — O(2^depth) — which a datapack can weaponize into a server hang.
+     */
+    private int computeDepth(ResourceLocation id, Set<ResourceLocation> visiting) {
+        Integer known = depth.get(id);
+        if (known != null) {
+            return known;
+        }
         Aspect aspect = AspectRegistry.get(id).orElse(null);
         if (aspect == null || aspect.isPrimal() || !visiting.add(id)) {
+            // Missing/primal/cycle-backedge: depth 0, but only settled results are
+            // memoized (a backedge return is not this aspect's true depth).
+            if (aspect != null && aspect.isPrimal()) {
+                depth.put(id, 0);
+            }
             return 0;
         }
         int max = 0;
@@ -51,6 +66,7 @@ public final class AspectGraph {
             max = Math.max(max, computeDepth(component, visiting));
         }
         visiting.remove(id);
+        depth.put(id, max + 1);
         return max + 1;
     }
 
