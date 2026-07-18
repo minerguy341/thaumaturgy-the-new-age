@@ -30,9 +30,11 @@ public final class NewAgeThaumClient {
         var level = Minecraft.getInstance().level;
         if (level != null && level.getBlockEntity(payload.pos())
                 instanceof io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity orrery) {
-            // Reuses the server-path validation (finite, non-degenerate, normalized).
+            // Reuses the server-path validation and rest-pose/coast math, so this client
+            // lands on the identical settled orientation.
             io.github.minerguy341.new_age_thaum.network.NewAgeThaumNetwork.applyOrreryRotation(
-                    orrery, payload.x(), payload.y(), payload.z(), payload.w());
+                    orrery, payload.x(), payload.y(), payload.z(), payload.w(),
+                    payload.wx(), payload.wy(), payload.wz());
         }
     }
 

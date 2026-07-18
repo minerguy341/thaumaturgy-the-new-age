@@ -56,10 +56,12 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
         boolean solved = puzzle != null && puzzle.solved();
         // Same breathing pulse the screen uses once the circuit has closed.
         double breath = solved ? 0.30 + 0.20 * Math.sin(now / 1000.0 * 2.4) : 0;
-        // The screen's drag orientation, streamed to the BE. If in-game testing shows
-        // the world rotation vertically mirrored versus the screen (screen space is
-        // y-down), the first knob to try is rendering `orientation.conjugate()` here.
-        Quaternionf orientation = new Quaternionf(orrery.orientation());
+        // The screen's drag orientation streamed to the BE, including any in-flight
+        // flick coast (displayOrientation converges on the stored rest pose). If
+        // in-game testing shows the world rotation vertically mirrored versus the
+        // screen (screen space is y-down), the first knob to try is rendering
+        // `orientation.conjugate()` here.
+        Quaternionf orientation = orrery.displayOrientation();
 
         poseStack.pushPose();
         poseStack.translate(0.5, HEIGHT, 0.5);

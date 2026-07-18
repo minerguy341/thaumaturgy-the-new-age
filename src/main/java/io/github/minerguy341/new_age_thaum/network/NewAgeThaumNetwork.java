@@ -202,12 +202,15 @@ public final class NewAgeThaumNetwork {
                 || !menu.pos().equals(payload.pos())) {
             return;
         }
-        if (!applyOrreryRotation(orrery, payload.x(), payload.y(), payload.z(), payload.w())) {
+        if (!applyOrreryRotation(orrery, payload.x(), payload.y(), payload.z(), payload.w(),
+                payload.wx(), payload.wy(), payload.wz())) {
             return;
         }
-        // Mirror to other nearby players; the sender's client already wrote through.
-        var q = orrery.orientation();
-        OrreryOrientationPayload out = new OrreryOrientationPayload(payload.pos(), q.x, q.y, q.z, q.w);
+        // Mirror pose + velocity to other nearby players so they play the same
+        // deterministic coast; the sender's client already wrote through.
+        OrreryOrientationPayload out = new OrreryOrientationPayload(payload.pos(),
+                payload.x(), payload.y(), payload.z(), payload.w(),
+                payload.wx(), payload.wy(), payload.wz());
         for (ServerPlayer other : player.serverLevel().players()) {
             if (other != player
                     && other.distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(payload.pos())) < 64.0 * 64.0) {
@@ -216,27 +219,53 @@ public final class NewAgeThaumNetwork {
         }
     }
 
-    /**
-     * The authoritative rotation: rejects non-finite or degenerate quaternions (a hacked
-     * client must not park NaN in world save data), normalizes, stores. Public so
-     * gametests drive the exact server path.
-     */
+    /** Hard cap on flick speed a peer may claim, radians/ms (~11 turns of total coast). */
+    private static final float MAX_COAST_SPEED = 0.1f;
+
     public static boolean applyOrreryRotation(
             io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity orrery,
             float x, float y, float z, float w) {
-        if (!Float.isFinite(x) || !Float.isFinite(y) || !Float.isFinite(z) || !Float.isFinite(w)) {
+        return applyOrreryRotation(orrery, x, y, z, w, 0, 0, 0);
+    }
+
+    /**
+     * The authoritative rotation: rejects non-finite or degenerate quaternions (a hacked
+     * client must not park NaN in world save data) and normalizes. A non-zero angular
+     * velocity is a flick: friction decays it as {@code e^(-t/tau)}, so the total
+     * remaining travel is exactly {@code speed * tau} radians about a fixed axis — the
+     * rest pose is computed analytically and stored, and the coast itself is layered on
+     * as display-only state every client derives identically. Public so gametests drive
+     * the exact server path.
+     */
+    public static boolean applyOrreryRotation(
+            io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity orrery,
+            float x, float y, float z, float w, float wx, float wy, float wz) {
+        if (!Float.isFinite(x) || !Float.isFinite(y) || !Float.isFinite(z) || !Float.isFinite(w)
+                || !Float.isFinite(wx) || !Float.isFinite(wy) || !Float.isFinite(wz)) {
             return false;
         }
         if (x * x + y * y + z * z + w * w < 1.0e-6f) {
             return false;
         }
-        orrery.setOrientation(new org.joml.Quaternionf(x, y, z, w));
+        org.joml.Quaternionf pose = new org.joml.Quaternionf(x, y, z, w).normalize();
+        float speed = (float) Math.sqrt(wx * wx + wy * wy + wz * wz);
+        float totalAngle = Math.min(speed, MAX_COAST_SPEED)
+                * io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity.COAST_TAU_MS;
+        if (speed <= 0 || totalAngle < 0.005f) {
+            orrery.setOrientation(pose);
+            return true;
+        }
+        org.joml.Quaternionf rest = new org.joml.Quaternionf()
+                .rotationAxis(totalAngle, wx / speed, wy / speed, wz / speed).mul(pose);
+        orrery.setOrientation(rest);
+        orrery.startCoast(wx / speed, wy / speed, wz / speed, totalAngle);
         return true;
     }
 
-    public static void sendOrreryRotation(net.minecraft.core.BlockPos pos, org.joml.Quaternionf orientation) {
+    public static void sendOrreryRotation(net.minecraft.core.BlockPos pos, org.joml.Quaternionf orientation,
+            float wx, float wy, float wz) {
         NetworkManager.sendToServer(new OrreryRotatePayload(pos,
-                orientation.x, orientation.y, orientation.z, orientation.w));
+                orientation.x, orientation.y, orientation.z, orientation.w, wx, wy, wz));
     }
 
     /**

@@ -83,12 +83,16 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
 
     private double scroll;
     private long lastRotationSent;
-    // Flick momentum: drag velocity in pixels/ms, decayed by friction after release.
+    // Flick momentum: drag velocity in pixels/ms while dragging; on release it becomes
+    // a fixed-axis coast (spinAxis + decaying spinSpeed) that the server and every
+    // other client reproduce from one pose+velocity packet.
     private double spinVelX;
     private double spinVelY;
     private long lastDragMillis;
     private long lastSpinTick;
     private boolean spinning;
+    private final org.joml.Vector3f spinAxis = new org.joml.Vector3f();
+    private double spinSpeed; // radians per millisecond
     private boolean freeRotation;
     private float pitchAccum;
     private boolean rotating;
@@ -106,11 +110,11 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     protected void init() {
         super.init();
         io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.maybeReload();
-        // Continue from the orrery's stored orientation (also keeps the screen and the
-        // world hologram agreeing across reopen/resize).
+        // Continue from the orrery's current DISPLAY pose (mid-coast included) so the
+        // screen and the world hologram agree across reopen/resize.
         var orrery = clientOrrery();
         if (orrery != null) {
-            orientation.set(orrery.orientation());
+            orientation.set(orrery.displayOrientation());
         }
 
         // Discovery: the six primals are always listed; compounds only once the player
@@ -244,7 +248,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             return;
         }
         lastRotationSent = now;
-        NewAgeThaumNetwork.sendOrreryRotation(this.menu.pos(), orientation);
+        NewAgeThaumNetwork.sendOrreryRotation(this.menu.pos(), orientation, 0f, 0f, 0f);
     }
 
     // --- rendering -------------------------------------------------------------
@@ -759,9 +763,14 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
                 return true;
             }
             if (button == 0) {
-                // Grabbing the sphere catches it: any ongoing momentum stops.
+                // Grabbing the sphere catches it: stop the local coast and tell the
+                // server (and everyone else's hologram) the caught pose right away.
                 rotating = true;
-                spinning = false;
+                if (spinning) {
+                    spinning = false;
+                    spinSpeed = 0;
+                    pushOrientation(true);
+                }
                 spinVelX = 0;
                 spinVelY = 0;
                 lastDragMillis = net.minecraft.Util.getMillis();
@@ -809,8 +818,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             // A flick (release while still moving) keeps the sphere spinning; a release
             // after holding still (no drag events for 100ms) parks it where it is.
             if (now - lastDragMillis <= 100 && Math.hypot(spinVelX, spinVelY) > 0.04) {
-                spinning = true;
-                lastSpinTick = now;
+                startCoast(now);
             } else {
                 spinning = false;
                 pushOrientation(true); // final pose always reaches the server
@@ -872,7 +880,38 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
 
     // --- helpers ---------------------------------------------------------------
 
-    /** Friction integration for flick momentum; runs once per frame while the screen is open. */
+    /**
+     * Converts the drag velocity into a fixed-axis angular velocity (view frame:
+     * horizontal drag spins about Y, vertical about X; locked camera coasts yaw-only so
+     * the pitch clamp stays honest), sends ONE pose+velocity packet — the server stores
+     * the analytic rest pose and mirrors the coast to everyone — and starts the local
+     * sim. No further packets: friction is deterministic, so all parties converge on
+     * the identical rest pose, and the coast keeps playing in-world even if this screen
+     * closes mid-spin.
+     */
+    private void startCoast(long now) {
+        float wx = freeRotation ? (float) (spinVelY * ROTATE_SPEED) : 0f;
+        float wy = (float) (spinVelX * ROTATE_SPEED);
+        double speed = Math.sqrt(wx * wx + wy * wy);
+        if (speed < 1.0e-5) {
+            spinning = false;
+            pushOrientation(true);
+            return;
+        }
+        spinAxis.set((float) (wx / speed), (float) (wy / speed), 0f);
+        spinSpeed = speed;
+        spinning = true;
+        lastSpinTick = now;
+        NewAgeThaumNetwork.sendOrreryRotation(this.menu.pos(), orientation, wx, wy, 0f);
+        // Write through so this client's own hologram plays the same coast.
+        var orrery = clientOrrery();
+        if (orrery != null) {
+            NewAgeThaumNetwork.applyOrreryRotation(orrery,
+                    orientation.x, orientation.y, orientation.z, orientation.w, wx, wy, 0f);
+        }
+    }
+
+    /** Friction integration for the in-screen view of the coast; one call per frame. */
     private void tickSpin() {
         if (!spinning || rotating) {
             return;
@@ -883,22 +922,18 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         if (dt <= 0) {
             return;
         }
-        applyRotation(spinVelX * dt, spinVelY * dt);
-        double decay = Math.exp(-dt / 700.0); // ~3s from a fast flick to standstill
-        spinVelX *= decay;
-        spinVelY *= decay;
-        if (Math.hypot(spinVelX, spinVelY) < 0.004) {
+        orientation.premul(new Quaternionf().rotationAxis((float) (spinSpeed * dt), spinAxis));
+        spinSpeed *= Math.exp(-dt / (double) io.github.minerguy341.new_age_thaum.content
+                .ArcaneOrreryBlockEntity.COAST_TAU_MS);
+        double remaining = spinSpeed
+                * io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity.COAST_TAU_MS;
+        if (remaining < 0.01) {
+            // Land exactly on the analytic rest pose the server stored at flick time —
+            // no end-of-coast packet needed.
+            orientation.premul(new Quaternionf().rotationAxis((float) remaining, spinAxis));
             spinning = false;
-            pushOrientation(true); // the rest pose reaches the server exactly
+            spinSpeed = 0;
         }
-    }
-
-    @Override
-    public void removed() {
-        if (spinning) {
-            pushOrientation(true); // closing mid-spin parks the hologram at the current pose
-        }
-        super.removed();
     }
 
     private void applyRotation(double dragX, double dragY) {

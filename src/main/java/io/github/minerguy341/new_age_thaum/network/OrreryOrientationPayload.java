@@ -9,11 +9,13 @@ import net.minecraft.resources.ResourceLocation;
 
 /**
  * S2C: an orrery's sphere orientation changed — nearby clients update their block
- * entity so the hologram mirrors the rotating player's drag live. The dragging player
- * is excluded (their client wrote through optimistically).
+ * entity so the hologram mirrors the rotating player's drag live. A non-zero angular
+ * velocity ({@code wx,wy,wz}, radians/ms) means a flick: the receiving client plays the
+ * deterministic coast to the same rest pose the server stored. The dragging player is
+ * excluded (their client wrote through optimistically).
  */
-public record OrreryOrientationPayload(BlockPos pos, float x, float y, float z, float w)
-        implements CustomPacketPayload {
+public record OrreryOrientationPayload(BlockPos pos, float x, float y, float z, float w,
+        float wx, float wy, float wz) implements CustomPacketPayload {
     public static final CustomPacketPayload.Type<OrreryOrientationPayload> TYPE =
             new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, "orrery_orientation"));
 
@@ -26,11 +28,15 @@ public record OrreryOrientationPayload(BlockPos pos, float x, float y, float z, 
         buf.writeFloat(payload.y);
         buf.writeFloat(payload.z);
         buf.writeFloat(payload.w);
+        buf.writeFloat(payload.wx);
+        buf.writeFloat(payload.wy);
+        buf.writeFloat(payload.wz);
     }
 
     private static OrreryOrientationPayload read(RegistryFriendlyByteBuf buf) {
         return new OrreryOrientationPayload(buf.readBlockPos(),
-                buf.readFloat(), buf.readFloat(), buf.readFloat(), buf.readFloat());
+                buf.readFloat(), buf.readFloat(), buf.readFloat(), buf.readFloat(),
+                buf.readFloat(), buf.readFloat(), buf.readFloat());
     }
 
     @Override

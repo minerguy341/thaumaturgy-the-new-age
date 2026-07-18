@@ -30,11 +30,20 @@ public class ArcaneOrreryBlockEntity extends BlockEntity implements Container {
     /** The sphere's rest pose, shared with the screen. JOML is mutable — never mutate this. */
     public static final org.joml.Quaternionf DEFAULT_ORIENTATION =
             new org.joml.Quaternionf().rotateY(0.6f).rotateX(-0.35f);
+    /** Flick-coast friction time constant; shared by the screen sim and the rest-pose math. */
+    public static final float COAST_TAU_MS = 700f;
 
     private ItemStack paper = ItemStack.EMPTY;
     // The puzzle's world orientation, mirrored by the hologram. Driven by the screen's
-    // drag rotation via OrreryRotatePayload; persisted so it survives reload.
+    // drag rotation via OrreryRotatePayload; persisted so it survives reload. Always the
+    // REST pose — a flick coast is display-only state layered on top (below).
     private final org.joml.Quaternionf orientation = new org.joml.Quaternionf(DEFAULT_ORIENTATION);
+    // Ephemeral flick coast: the display pose still has `coastAngle * e^(-t/tau)` radians
+    // to travel about coastAxis before settling on `orientation`. Not persisted — a chunk
+    // reload mid-coast simply shows the rest pose.
+    private final org.joml.Vector3f coastAxis = new org.joml.Vector3f();
+    private float coastAngle;
+    private long coastStart;
 
     public ArcaneOrreryBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.ARCANE_ORRERY.get(), pos, state);
@@ -47,7 +56,33 @@ public class ArcaneOrreryBlockEntity extends BlockEntity implements Container {
 
     public void setOrientation(org.joml.Quaternionf value) {
         orientation.set(value).normalize();
+        coastAngle = 0; // a directly set pose overrides any in-flight coast
         setChanged();
+    }
+
+    /** Begins the display-only coast toward the (already stored) rest pose. */
+    public void startCoast(float axisX, float axisY, float axisZ, float remainingAngle) {
+        coastAxis.set(axisX, axisY, axisZ);
+        coastAngle = remainingAngle;
+        coastStart = net.minecraft.Util.getMillis();
+    }
+
+    /**
+     * The pose to draw right now: the rest pose wound back by however much of the flick
+     * coast has not yet played out. Converges on {@link #orientation()} within ~3s.
+     */
+    public org.joml.Quaternionf displayOrientation() {
+        if (coastAngle != 0) {
+            float remaining = (float) (coastAngle
+                    * Math.exp((coastStart - net.minecraft.Util.getMillis()) / (double) COAST_TAU_MS));
+            if (Math.abs(remaining) < 0.005f) {
+                coastAngle = 0;
+            } else {
+                return new org.joml.Quaternionf()
+                        .rotationAxis(-remaining, coastAxis).mul(orientation);
+            }
+        }
+        return new org.joml.Quaternionf(orientation);
     }
 
     public ItemStack paper() {

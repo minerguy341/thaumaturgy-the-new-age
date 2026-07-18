@@ -257,6 +257,18 @@ public class OrreryValidationGameTest {
         helper.assertTrue(loaded instanceof ArcaneOrreryBlockEntity copy
                         && copy.orientation().equals(stored, 1.0e-5f),
                 "Orientation must survive the NBT round trip");
+
+        // A flick coast: velocity must be finite, and the STORED pose is the analytic
+        // rest pose (pose advanced by speed * tau radians about the flick axis).
+        helper.assertFalse(NewAgeThaumNetwork.applyOrreryRotation(orrery, 0, 0, 0, 1, Float.NaN, 0, 0),
+                "A NaN coast velocity must be rejected");
+        float speed = 0.01f; // radians/ms about +Y
+        helper.assertTrue(NewAgeThaumNetwork.applyOrreryRotation(orrery, 0, 0, 0, 1, 0, speed, 0),
+                "A finite flick is accepted");
+        var expectedRest = new org.joml.Quaternionf()
+                .rotationAxis(speed * ArcaneOrreryBlockEntity.COAST_TAU_MS, 0, 1, 0);
+        helper.assertTrue(orrery.orientation().equals(expectedRest, 1.0e-4f),
+                "Stored pose must be the analytic rest pose, got " + orrery.orientation());
         helper.succeed();
     }
 
