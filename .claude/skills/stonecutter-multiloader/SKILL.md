@@ -81,6 +81,24 @@ one impl per loader installed at init) is better than scattering conditionals.
 
 Windows dev-client cleanup: `taskkill //F //IM java.exe` (double slashes in Git Bash).
 
+## Remote/cloud sessions cannot build this project
+
+Claude Code web/remote environments (as of 2026-07) have an egress policy that blocks
+`services.gradle.org` and every modding maven (`maven.fabricmc.net`,
+`maven.neoforged.net`, `maven.architectury.dev`, `libraries.minecraft.net`,
+`piston-meta.mojang.com`) — only Maven Central is reachable. `./gradlew` cannot even
+download the wrapper, so `chiseledBuild`/`chiseledGameTest` CANNOT run there. Check
+early (`curl -s -o /dev/null -w '%{http_code}' https://maven.fabricmc.net/`) instead of
+discovering it after writing code. In such a session:
+
+1. Stick to APIs already proven in this repo (or stable vanilla/Architectury surface);
+   do not guess at unfamiliar signatures you cannot compile against.
+2. Syntax-check edited files with plain `javac -proc:none` (missing-symbol errors are
+   expected noise; you are looking for parse errors).
+3. Hand off explicitly: state that the build was NOT run and list the exact commands —
+   never claim green. The definition of done in CLAUDE.md still requires a real
+   `chiseledBuild` + `chiseledGameTest` somewhere.
+
 ## Ground-truth unfamiliar APIs before writing code
 
 Mapped-name guesses against Architectury/loader APIs waste build cycles. Inspect the

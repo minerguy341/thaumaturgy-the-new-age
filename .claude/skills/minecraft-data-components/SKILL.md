@@ -67,9 +67,25 @@ with these field patterns:
 - **Evolving a record without breaking saved data**: add new fields as
   `Codec.BOOL.optionalFieldOf("sealed", false)` — items serialized before the field
   existed load with the default. This is the ONLY safe way to grow a shipped component.
-- **Integer-keyed maps**: JSON/NBT map keys must be strings —
-  `Codec.unboundedMap(Codec.STRING.xmap(Integer::parseInt, String::valueOf), V.CODEC)`.
-- **Sets**: `Codec.INT.listOf().<Set<Integer>>xmap(HashSet::new, List::copyOf)`.
+- **The xmap-throws trap (m2 review, real crash class)**: `xmap`'s functions must be
+  TOTAL — DFU does not catch their exceptions. `xmap(Integer::parseInt, ...)` or
+  `xmap(s -> Kind.valueOf(...), ...)` throws straight through `resultOrPartial`: on a
+  component that means item/BE deserialization crashes (a chunk-load crash loop from
+  one corrupt paper); on a reload-listener codec it fails the ENTIRE `/reload` instead
+  of skipping the one bad file. Any parse that can fail belongs in `comapFlatMap` with
+  the exception caught into `DataResult.error`. Proven examples:
+  `ResearchSphereData.CELL_INDEX` (string→int map keys) and `WandMaterial.Kind.CODEC`
+  (enum names).
+- **Integer-keyed maps**: JSON/NBT map keys must be strings — reuse
+  `ResearchSphereData.CELL_INDEX` as the key codec:
+  `Codec.unboundedMap(ResearchSphereData.CELL_INDEX, V.CODEC)`.
+- **Round-trip asymmetry**: whatever decode accepts, encode must reproduce. The hex
+  color codec (`Aspect.HEX_COLOR`) parses unsigned and masks to 24 bits so a decoded
+  value always re-encodes to a string that decodes back to itself — plain
+  `Integer.parseInt(hex, 16)` accepted "-1", which re-encoded as 8 digits and then
+  failed its own decode.
+- **Sets**: `Codec.INT.listOf().<Set<Integer>>xmap(HashSet::new, List::copyOf)` (total
+  functions — this xmap is fine).
 - **Validated ranges**: `Codec.intRange(1, 8).fieldOf("frequency")`.
 - Test every codec with a round trip (encode via `NbtOps.INSTANCE`, parse, assert
   equals) in a gametest — it catches codec/record drift the moment a field is added.
@@ -88,6 +104,12 @@ Write counts + entries with `writeVarInt`, collections with
 method references must be `FriendlyByteBuf::` even when the buf is a
 `RegistryFriendlyByteBuf` — `RegistryFriendlyByteBuf::writeVarInt` does not compile.
 Keep write and read in the same order, field for field, and append new fields at the end.
+
+**Decode defensively**: never pre-size a collection from the wire's claimed count
+(`new ArrayList<>(buf.readVarInt())` is an instant OOM against a hostile peer) — cap it
+with `NetworkLimits.safeCapacity(count)` and bound decoded indices to their valid range
+(`ResearchPuzzle.read` / `ResearchSphereData.read` are the house pattern; full
+checklist in `minecraft-c2s-validation`).
 
 ## Network payloads (Architectury NetworkManager)
 
