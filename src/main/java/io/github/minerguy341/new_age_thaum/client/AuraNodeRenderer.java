@@ -76,7 +76,8 @@ public class AuraNodeRenderer implements BlockEntityRenderer<AuraNodeBlockEntity
         LateHolograms.enqueue(buffer -> {
             // Outer halo breathes, the mid swirl and bright core counter-rotate. Each
             // layer sits at its own depth along the local view axis (+Z points away
-            // from the camera) — coplanar discs Z-fight. Drawn far to near.
+            // from the camera) so the depth-stamp pass isn't coplanar; blend order is
+            // the far-to-near emission order.
             disc(buffer, discPose, base * 1.7f * pulse, SphereColors.blend(color, 0xFFFFFF, 0.10), 0x2E,
                     (float) (seconds * 0.35), 0.04f);
             disc(buffer, discPose, base * 1.15f, SphereColors.blend(color, 0xFFFFFF, 0.25), 0x78,
