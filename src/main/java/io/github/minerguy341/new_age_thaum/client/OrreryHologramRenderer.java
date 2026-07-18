@@ -163,9 +163,9 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
         double jitter = (pair[0] * 31 + pair[1] * 17) % 97 / 97.0 * 0.9;
         double phase = depth * 2.2 + jitter;
         float widthScale = (float) NewAgeThaumConfig.currentWidth;
-        // Per-current lift jitter keeps ribbons crossing near a shared cell from being
-        // exactly coplanar, and the core rides above its glow — the upload sort then
-        // orders the layers stably instead of flickering between them.
+        // Per-current lift jitter and core-above-glow keep the depth-stamp pass from
+        // being exactly coplanar where ribbons overlap; the color pass blends purely in
+        // emission order and doesn't care.
         float lift = LIFT + (float) jitter * 0.006f;
         ribbon(buffer, pose, grid.cell(from), grid.cell(to), c1, c2,
                 3.8f * widthScale, solved ? 110 : 70, time, phase, depth, lift);            // soft glow

@@ -43,11 +43,20 @@ public final class LateHolograms {
             return;
         }
         MultiBufferSource.BufferSource buffers = Minecraft.getInstance().renderBuffers().bufferSource();
-        VertexConsumer buffer = buffers.getBuffer(ModRenderTypes.HOLOGRAM);
+        // Color first (no depth write — blends in pure emission order, can't hole
+        // itself), then the same quads again as a depth-only silhouette stamp so the
+        // later cloud/weather passes stay behind the holograms. Switching buffer types
+        // flushes the color batch before the depth batch starts.
+        VertexConsumer color = buffers.getBuffer(ModRenderTypes.HOLOGRAM);
         for (Consumer<VertexConsumer> draw : QUEUE) {
-            draw.accept(buffer);
+            draw.accept(color);
+        }
+        buffers.endBatch(ModRenderTypes.HOLOGRAM);
+        VertexConsumer depth = buffers.getBuffer(ModRenderTypes.HOLOGRAM_DEPTH);
+        for (Consumer<VertexConsumer> draw : QUEUE) {
+            draw.accept(depth);
         }
         QUEUE.clear();
-        buffers.endBatch(ModRenderTypes.HOLOGRAM);
+        buffers.endBatch(ModRenderTypes.HOLOGRAM_DEPTH);
     }
 }
