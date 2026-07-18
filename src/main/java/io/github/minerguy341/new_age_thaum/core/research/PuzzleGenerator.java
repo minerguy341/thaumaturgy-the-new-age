@@ -118,8 +118,11 @@ public final class PuzzleGenerator {
         }
 
         // 3. Aspect chains: walk the aspect graph for exactly each path's length.
+        // The walk is restricted to the tier pool so no intermediate cell demands an
+        // aspect deeper than the paper's tier — the player couldn't place it.
         Map<Integer, ResourceLocation> solution = new HashMap<>();
         Map<Integer, ResourceLocation> endpoints = new HashMap<>();
+        Set<ResourceLocation> poolSet = new HashSet<>(pool);
         ResourceLocation first = pool.get(random.nextInt(pool.size()));
         endpoints.put(endpointCells.get(0), first);
         solution.put(endpointCells.get(0), first);
@@ -127,7 +130,8 @@ public final class PuzzleGenerator {
             List<Integer> path = cellPaths.get(i);
             int steps = path.size() - 1;
             ResourceLocation from = endpoints.get(path.get(0));
-            Set<ResourceLocation> reachable = aspects.reachableByStep(from, steps).get(steps);
+            List<Set<ResourceLocation>> layers = aspects.reachableByStep(from, steps, poolSet);
+            Set<ResourceLocation> reachable = layers.get(steps);
             List<ResourceLocation> targets = new ArrayList<>();
             for (ResourceLocation candidate : pool) {
                 if (reachable.contains(candidate)) {
@@ -138,7 +142,7 @@ public final class PuzzleGenerator {
                 return null;
             }
             ResourceLocation to = targets.get(random.nextInt(targets.size()));
-            List<ResourceLocation> walk = aspects.walk(from, to, steps, random);
+            List<ResourceLocation> walk = aspects.walk(layers, to, random);
             if (walk == null) {
                 return null;
             }

@@ -96,12 +96,26 @@ public final class AspectGraph {
      * revisit aspects — only consecutive equality is impossible by construction).
      */
     public List<Set<ResourceLocation>> reachableByStep(ResourceLocation start, int steps) {
+        return reachableByStep(start, steps, null);
+    }
+
+    /**
+     * As above, but every step lands inside {@code allowed} (null = the whole graph).
+     * The generator passes the tier pool so a hidden solution never routes through an
+     * aspect deeper than the paper's tier permits — the player must be able to place
+     * every intermediate, or "provably solvable" is void for their progression.
+     */
+    public List<Set<ResourceLocation>> reachableByStep(ResourceLocation start, int steps, Set<ResourceLocation> allowed) {
         List<Set<ResourceLocation>> layers = new ArrayList<>(steps + 1);
         layers.add(Set.of(start));
         for (int k = 1; k <= steps; k++) {
             Set<ResourceLocation> next = new HashSet<>();
             for (ResourceLocation aspect : layers.get(k - 1)) {
-                next.addAll(neighborsOf(aspect));
+                for (ResourceLocation neighbor : neighborsOf(aspect)) {
+                    if (allowed == null || allowed.contains(neighbor)) {
+                        next.add(neighbor);
+                    }
+                }
             }
             layers.add(next);
         }
@@ -115,7 +129,12 @@ public final class AspectGraph {
      * the puzzle can be completed, discarded after generation.
      */
     public List<ResourceLocation> walk(ResourceLocation start, ResourceLocation end, int steps, RandomSource random) {
-        List<Set<ResourceLocation>> layers = reachableByStep(start, steps);
+        return walk(reachableByStep(start, steps), end, random);
+    }
+
+    /** Walk reconstruction over precomputed layers, so callers don't pay the DP twice. */
+    public List<ResourceLocation> walk(List<Set<ResourceLocation>> layers, ResourceLocation end, RandomSource random) {
+        int steps = layers.size() - 1;
         if (!layers.get(steps).contains(end)) {
             return null;
         }

@@ -75,6 +75,11 @@ public final class AspectRegistry {
         if (size != 0 && size != 2) {
             return "components must be absent or exactly 2, found " + size;
         }
+        if (size == 2 && aspect.components().get(0).equals(aspect.components().get(1))) {
+            // [X, X] would double the graph edge (skewing walk randomness) and is the
+            // cheapest fuel for depth-computation blowups.
+            return "components must be two different aspects";
+        }
         for (ResourceLocation component : aspect.components()) {
             if (!pool.containsKey(component)) {
                 return "unknown component " + component;
