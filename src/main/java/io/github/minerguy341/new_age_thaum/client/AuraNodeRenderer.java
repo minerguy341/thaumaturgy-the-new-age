@@ -9,7 +9,6 @@ import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.core.BlockPos;
@@ -40,7 +39,7 @@ public class AuraNodeRenderer implements BlockEntityRenderer<AuraNodeBlockEntity
             MultiBufferSource bufferSource, int packedLight, int packedOverlay) {
         long now = Util.getMillis();
         int color = SphereColors.colorOf(node.aspect()); // grey until the server rolls it
-        VertexConsumer buffer = bufferSource.getBuffer(RenderType.debugQuads());
+        VertexConsumer buffer = bufferSource.getBuffer(ModRenderTypes.HOLOGRAM);
         // Point-at-camera billboard, not screen-aligned: each orb's disc plane must be
         // perpendicular to the line from THIS node to the camera. With the shared
         // camera.rotation() plane, nodes off the view axis tilt relative to their own
