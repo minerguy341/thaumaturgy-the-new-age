@@ -42,11 +42,11 @@ public record AssignmentSyncPayload(Map<ResourceLocation, AspectBag> byItem,
 
     private static Map<ResourceLocation, AspectBag> readMap(RegistryFriendlyByteBuf buf) {
         int count = buf.readVarInt();
-        Map<ResourceLocation, AspectBag> map = new HashMap<>(count);
+        Map<ResourceLocation, AspectBag> map = new HashMap<>(NetworkLimits.safeCapacity(count));
         for (int i = 0; i < count; i++) {
             ResourceLocation key = buf.readResourceLocation();
             int aspectCount = buf.readVarInt();
-            Map<ResourceLocation, Integer> amounts = new HashMap<>(aspectCount);
+            Map<ResourceLocation, Integer> amounts = new HashMap<>(NetworkLimits.safeCapacity(aspectCount));
             for (int j = 0; j < aspectCount; j++) {
                 ResourceLocation aspect = buf.readResourceLocation();
                 amounts.put(aspect, buf.readVarInt());

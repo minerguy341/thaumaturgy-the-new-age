@@ -65,12 +65,20 @@ public record ResearchSphereData(Map<Integer, ResourceLocation> cells) {
         });
     }
 
+    /** Largest sphere: 10 * 8² + 2 cells at the puzzle codec's maximum frequency of 8. */
+    private static final int MAX_CELLS = 10 * 8 * 8 + 2;
+
     private static ResearchSphereData read(RegistryFriendlyByteBuf buf) {
+        // Capped allocation + bounded cell indices: see ResearchPuzzle.read.
         int count = buf.readVarInt();
-        Map<Integer, ResourceLocation> cells = new HashMap<>(count);
+        Map<Integer, ResourceLocation> cells = new HashMap<>(
+                io.github.minerguy341.new_age_thaum.network.NetworkLimits.safeCapacity(count));
         for (int i = 0; i < count; i++) {
             int cell = buf.readVarInt();
-            cells.put(cell, buf.readResourceLocation());
+            ResourceLocation aspect = buf.readResourceLocation();
+            if (cell >= 0 && cell < MAX_CELLS) {
+                cells.put(cell, aspect);
+            }
         }
         return new ResearchSphereData(cells);
     }

@@ -34,7 +34,7 @@ public record CodexSyncPayload(List<CodexEntry> entries) implements CustomPacket
 
     private static CodexSyncPayload read(RegistryFriendlyByteBuf buf) {
         int count = buf.readVarInt();
-        List<CodexEntry> entries = new ArrayList<>(count);
+        List<CodexEntry> entries = new ArrayList<>(NetworkLimits.safeCapacity(count));
         for (int i = 0; i < count; i++) {
             ResourceLocation id = buf.readResourceLocation();
             String category = buf.readUtf();

@@ -33,12 +33,12 @@ public record PlayerProgressSyncPayload(PlayerProgress progress) implements Cust
 
     private static PlayerProgressSyncPayload read(RegistryFriendlyByteBuf buf) {
         int scannedCount = buf.readVarInt();
-        Set<String> scanned = new HashSet<>(scannedCount);
+        Set<String> scanned = new HashSet<>(NetworkLimits.safeCapacity(scannedCount));
         for (int i = 0; i < scannedCount; i++) {
             scanned.add(buf.readUtf());
         }
         int pointCount = buf.readVarInt();
-        Map<ResourceLocation, Integer> points = new HashMap<>(pointCount);
+        Map<ResourceLocation, Integer> points = new HashMap<>(NetworkLimits.safeCapacity(pointCount));
         for (int i = 0; i < pointCount; i++) {
             ResourceLocation aspect = buf.readResourceLocation();
             points.put(aspect, buf.readVarInt());

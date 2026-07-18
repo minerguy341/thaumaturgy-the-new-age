@@ -35,7 +35,7 @@ public record WandMaterialSyncPayload(List<WandMaterial> materials) implements C
 
     private static WandMaterialSyncPayload read(RegistryFriendlyByteBuf buf) {
         int count = buf.readVarInt();
-        List<WandMaterial> materials = new ArrayList<>(count);
+        List<WandMaterial> materials = new ArrayList<>(NetworkLimits.safeCapacity(count));
         for (int i = 0; i < count; i++) {
             ResourceLocation id = buf.readResourceLocation();
             WandMaterial.Kind kind = buf.readEnum(WandMaterial.Kind.class);
