@@ -31,6 +31,9 @@ public final class NewAgeThaumConfig {
     /** Cell border thickness on the research sphere (1.0 = default, 0 = none). */
     public static double cellBorderWidth = 1.0;
 
+    /** Friction time constant of a flicked sphere's coast, in seconds. */
+    public static double coastFriction = 0.7;
+
     /** "aspects" = ribbon blends the linked aspects; "custom" = fixed base + pulse gradient. */
     public static String currentColorMode = "aspects";
     public static int currentBaseColor = 0x8A6BB5;
@@ -60,8 +63,8 @@ public final class NewAgeThaumConfig {
             write(path);
             loadedModified = Files.getLastModifiedTime(path).toMillis();
             NewAgeThaum.LOGGER.info(
-                    "Config loaded: tierScaledSpheres={}, currentAmplitude={}, currentSpeed={}, currentWidth={}, cellBorderWidth={}, currentColorMode={}",
-                    tierScaledSpheres, currentAmplitude, currentSpeed, currentWidth, cellBorderWidth, currentColorMode);
+                    "Config loaded: tierScaledSpheres={}, currentAmplitude={}, currentSpeed={}, currentWidth={}, cellBorderWidth={}, coastFriction={}, currentColorMode={}",
+                    tierScaledSpheres, currentAmplitude, currentSpeed, currentWidth, cellBorderWidth, coastFriction, currentColorMode);
         } catch (Exception e) {
             NewAgeThaum.LOGGER.warn("Could not read config {}; using defaults", path, e);
         }
@@ -88,6 +91,7 @@ public final class NewAgeThaumConfig {
         currentSpeed = parseDouble(values.get("currentSpeed"), currentSpeed, 0.0, 100.0);
         currentWidth = parseDouble(values.get("currentWidth"), currentWidth, 0.0, 10.0);
         cellBorderWidth = parseDouble(values.get("cellBorderWidth"), cellBorderWidth, 0.0, 3.5);
+        coastFriction = parseDouble(values.get("coastFriction"), coastFriction, 0.05, 5.0);
         if (values.containsKey("currentColorMode")) {
             currentColorMode = values.get("currentColorMode");
         }
@@ -150,6 +154,13 @@ public final class NewAgeThaumConfig {
         out.append("# Gap between sphere cells. 0 = no borders, larger = chunkier.\n");
         out.append("# Default: 1.0. Accepted: 0.0 to about 3.5 (clamped).\n");
         out.append("cellBorderWidth = ").append(cellBorderWidth).append("\n\n");
+
+        out.append("# How long a flicked research sphere keeps spinning: the friction time\n");
+        out.append("# constant, in seconds. A flick travels flickSpeed x this in total, so\n");
+        out.append("# 0.05 = almost no coast, 5.0 = long lazy spins. Applies to YOUR flicks\n");
+        out.append("# (the value travels with the flick, so other players see the same coast).\n");
+        out.append("# Default: 0.7. Accepted: 0.05 to 5.0 (clamped).\n");
+        out.append("coastFriction = ").append(coastFriction).append("\n\n");
 
         out.append("# \"aspects\" = each current blends the colors of its two linked aspects.\n");
         out.append("# \"custom\"  = currents use currentBaseColor and the pulse grades\n");

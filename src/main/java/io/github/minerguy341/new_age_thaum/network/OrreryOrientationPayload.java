@@ -15,7 +15,7 @@ import net.minecraft.resources.ResourceLocation;
  * excluded (their client wrote through optimistically).
  */
 public record OrreryOrientationPayload(BlockPos pos, float x, float y, float z, float w,
-        float wx, float wy, float wz) implements CustomPacketPayload {
+        float wx, float wy, float wz, float coastTau) implements CustomPacketPayload {
     public static final CustomPacketPayload.Type<OrreryOrientationPayload> TYPE =
             new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, "orrery_orientation"));
 
@@ -31,12 +31,13 @@ public record OrreryOrientationPayload(BlockPos pos, float x, float y, float z, 
         buf.writeFloat(payload.wx);
         buf.writeFloat(payload.wy);
         buf.writeFloat(payload.wz);
+        buf.writeFloat(payload.coastTau);
     }
 
     private static OrreryOrientationPayload read(RegistryFriendlyByteBuf buf) {
         return new OrreryOrientationPayload(buf.readBlockPos(),
                 buf.readFloat(), buf.readFloat(), buf.readFloat(), buf.readFloat(),
-                buf.readFloat(), buf.readFloat(), buf.readFloat());
+                buf.readFloat(), buf.readFloat(), buf.readFloat(), buf.readFloat());
     }
 
     @Override

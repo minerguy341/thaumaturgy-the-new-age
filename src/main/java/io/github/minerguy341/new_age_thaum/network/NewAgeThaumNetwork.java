@@ -203,14 +203,14 @@ public final class NewAgeThaumNetwork {
             return;
         }
         if (!applyOrreryRotation(orrery, payload.x(), payload.y(), payload.z(), payload.w(),
-                payload.wx(), payload.wy(), payload.wz())) {
+                payload.wx(), payload.wy(), payload.wz(), payload.coastTau())) {
             return;
         }
-        // Mirror pose + velocity to other nearby players so they play the same
-        // deterministic coast; the sender's client already wrote through.
+        // Mirror pose + velocity + friction to other nearby players so they play the
+        // same deterministic coast; the sender's client already wrote through.
         OrreryOrientationPayload out = new OrreryOrientationPayload(payload.pos(),
                 payload.x(), payload.y(), payload.z(), payload.w(),
-                payload.wx(), payload.wy(), payload.wz());
+                payload.wx(), payload.wy(), payload.wz(), payload.coastTau());
         for (ServerPlayer other : player.serverLevel().players()) {
             if (other != player
                     && other.distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(payload.pos())) < 64.0 * 64.0) {
@@ -219,13 +219,17 @@ public final class NewAgeThaumNetwork {
         }
     }
 
-    /** Hard cap on flick speed a peer may claim, radians/ms (~11 turns of total coast). */
+    /** Hard cap on flick speed a peer may claim, radians/ms. */
     private static final float MAX_COAST_SPEED = 0.1f;
+    /** Friction time constant bounds mirroring the coastFriction config's 0.05–5.0s. */
+    private static final float MIN_COAST_TAU = 50f;
+    private static final float MAX_COAST_TAU = 5000f;
 
     public static boolean applyOrreryRotation(
             io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity orrery,
             float x, float y, float z, float w) {
-        return applyOrreryRotation(orrery, x, y, z, w, 0, 0, 0);
+        return applyOrreryRotation(orrery, x, y, z, w, 0, 0, 0,
+                io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity.COAST_TAU_MS);
     }
 
     /**
@@ -239,9 +243,10 @@ public final class NewAgeThaumNetwork {
      */
     public static boolean applyOrreryRotation(
             io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity orrery,
-            float x, float y, float z, float w, float wx, float wy, float wz) {
+            float x, float y, float z, float w, float wx, float wy, float wz, float tauMs) {
         if (!Float.isFinite(x) || !Float.isFinite(y) || !Float.isFinite(z) || !Float.isFinite(w)
-                || !Float.isFinite(wx) || !Float.isFinite(wy) || !Float.isFinite(wz)) {
+                || !Float.isFinite(wx) || !Float.isFinite(wy) || !Float.isFinite(wz)
+                || !Float.isFinite(tauMs)) {
             return false;
         }
         if (x * x + y * y + z * z + w * w < 1.0e-6f) {
@@ -249,8 +254,10 @@ public final class NewAgeThaumNetwork {
         }
         org.joml.Quaternionf pose = new org.joml.Quaternionf(x, y, z, w).normalize();
         float speed = (float) Math.sqrt(wx * wx + wy * wy + wz * wz);
-        float totalAngle = Math.min(speed, MAX_COAST_SPEED)
-                * io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity.COAST_TAU_MS;
+        // The flicking player's configured friction rides in the packet (clamped), so
+        // every party integrates with the SAME tau and converges on the same rest pose.
+        float tau = Math.max(MIN_COAST_TAU, Math.min(MAX_COAST_TAU, tauMs));
+        float totalAngle = Math.min(speed, MAX_COAST_SPEED) * tau;
         if (speed <= 0 || totalAngle < 0.005f) {
             orrery.setOrientation(pose);
             return true;
@@ -258,14 +265,14 @@ public final class NewAgeThaumNetwork {
         org.joml.Quaternionf rest = new org.joml.Quaternionf()
                 .rotationAxis(totalAngle, wx / speed, wy / speed, wz / speed).mul(pose);
         orrery.setOrientation(rest);
-        orrery.startCoast(wx / speed, wy / speed, wz / speed, totalAngle);
+        orrery.startCoast(wx / speed, wy / speed, wz / speed, totalAngle, tau);
         return true;
     }
 
     public static void sendOrreryRotation(net.minecraft.core.BlockPos pos, org.joml.Quaternionf orientation,
-            float wx, float wy, float wz) {
+            float wx, float wy, float wz, float tauMs) {
         NetworkManager.sendToServer(new OrreryRotatePayload(pos,
-                orientation.x, orientation.y, orientation.z, orientation.w, wx, wy, wz));
+                orientation.x, orientation.y, orientation.z, orientation.w, wx, wy, wz, tauMs));
     }
 
     /**

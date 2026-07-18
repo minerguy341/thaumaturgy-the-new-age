@@ -16,7 +16,7 @@ import net.minecraft.resources.ResourceLocation;
  * the same deterministic coast.
  */
 public record OrreryRotatePayload(BlockPos pos, float x, float y, float z, float w,
-        float wx, float wy, float wz) implements CustomPacketPayload {
+        float wx, float wy, float wz, float coastTau) implements CustomPacketPayload {
     public static final CustomPacketPayload.Type<OrreryRotatePayload> TYPE =
             new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, "orrery_rotate"));
 
@@ -32,12 +32,13 @@ public record OrreryRotatePayload(BlockPos pos, float x, float y, float z, float
         buf.writeFloat(payload.wx);
         buf.writeFloat(payload.wy);
         buf.writeFloat(payload.wz);
+        buf.writeFloat(payload.coastTau);
     }
 
     private static OrreryRotatePayload read(RegistryFriendlyByteBuf buf) {
         return new OrreryRotatePayload(buf.readBlockPos(),
                 buf.readFloat(), buf.readFloat(), buf.readFloat(), buf.readFloat(),
-                buf.readFloat(), buf.readFloat(), buf.readFloat());
+                buf.readFloat(), buf.readFloat(), buf.readFloat(), buf.readFloat());
     }
 
     @Override

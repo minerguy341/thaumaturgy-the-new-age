@@ -34,7 +34,7 @@ public final class NewAgeThaumClient {
             // lands on the identical settled orientation.
             io.github.minerguy341.new_age_thaum.network.NewAgeThaumNetwork.applyOrreryRotation(
                     orrery, payload.x(), payload.y(), payload.z(), payload.w(),
-                    payload.wx(), payload.wy(), payload.wz());
+                    payload.wx(), payload.wy(), payload.wz(), payload.coastTau());
         }
     }
 

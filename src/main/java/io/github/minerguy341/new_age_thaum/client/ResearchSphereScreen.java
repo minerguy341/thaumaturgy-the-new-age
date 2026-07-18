@@ -93,6 +93,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     private boolean spinning;
     private final org.joml.Vector3f spinAxis = new org.joml.Vector3f();
     private double spinSpeed; // radians per millisecond
+    private float spinTau;    // friction time constant of the CURRENT coast, ms
     private boolean freeRotation;
     private float pitchAccum;
     private boolean rotating;
@@ -248,7 +249,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             return;
         }
         lastRotationSent = now;
-        NewAgeThaumNetwork.sendOrreryRotation(this.menu.pos(), orientation, 0f, 0f, 0f);
+        NewAgeThaumNetwork.sendOrreryRotation(this.menu.pos(), orientation, 0f, 0f, 0f, 0f);
     }
 
     // --- rendering -------------------------------------------------------------
@@ -900,14 +901,18 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         }
         spinAxis.set((float) (wx / speed), (float) (wy / speed), 0f);
         spinSpeed = speed;
+        // The player's configured friction, fixed for this coast (and clamped to the
+        // config's documented range); it rides in the packet so everyone matches.
+        spinTau = (float) Math.max(50.0, Math.min(5000.0,
+                io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.coastFriction * 1000.0));
         spinning = true;
         lastSpinTick = now;
-        NewAgeThaumNetwork.sendOrreryRotation(this.menu.pos(), orientation, wx, wy, 0f);
+        NewAgeThaumNetwork.sendOrreryRotation(this.menu.pos(), orientation, wx, wy, 0f, spinTau);
         // Write through so this client's own hologram plays the same coast.
         var orrery = clientOrrery();
         if (orrery != null) {
             NewAgeThaumNetwork.applyOrreryRotation(orrery,
-                    orientation.x, orientation.y, orientation.z, orientation.w, wx, wy, 0f);
+                    orientation.x, orientation.y, orientation.z, orientation.w, wx, wy, 0f, spinTau);
         }
     }
 
@@ -923,10 +928,8 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             return;
         }
         orientation.premul(new Quaternionf().rotationAxis((float) (spinSpeed * dt), spinAxis));
-        spinSpeed *= Math.exp(-dt / (double) io.github.minerguy341.new_age_thaum.content
-                .ArcaneOrreryBlockEntity.COAST_TAU_MS);
-        double remaining = spinSpeed
-                * io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity.COAST_TAU_MS;
+        spinSpeed *= Math.exp(-dt / (double) spinTau);
+        double remaining = spinSpeed * spinTau;
         if (remaining < 0.01) {
             // Land exactly on the analytic rest pose the server stored at flick time —
             // no end-of-coast packet needed.

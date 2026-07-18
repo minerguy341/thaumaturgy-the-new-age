@@ -30,7 +30,7 @@ public class ArcaneOrreryBlockEntity extends BlockEntity implements Container {
     /** The sphere's rest pose, shared with the screen. JOML is mutable — never mutate this. */
     public static final org.joml.Quaternionf DEFAULT_ORIENTATION =
             new org.joml.Quaternionf().rotateY(0.6f).rotateX(-0.35f);
-    /** Flick-coast friction time constant; shared by the screen sim and the rest-pose math. */
+    /** Default flick-coast friction time constant (configurable: coastFriction). */
     public static final float COAST_TAU_MS = 700f;
 
     private ItemStack paper = ItemStack.EMPTY;
@@ -43,6 +43,7 @@ public class ArcaneOrreryBlockEntity extends BlockEntity implements Container {
     // reload mid-coast simply shows the rest pose.
     private final org.joml.Vector3f coastAxis = new org.joml.Vector3f();
     private float coastAngle;
+    private float coastTau = COAST_TAU_MS; // per-flick: rides in the packet (coastFriction config)
     private long coastStart;
 
     public ArcaneOrreryBlockEntity(BlockPos pos, BlockState state) {
@@ -61,9 +62,10 @@ public class ArcaneOrreryBlockEntity extends BlockEntity implements Container {
     }
 
     /** Begins the display-only coast toward the (already stored) rest pose. */
-    public void startCoast(float axisX, float axisY, float axisZ, float remainingAngle) {
+    public void startCoast(float axisX, float axisY, float axisZ, float remainingAngle, float tauMs) {
         coastAxis.set(axisX, axisY, axisZ);
         coastAngle = remainingAngle;
+        coastTau = tauMs;
         coastStart = net.minecraft.Util.getMillis();
     }
 
@@ -74,7 +76,7 @@ public class ArcaneOrreryBlockEntity extends BlockEntity implements Container {
     public org.joml.Quaternionf displayOrientation() {
         if (coastAngle != 0) {
             float remaining = (float) (coastAngle
-                    * Math.exp((coastStart - net.minecraft.Util.getMillis()) / (double) COAST_TAU_MS));
+                    * Math.exp((coastStart - net.minecraft.Util.getMillis()) / (double) coastTau));
             if (Math.abs(remaining) < 0.005f) {
                 coastAngle = 0;
             } else {
