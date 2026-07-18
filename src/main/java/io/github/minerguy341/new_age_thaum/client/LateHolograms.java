@@ -5,6 +5,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -22,7 +23,10 @@ import java.util.function.Consumer;
 public final class LateHolograms {
     /** Safety valve if a loader hook ever fails to fire: drop quads, don't leak. */
     private static final int MAX_QUEUED = 4096;
-    private static final List<Consumer<VertexConsumer>> QUEUE = new ArrayList<>();
+    private static final List<Entry> QUEUE = new ArrayList<>();
+
+    private record Entry(double distSqr, Consumer<VertexConsumer> draw) {
+    }
 
     private LateHolograms() {
     }
@@ -30,10 +34,13 @@ public final class LateHolograms {
     /**
      * Called from a BER's render(): the draw runs later in the frame, so capture pose
      * matrices by COPY — the dispatcher's pose stack is reused after the BER returns.
+     * {@code distSqr} is the hologram's squared distance to the camera; the color pass
+     * blends whole holograms far-to-near by it, so a nearer hologram always draws over
+     * a farther one regardless of block-entity visit order.
      */
-    public static void enqueue(Consumer<VertexConsumer> draw) {
+    public static void enqueue(double distSqr, Consumer<VertexConsumer> draw) {
         if (QUEUE.size() < MAX_QUEUED) {
-            QUEUE.add(draw);
+            QUEUE.add(new Entry(distSqr, draw));
         }
     }
 
@@ -42,19 +49,22 @@ public final class LateHolograms {
         if (QUEUE.isEmpty()) {
             return;
         }
+        // Farthest hologram first — per-HOLOGRAM painter's order (per-quad sorting is
+        // what caused the self-overlap holes; whole compact objects sort cleanly).
+        QUEUE.sort(Comparator.comparingDouble(Entry::distSqr).reversed());
         MultiBufferSource.BufferSource buffers = Minecraft.getInstance().renderBuffers().bufferSource();
         // Color first (no depth write — blends in pure emission order, can't hole
         // itself), then the same quads again as a depth-only silhouette stamp so the
         // later cloud/weather passes stay behind the holograms. Switching buffer types
         // flushes the color batch before the depth batch starts.
         VertexConsumer color = buffers.getBuffer(ModRenderTypes.HOLOGRAM);
-        for (Consumer<VertexConsumer> draw : QUEUE) {
-            draw.accept(color);
+        for (Entry entry : QUEUE) {
+            entry.draw().accept(color);
         }
         buffers.endBatch(ModRenderTypes.HOLOGRAM);
         VertexConsumer depth = buffers.getBuffer(ModRenderTypes.HOLOGRAM_DEPTH);
-        for (Consumer<VertexConsumer> draw : QUEUE) {
-            draw.accept(depth);
+        for (Entry entry : QUEUE) {
+            entry.draw().accept(depth);
         }
         QUEUE.clear();
         buffers.endBatch(ModRenderTypes.HOLOGRAM_DEPTH);

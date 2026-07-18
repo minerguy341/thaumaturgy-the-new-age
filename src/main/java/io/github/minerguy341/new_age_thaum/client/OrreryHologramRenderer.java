@@ -113,7 +113,7 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
         }
 
         double time = now / 1000.0;
-        LateHolograms.enqueue(buffer -> {
+        LateHolograms.enqueue(toCamera.lengthSqr(), buffer -> {
             for (GoldbergGrid.Cell cell : back) {
                 drawCell(buffer, pose, cell, puzzle, placed, breath);
             }
