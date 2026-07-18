@@ -50,4 +50,24 @@ public class PlayerProgressGameTest {
                 "Points must not double on a repeat scan, got " + afterSecond.points(aspect("tellus")));
         helper.succeed();
     }
+
+    //? if neoforge {
+    @GameTest(template = "empty")
+    //?} else {
+    /*@GameTest(template = "new_age_thaum:empty")
+    *///?}
+    public void grantAllCommandGivesEveryAspect(GameTestHelper helper) {
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        int granted = io.github.minerguy341.new_age_thaum.core.ModCommands.grantAll(player, 100);
+        helper.assertTrue(granted > 0, "The aspect registry should not be empty");
+
+        PlayerProgress after = PlayerProgressService.get(player);
+        for (io.github.minerguy341.new_age_thaum.core.aspect.Aspect aspect
+                : io.github.minerguy341.new_age_thaum.core.aspect.AspectRegistry.all()) {
+            helper.assertTrue(after.points(aspect.id()) >= 100,
+                    "Every aspect should hold at least 100 points, " + aspect.id()
+                            + " has " + after.points(aspect.id()));
+        }
+        helper.succeed();
+    }
 }

@@ -9,6 +9,8 @@ import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import io.github.minerguy341.new_age_thaum.content.ArcaneOrreryMenu;
 import io.github.minerguy341.new_age_thaum.core.ModComponents;
+import io.github.minerguy341.new_age_thaum.core.research.PuzzleGenerator;
+import io.github.minerguy341.new_age_thaum.core.research.ResearchPuzzle;
 import io.github.minerguy341.new_age_thaum.core.research.ResearchSphereData;
 import io.github.minerguy341.new_age_thaum.core.aspect.Aspect;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectNames;
@@ -35,6 +37,7 @@ import org.joml.Vector3f;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -52,11 +55,17 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     private static final int SWATCH = 12;
     private static final int SCROLLBAR_W = 5;
     private static final int EMPTY_CELL = 0x2A2438;
-    private static final double CELL_SHRINK = 0.86;
+
+    /** Fill shrink derived from the configurable border width (1.0 config = classic 0.86). */
+    private static double cellShrink() {
+        double width = io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.cellBorderWidth;
+        return Math.max(0.5, Math.min(1.0, 1.0 - 0.14 * width));
+    }
     private static final double ROTATE_SPEED = 0.008;
     private static final Quaternionf DEFAULT_ORIENTATION = new Quaternionf().rotateY(0.6f).rotateX(-0.35f);
 
-    private final GoldbergGrid grid = GoldbergGrid.generate(FREQUENCY);
+    private GoldbergGrid grid = PuzzleGenerator.gridFor(FREQUENCY);
+    private int gridFrequency = FREQUENCY;
     private final Quaternionf orientation = new Quaternionf(DEFAULT_ORIENTATION);
     private List<ResourceLocation> aspects = new ArrayList<>();
 
@@ -86,10 +95,16 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     @Override
     protected void init() {
         super.init();
+        io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.maybeReload();
 
+        // Discovery: the six primals are always listed; compounds only once the player
+        // has ever earned points of them (m2-gameplay-spec §A).
         aspects = new ArrayList<>();
+        var progress = ClientPlayerProgress.get();
         for (Aspect aspect : AspectRegistry.all()) {
-            aspects.add(aspect.id());
+            if (aspect.isPrimal() || progress.hasDiscovered(aspect.id())) {
+                aspects.add(aspect.id());
+            }
         }
         aspects.sort(Comparator.comparing((ResourceLocation id) ->
                 AspectRegistry.get(id).map(Aspect::isPrimal).orElse(false) ? 0 : 1)
@@ -127,6 +142,51 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         net.minecraft.world.item.ItemStack paper = paperStack();
         return paper.isEmpty() ? Map.of()
                 : paper.getOrDefault(ModComponents.RESEARCH_SPHERE.get(), ResearchSphereData.EMPTY).cells();
+    }
+
+    /** The held paper's generated puzzle (endpoints, gaps, sphere size), or null. */
+    private ResearchPuzzle puzzle() {
+        net.minecraft.world.item.ItemStack paper = paperStack();
+        return paper.isEmpty() ? null : paper.get(ModComponents.RESEARCH_PUZZLE.get());
+    }
+
+    /** Player placements plus the puzzle's fixed endpoint aspects — what the rules see. */
+    private Map<Integer, ResourceLocation> effectiveMap() {
+        ResearchPuzzle puzzle = puzzle();
+        Map<Integer, ResourceLocation> placed = placedMap();
+        if (puzzle == null || puzzle.endpoints().isEmpty()) {
+            return placed;
+        }
+        Map<Integer, ResourceLocation> combined = new HashMap<>(placed);
+        combined.putAll(puzzle.endpoints());
+        return combined;
+    }
+
+    private boolean isGapCell(int cell) {
+        ResearchPuzzle puzzle = puzzle();
+        return puzzle != null && puzzle.isGap(cell);
+    }
+
+    private boolean isSolved() {
+        ResearchPuzzle puzzle = puzzle();
+        return puzzle != null && puzzle.solved();
+    }
+
+    private boolean isLockedCell(int cell) {
+        ResearchPuzzle puzzle = puzzle();
+        // A solved paper is sealed shut; endpoints and gaps are always untouchable.
+        return puzzle != null && (puzzle.solved() || puzzle.isEndpoint(cell) || puzzle.isGap(cell));
+    }
+
+    /** Swaps in the sphere matching the paper's puzzle (tierScaledSpheres config). */
+    private void updateGrid() {
+        ResearchPuzzle puzzle = puzzle();
+        int frequency = puzzle != null ? puzzle.frequency() : FREQUENCY;
+        if (frequency != gridFrequency) {
+            gridFrequency = frequency;
+            grid = PuzzleGenerator.gridFor(frequency);
+            lastLinkInput = null;
+        }
     }
 
     private void toggleCamera() {
@@ -172,6 +232,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        updateGrid();
         super.render(graphics, mouseX, mouseY, partialTick);
         graphics.flush();
         renderSphere(graphics, mouseX, mouseY);
@@ -179,6 +240,10 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             Component hint = Component.translatable("screen.new_age_thaum.insert_paper");
             graphics.drawCenteredString(this.font, hint, (int) sphereCx,
                     (int) (sphereCy + sphereR + 2), 0x9A8CBF);
+        } else if (isSolved()) {
+            Component done = Component.translatable("screen.new_age_thaum.research_complete");
+            graphics.drawCenteredString(this.font, done, (int) sphereCx,
+                    (int) (sphereCy + sphereR + 2), 0xE8C86A);
         }
         this.renderTooltip(graphics, mouseX, mouseY);
 
@@ -195,17 +260,25 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     }
 
     private void renderList(GuiGraphics graphics, int mouseX, int mouseY) {
+        var progress = ClientPlayerProgress.get();
         graphics.enableScissor(listLeft, listTop, listLeft + rowW, listTop + listH);
         int y = listTop - (int) scroll;
         for (ResourceLocation id : aspects) {
             if (y + ROW_HEIGHT >= listTop && y <= listTop + listH) {
+                int points = progress.points(id);
+                boolean broke = points <= 0;
                 boolean hover = mouseX >= listLeft && mouseX < listLeft + rowW && mouseY >= y && mouseY < y + ROW_HEIGHT;
                 if (hover) {
                     graphics.fill(listLeft, y, listLeft + rowW, y + ROW_HEIGHT, 0x40FFFFFF);
                 }
-                graphics.fill(listLeft + 4, y + 3, listLeft + 4 + SWATCH, y + 3 + SWATCH, 0xFF000000 | colorOf(id));
+                int swatch = broke ? blend(colorOf(id), 0x1A1524, 0.6) : colorOf(id);
+                graphics.fill(listLeft + 4, y + 3, listLeft + 4 + SWATCH, y + 3 + SWATCH, 0xFF000000 | swatch);
                 graphics.renderOutline(listLeft + 4, y + 3, SWATCH, SWATCH, 0xFF000000);
-                graphics.drawString(this.font, AspectNames.displayName(id), listLeft + 22, y + 5, 0xD8CCEE, false);
+                graphics.drawString(this.font, AspectNames.displayName(id), listLeft + 22, y + 5,
+                        broke ? 0x5F5876 : 0xD8CCEE, false);
+                String count = String.valueOf(points);
+                graphics.drawString(this.font, count, listLeft + rowW - 4 - this.font.width(count), y + 5,
+                        broke ? 0x4A4560 : 0x9A8CBF, false);
             }
             y += ROW_HEIGHT;
         }
@@ -222,15 +295,23 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     }
 
     private void renderSphere(GuiGraphics graphics, int mouseX, int mouseY) {
-        Map<Integer, ResourceLocation> placed = placedMap();
+        ResearchPuzzle puzzle = puzzle();
+        Map<Integer, ResourceLocation> placed = effectiveMap();
         java.util.Set<Integer> unlinked = unlinkedFor(placed);
+        // -1 while unsolved; 0..1 breathing wave once the circuit has closed.
+        double solvedBreath = puzzle != null && puzzle.solved()
+                ? 0.5 + 0.5 * Math.sin(net.minecraft.Util.getMillis() / 1000.0 * 2.4) : -1;
 
         // Drop preview: while dragging, the target cell gets a rim — white when the drop
         // would immediately link to a related neighbor, dim grey when it would sit unlinked.
+        // Endpoint cells are locked, so they never preview.
         int previewCell = -1;
         boolean previewLinks = false;
-        if (dragging != null && hasPaper() && inSphere(mouseX, mouseY)) {
+        if (dragging != null && hasPaper() && !isSolved() && inSphere(mouseX, mouseY)) {
             previewCell = pickCell(mouseX, mouseY);
+            if (previewCell >= 0 && puzzle != null && puzzle.isEndpoint(previewCell)) {
+                previewCell = -1;
+            }
             if (previewCell >= 0) {
                 previewLinks = io.github.minerguy341.new_age_thaum.core.research.LinkingPuzzle
                         .wouldLink(grid, placed, previewCell, dragging);
@@ -239,6 +320,10 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
 
         List<GoldbergGrid.Cell> front = new ArrayList<>();
         for (GoldbergGrid.Cell cell : grid.cells()) {
+            // Gap cells are holes in the sphere: not drawn, not paintable.
+            if (puzzle != null && puzzle.isGap(cell.index())) {
+                continue;
+            }
             if (rotate(cell.x(), cell.y(), cell.z()).z > 0) {
                 front.add(cell);
             }
@@ -247,41 +332,198 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
 
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
+        // The ribbon quads' winding depends on line direction — never let culling eat them.
+        RenderSystem.disableCull();
         RenderSystem.setShader(GameRenderer::getPositionColorShader);
         Matrix4f matrix = graphics.pose().last().pose();
         Tesselator tesselator = Tesselator.getInstance();
         BufferBuilder buffer = tesselator.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
         for (GoldbergGrid.Cell cell : front) {
+            boolean endpoint = puzzle != null && puzzle.isEndpoint(cell.index());
             int rgb = placed.containsKey(cell.index()) ? colorOf(placed.get(cell.index())) : EMPTY_CELL;
-            // No valid connection -> greyed out (unrelated neighbors are ignored, not errors).
-            if (unlinked.contains(cell.index())) {
+            // No valid connection -> greyed out (unrelated neighbors are ignored, not
+            // errors). Endpoints keep their true color — the player plans around them.
+            if (!endpoint && unlinked.contains(cell.index())) {
                 rgb = blend(rgb, 0x45434E, 0.65);
             }
 
-            double[] pc = project(rotate(cell.x(), cell.y(), cell.z()));
-            double[][] corners = cell.corners();
-            int n = corners.length;
-            double[][] full = new double[n][];
+            double[][] full = visiblePolygon(cell);
+            if (full == null) {
+                continue;
+            }
+            // Fade the cell out as its center reaches the horizon: together with the
+            // clip this swallows cells smoothly at the limb — no pop-out, and no
+            // leftover sliver peeking through the neighbors' dividers.
+            float fade = Math.min(1.0f, rotate(cell.x(), cell.y(), cell.z()).z / 0.12f);
+            double[] pc = polygonCenter(full);
+            int n = full.length;
+            double shrink = cellShrink();
             double[][] pts = new double[n][];
             for (int i = 0; i < n; i++) {
-                double[] p = project(rotate(corners[i][0], corners[i][1], corners[i][2]));
-                full[i] = p;
-                pts[i] = new double[]{pc[0] + (p[0] - pc[0]) * CELL_SHRINK, pc[1] + (p[1] - pc[1]) * CELL_SHRINK};
+                pts[i] = new double[]{pc[0] + (full[i][0] - pc[0]) * shrink,
+                        pc[1] + (full[i][1] - pc[1]) * shrink};
             }
 
-            // Preview rim first (full, un-shrunk face), fill on top.
+            // Rims first (full, un-shrunk face), fill on top. Endpoints wear gold;
+            // on a solved paper the gold breathes with the completed circuit.
             if (cell.index() == previewCell) {
-                addPolygon(buffer, matrix, pc, full, previewLinks ? 0xFFFFFF : 0x8A8794, 200);
+                addPolygon(buffer, matrix, pc, full, previewLinks ? 0xFFFFFF : 0x8A8794, (int) (200 * fade));
+            } else if (endpoint) {
+                int rimAlpha = solvedBreath >= 0
+                        ? (int) ((190 + 60 * solvedBreath) * fade)
+                        : (int) (235 * fade);
+                addPolygon(buffer, matrix, pc, full, 0xE8C86A, rimAlpha);
             }
-            addPolygon(buffer, matrix, pc, pts, rgb, 255);
+            addPolygon(buffer, matrix, pc, pts, rgb, (int) (255 * fade));
         }
 
         MeshData mesh = buffer.build();
         if (mesh != null) {
             BufferUploader.drawWithShader(mesh);
         }
+
+        renderCurrents(matrix, placed);
+        RenderSystem.enableCull();
         RenderSystem.disableBlend();
+    }
+
+    /**
+     * Flowing energy currents between validly linked adjacent cells: an anchored ribbon
+     * distorted by two layered travelling sine waves, colored as a gradient between the
+     * two aspects. Drawn on top of the fills; both cells must face the viewer.
+     */
+    private void renderCurrents(Matrix4f matrix, Map<Integer, ResourceLocation> placed) {
+        List<int[]> pairs = linkedPairsFor(placed);
+        if (pairs.isEmpty()) {
+            return;
+        }
+        double time = net.minecraft.Util.getMillis() / 1000.0;
+        boolean solved = isSolved();
+        // Closed circuit: once solved, the whole web breathes gold in unison.
+        double breath = solved ? 0.30 + 0.20 * Math.sin(time * 2.4) : 0;
+        BufferBuilder buffer = Tesselator.getInstance().begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+
+        for (int[] pair : pairs) {
+            // Orient the link downstream: the current flows from lower chain depth to higher.
+            int from = pair[0];
+            int to = pair[1];
+            if (lastFlowDepth.getOrDefault(to, 0) < lastFlowDepth.getOrDefault(from, 0)) {
+                from = pair[1];
+                to = pair[0];
+            }
+            GoldbergGrid.Cell a = grid.cell(from);
+            GoldbergGrid.Cell b = grid.cell(to);
+            Vector3f ra = rotate(a.x(), a.y(), a.z());
+            Vector3f rb = rotate(b.x(), b.y(), b.z());
+            // Currents fade with their cells at the horizon (same window as the fills).
+            float edgeFade = Math.min(1.0f, Math.min(ra.z, rb.z) / 0.12f);
+            if (edgeFade <= 0) {
+                continue;
+            }
+            double[] p1 = project(ra);
+            double[] p2 = project(rb);
+            boolean custom = io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.customCurrentColors();
+            int c1 = custom ? io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.currentBaseColor
+                    : colorOf(placed.get(from));
+            int c2 = custom ? io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.currentBaseColor
+                    : colorOf(placed.get(to));
+            if (solved) {
+                c1 = blend(c1, 0xE8C86A, breath);
+                c2 = blend(c2, 0xE8C86A, breath);
+            }
+            // Chain phase makes crests continue cell-to-cell along the web; the hash
+            // jitter keeps parallel links from moving in lockstep.
+            int depth = lastFlowDepth.getOrDefault(from, 0);
+            double chainPhase = depth * 2.2;
+            double jitter = (pair[0] * 31 + pair[1] * 17) % 97 / 97.0 * 0.9;
+            float widthScale = (float) io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.currentWidth;
+            ribbon(buffer, matrix, p1, p2, c1, c2, 3.8f * widthScale, (int) ((solved ? 110 : 70) * edgeFade), time, chainPhase + jitter, depth);   // soft glow
+            ribbon(buffer, matrix, p1, p2, c1, c2, 1.6f * widthScale, (int) ((solved ? 255 : 235) * edgeFade), time, chainPhase + jitter, depth);  // bright core
+        }
+
+        MeshData mesh = buffer.build();
+        if (mesh != null) {
+            BufferUploader.drawWithShader(mesh);
+        }
+    }
+
+    private void ribbon(BufferBuilder buffer, Matrix4f matrix, double[] p1, double[] p2,
+            int rgb1, int rgb2, float width, int alpha, double time, double phase, int chainDepth) {
+        double dx = p2[0] - p1[0];
+        double dy = p2[1] - p1[1];
+        double len = Math.hypot(dx, dy);
+        if (len < 1.0e-3) {
+            return;
+        }
+        double nx = -dy / len;
+        double ny = dx / len;
+        final int segments = 10;
+
+        double[][] left = new double[segments + 1][2];
+        double[][] right = new double[segments + 1][2];
+        double amp = io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.currentAmplitude;
+        double speed = io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.currentSpeed;
+        for (int i = 0; i <= segments; i++) {
+            double t = (double) i / segments;
+            // Envelope anchors the current at both cell centres; both waves travel in
+            // the flow direction (phase continues cell-to-cell via the chain phase).
+            double envelope = Math.sin(Math.PI * t);
+            double disp = envelope * amp * (1.9 * Math.sin(2 * Math.PI * 1.3 * t - time * speed * 2.4 + phase)
+                    + 1.1 * Math.sin(2 * Math.PI * 2.7 * t - time * speed * 3.3 + phase * 1.7));
+            double cx = p1[0] + dx * t + nx * disp;
+            double cy = p1[1] + dy * t + ny * disp;
+            double half = width * (0.55 + 0.45 * envelope) / 2.0;
+            left[i] = new double[]{cx + nx * half, cy + ny * half};
+            right[i] = new double[]{cx - nx * half, cy - ny * half};
+        }
+        for (int i = 0; i < segments; i++) {
+            int colA = glinted(blend(rgb1, rgb2, (double) i / segments), (double) i / segments, time, speed, chainDepth);
+            int colB = glinted(blend(rgb1, rgb2, (double) (i + 1) / segments), (double) (i + 1) / segments, time, speed, chainDepth);
+            quad(buffer, matrix, left[i], right[i], right[i + 1], left[i + 1], colA, colB, alpha);
+        }
+    }
+
+    /** Wavelength of the travelling pulse, measured in links of the chain. */
+    private static final double GLINT_WAVELENGTH = 2.6;
+
+    /**
+     * A bright pulse travelling in the flow direction. The wave lives in global chain
+     * coordinates (depth + t), so a pulse leaves one link exactly as it enters the
+     * next — a continuous relay along the whole web. No per-link jitter here.
+     * In custom color mode the pulse itself grades pulseFrom→pulseTo with intensity.
+     */
+    private static int glinted(int rgb, double t, double time, double speed, int chainDepth) {
+        double s = (chainDepth + t) / GLINT_WAVELENGTH;
+        double wave = Math.sin(2 * Math.PI * (s - time * speed * 0.5));
+        double strength = Math.pow(Math.max(0, wave), 3);
+        if (strength <= 0) {
+            return rgb;
+        }
+        int pulseColor;
+        if (io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.customCurrentColors()) {
+            pulseColor = blend(io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.currentPulseFrom,
+                    io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.currentPulseTo, strength);
+        } else {
+            pulseColor = 0xFFFFFF;
+        }
+        return blend(rgb, pulseColor, strength * 0.55);
+    }
+
+    private void quad(BufferBuilder buffer, Matrix4f matrix, double[] l0, double[] r0, double[] r1, double[] l1,
+            int colorNear, int colorFar, int alpha) {
+        int rN = (colorNear >> 16) & 0xFF;
+        int gN = (colorNear >> 8) & 0xFF;
+        int bN = colorNear & 0xFF;
+        int rF = (colorFar >> 16) & 0xFF;
+        int gF = (colorFar >> 8) & 0xFF;
+        int bF = colorFar & 0xFF;
+        buffer.addVertex(matrix, (float) l0[0], (float) l0[1], 0).setColor(rN, gN, bN, alpha);
+        buffer.addVertex(matrix, (float) r0[0], (float) r0[1], 0).setColor(rN, gN, bN, alpha);
+        buffer.addVertex(matrix, (float) r1[0], (float) r1[1], 0).setColor(rF, gF, bF, alpha);
+        buffer.addVertex(matrix, (float) l0[0], (float) l0[1], 0).setColor(rN, gN, bN, alpha);
+        buffer.addVertex(matrix, (float) r1[0], (float) r1[1], 0).setColor(rF, gF, bF, alpha);
+        buffer.addVertex(matrix, (float) l1[0], (float) l1[1], 0).setColor(rF, gF, bF, alpha);
     }
 
     private void addPolygon(BufferBuilder buffer, Matrix4f matrix, double[] center, double[][] pts,
@@ -306,16 +548,82 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         return (r << 16) | (g << 8) | b;
     }
 
-    // Unlinked cells recomputed only when the paper's sphere data actually changes.
+    // Link caches recomputed only when the paper's sphere data actually changes.
     private Map<Integer, ResourceLocation> lastLinkInput;
     private java.util.Set<Integer> lastUnlinked = java.util.Set.of();
+    private List<int[]> lastPairs = List.of();
+    private Map<Integer, Integer> lastFlowDepth = Map.of();
+
+    private void refreshLinkCaches(Map<Integer, ResourceLocation> placed) {
+        if (placed.equals(lastLinkInput)) {
+            return;
+        }
+        lastLinkInput = Map.copyOf(placed);
+        lastUnlinked = io.github.minerguy341.new_age_thaum.core.research.LinkingPuzzle.unlinked(grid, placed);
+        List<int[]> pairs = new ArrayList<>();
+        Map<Integer, List<Integer>> linkAdjacency = new java.util.HashMap<>();
+        for (Map.Entry<Integer, ResourceLocation> entry : placed.entrySet()) {
+            for (int neighbor : grid.cell(entry.getKey()).neighbors()) {
+                if (neighbor <= entry.getKey()) {
+                    continue; // each edge once
+                }
+                ResourceLocation there = placed.get(neighbor);
+                if (there != null && io.github.minerguy341.new_age_thaum.core.aspect.AspectRelations
+                        .related(entry.getValue(), there)) {
+                    pairs.add(new int[]{entry.getKey(), neighbor});
+                    linkAdjacency.computeIfAbsent(entry.getKey(), k -> new ArrayList<>()).add(neighbor);
+                    linkAdjacency.computeIfAbsent(neighbor, k -> new ArrayList<>()).add(entry.getKey());
+                }
+            }
+        }
+        lastPairs = pairs;
+
+        // Flow depths: the puzzle's endpoints are the springs — multi-source BFS from
+        // every endpoint in the web, so the current visibly flows outward from the fixed
+        // cells. Components touching no endpoint fall back to their lowest cell index.
+        Map<Integer, Integer> depth = new java.util.HashMap<>();
+        java.util.ArrayDeque<Integer> queue = new java.util.ArrayDeque<>();
+        ResearchPuzzle puzzle = puzzle();
+        if (puzzle != null) {
+            for (Integer endpoint : puzzle.endpoints().keySet()) {
+                if (linkAdjacency.containsKey(endpoint) && !depth.containsKey(endpoint)) {
+                    depth.put(endpoint, 0);
+                    queue.add(endpoint);
+                }
+            }
+            drainDepths(queue, depth, linkAdjacency);
+        }
+        for (Integer start : linkAdjacency.keySet().stream().sorted().toList()) {
+            if (!depth.containsKey(start)) {
+                depth.put(start, 0);
+                queue.add(start);
+                drainDepths(queue, depth, linkAdjacency);
+            }
+        }
+        lastFlowDepth = depth;
+    }
+
+    private static void drainDepths(java.util.ArrayDeque<Integer> queue, Map<Integer, Integer> depth,
+            Map<Integer, List<Integer>> adjacency) {
+        while (!queue.isEmpty()) {
+            int current = queue.poll();
+            for (int next : adjacency.get(current)) {
+                if (!depth.containsKey(next)) {
+                    depth.put(next, depth.get(current) + 1);
+                    queue.add(next);
+                }
+            }
+        }
+    }
 
     private java.util.Set<Integer> unlinkedFor(Map<Integer, ResourceLocation> placed) {
-        if (!placed.equals(lastLinkInput)) {
-            lastLinkInput = Map.copyOf(placed);
-            lastUnlinked = io.github.minerguy341.new_age_thaum.core.research.LinkingPuzzle.unlinked(grid, placed);
-        }
+        refreshLinkCaches(placed);
         return lastUnlinked;
+    }
+
+    private List<int[]> linkedPairsFor(Map<Integer, ResourceLocation> placed) {
+        refreshLinkCaches(placed);
+        return lastPairs;
     }
 
     private List<Component> tooltipFor(ResourceLocation id) {
@@ -444,8 +752,10 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     // --- edits (optimistic client + C2S; server persists onto the paper) --------
 
     private void paintCell(int cell, ResourceLocation aspect) {
-        if (!hasPaper()) {
+        if (!hasPaper() || isLockedCell(cell) || ClientPlayerProgress.get().points(aspect) < 1) {
             // Audible refusal — a silent no-op here reads as "placement is broken".
+            // No paper, a locked endpoint/gap cell, or can't afford the 1-point
+            // placement cost (server re-checks all of it).
             playUi(SoundEvents.VILLAGER_NO, 1.0f);
             return;
         }
@@ -459,6 +769,10 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
 
     private void clearCell(int cell) {
         if (!hasPaper()) {
+            return;
+        }
+        if (isLockedCell(cell)) {
+            playUi(SoundEvents.VILLAGER_NO, 1.0f);
             return;
         }
         net.minecraft.world.item.ItemStack paper = paperStack();
@@ -506,17 +820,22 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         int best = -1;
         double bestZ = Double.NEGATIVE_INFINITY;
         for (GoldbergGrid.Cell cell : grid.cells()) {
+            if (isGapCell(cell.index())) {
+                continue; // holes can't be picked
+            }
             Vector3f c = rotate(cell.x(), cell.y(), cell.z());
             if (c.z <= 0) {
+                continue; // faded out at the horizon — not clickable
+            }
+            double[][] poly = visiblePolygon(cell);
+            if (poly == null) {
                 continue;
             }
-            double[][] corners = cell.corners();
-            double[] xs = new double[corners.length];
-            double[] ys = new double[corners.length];
-            for (int i = 0; i < corners.length; i++) {
-                double[] p = project(rotate(corners[i][0], corners[i][1], corners[i][2]));
-                xs[i] = p[0];
-                ys[i] = p[1];
+            double[] xs = new double[poly.length];
+            double[] ys = new double[poly.length];
+            for (int i = 0; i < poly.length; i++) {
+                xs[i] = poly[i][0];
+                ys[i] = poly[i][1];
             }
             if (pointInPolygon(mx, my, xs, ys) && c.z > bestZ) {
                 bestZ = c.z;
@@ -539,6 +858,66 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
 
     private Vector3f rotate(double x, double y, double z) {
         return orientation.transform(new Vector3f((float) x, (float) y, (float) z));
+    }
+
+    /**
+     * The cell's corner polygon, clipped at the horizon plane (z = 0) BEFORE projection
+     * and then projected. Orthographic projection folds behind-the-horizon points back
+     * inside the disc, so an unclipped limb cell overdraws its neighbors' dividers and
+     * shows through gap holes. Null when nothing of the cell is visible.
+     */
+    private double[][] visiblePolygon(GoldbergGrid.Cell cell) {
+        double[][] corners = cell.corners();
+        List<Vector3f> poly = new ArrayList<>(corners.length);
+        boolean anyBehind = false;
+        for (double[] corner : corners) {
+            Vector3f r = rotate(corner[0], corner[1], corner[2]);
+            anyBehind |= r.z < 0;
+            poly.add(r);
+        }
+        if (anyBehind) {
+            poly = clipAtHorizon(poly);
+            if (poly.size() < 3) {
+                return null;
+            }
+        }
+        double[][] projected = new double[poly.size()][];
+        for (int i = 0; i < poly.size(); i++) {
+            projected[i] = project(poly.get(i));
+        }
+        return projected;
+    }
+
+    /** Sutherland–Hodgman against the z >= 0 half-space. */
+    private static List<Vector3f> clipAtHorizon(List<Vector3f> poly) {
+        List<Vector3f> out = new ArrayList<>(poly.size() + 2);
+        int n = poly.size();
+        for (int i = 0; i < n; i++) {
+            Vector3f prev = poly.get((i + n - 1) % n);
+            Vector3f current = poly.get(i);
+            boolean prevIn = prev.z >= 0;
+            boolean currentIn = current.z >= 0;
+            if (prevIn != currentIn) {
+                float t = prev.z / (prev.z - current.z);
+                out.add(new Vector3f(prev.x + (current.x - prev.x) * t,
+                        prev.y + (current.y - prev.y) * t, 0));
+            }
+            if (currentIn) {
+                out.add(current);
+            }
+        }
+        return out;
+    }
+
+    /** Vertex average — projection is affine, so this tracks the cell's visible middle. */
+    private static double[] polygonCenter(double[][] poly) {
+        double x = 0;
+        double y = 0;
+        for (double[] p : poly) {
+            x += p[0];
+            y += p[1];
+        }
+        return new double[]{x / poly.length, y / poly.length};
     }
 
     private double[] project(Vector3f rotated) {

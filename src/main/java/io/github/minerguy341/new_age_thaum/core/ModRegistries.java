@@ -55,9 +55,24 @@ public final class ModRegistries {
     public static final RegistrySupplier<Item> CODEX = ITEMS.register("codex",
             () -> new CodexItem(new Item.Properties().stacksTo(1)));
 
-    /** Input for the research sphere; each paper is a unique document, so no stacking. */
-    public static final RegistrySupplier<Item> RESEARCH_PAPER = ITEMS.register("research_paper",
-            () -> new Item(new Item.Properties().stacksTo(1)));
+    // Tiered research papers (the plain paper is gone): each generates a random puzzle
+    // of its tier on first insertion into an orrery. One puzzle per paper, no stacking.
+    public static final RegistrySupplier<Item> PAPER_FLEDGLING = paper("research_paper_fledgling",
+            io.github.minerguy341.new_age_thaum.content.ResearchPaperItem.Tier.FLEDGLING);
+    public static final RegistrySupplier<Item> PAPER_APPRENTICE = paper("research_paper_apprentice",
+            io.github.minerguy341.new_age_thaum.content.ResearchPaperItem.Tier.APPRENTICE);
+    public static final RegistrySupplier<Item> PAPER_SCHOLAR = paper("research_paper_scholar",
+            io.github.minerguy341.new_age_thaum.content.ResearchPaperItem.Tier.SCHOLAR);
+    public static final RegistrySupplier<Item> PAPER_MASTER = paper("research_paper_master",
+            io.github.minerguy341.new_age_thaum.content.ResearchPaperItem.Tier.MASTER);
+    public static final RegistrySupplier<Item> PAPER_GRANDMASTER = paper("research_paper_grandmaster",
+            io.github.minerguy341.new_age_thaum.content.ResearchPaperItem.Tier.GRANDMASTER);
+
+    private static RegistrySupplier<Item> paper(String name,
+            io.github.minerguy341.new_age_thaum.content.ResearchPaperItem.Tier tier) {
+        return ITEMS.register(name, () -> new io.github.minerguy341.new_age_thaum.content.ResearchPaperItem(
+                new Item.Properties(), tier));
+    }
 
     // Wand parts: rods (cores) and caps. Each is bound to a wand-material id.
     public static final RegistrySupplier<Item> GREATWOOD_ROD = rod("greatwood_rod", "greatwood");
@@ -77,7 +92,11 @@ public final class ModRegistries {
                     .icon(() -> new ItemStack(WAND.get()))
                     .displayItems((parameters, output) -> {
                         output.accept(ARCANE_ORRERY_ITEM.get());
-                        output.accept(RESEARCH_PAPER.get());
+                        output.accept(PAPER_FLEDGLING.get());
+                        output.accept(PAPER_APPRENTICE.get());
+                        output.accept(PAPER_SCHOLAR.get());
+                        output.accept(PAPER_MASTER.get());
+                        output.accept(PAPER_GRANDMASTER.get());
                         output.accept(WAND.get());
                         output.accept(STAVE.get());
                         output.accept(GREATWOOD_ROD.get());

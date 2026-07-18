@@ -39,12 +39,59 @@ public class ArcaneOrreryBlockEntity extends BlockEntity implements Container {
 
     public void setPaper(ItemStack stack) {
         paper = stack;
+        stampPuzzleIfNeeded();
         sync();
+    }
+
+    /** True when the slot holds a research paper whose sphere can be edited. */
+    public boolean canEditSphere() {
+        return paper.getItem() instanceof ResearchPaperItem;
+    }
+
+    /** The paper's generated puzzle, if it has one yet. */
+    public java.util.Optional<io.github.minerguy341.new_age_thaum.core.research.ResearchPuzzle> puzzle() {
+        return java.util.Optional.ofNullable(
+                paper.get(ModComponents.RESEARCH_PUZZLE.get()));
+    }
+
+    /** All painted cells on the held paper. */
+    public java.util.Map<Integer, ResourceLocation> sphereCells() {
+        return paper.getOrDefault(ModComponents.RESEARCH_SPHERE.get(), ResearchSphereData.EMPTY).cells();
+    }
+
+    /** Seals the paper's puzzle as solved. Server authority; flips exactly once. */
+    public void markSolved() {
+        io.github.minerguy341.new_age_thaum.core.research.ResearchPuzzle puzzle =
+                paper.get(ModComponents.RESEARCH_PUZZLE.get());
+        if (puzzle != null && !puzzle.solved()) {
+            paper.set(ModComponents.RESEARCH_PUZZLE.get(), puzzle.asSolved());
+            sync();
+        }
+    }
+
+    /**
+     * Lazy generation: the first time a tiered paper sits in a (server-side) orrery, its
+     * puzzle is rolled from the tier parameters and stamped on as a component.
+     */
+    private void stampPuzzleIfNeeded() {
+        if (level == null || level.isClientSide
+                || !(paper.getItem() instanceof ResearchPaperItem item)
+                || paper.has(ModComponents.RESEARCH_PUZZLE.get())) {
+            return;
+        }
+        paper.set(ModComponents.RESEARCH_PUZZLE.get(),
+                io.github.minerguy341.new_age_thaum.core.research.PuzzleGenerator.generate(item.tier(), level.random));
+    }
+
+    /** The aspect currently painted at {@code cell}, or null. */
+    public ResourceLocation aspectAt(int cell) {
+        return paper.getOrDefault(ModComponents.RESEARCH_SPHERE.get(), ResearchSphereData.EMPTY)
+                .cells().get(cell);
     }
 
     /** Paints (aspect present) or clears (empty) a cell on the held paper's sphere. */
     public void editSphere(int cell, Optional<ResourceLocation> aspect) {
-        if (!paper.is(ModRegistries.RESEARCH_PAPER.get())) {
+        if (!canEditSphere()) {
             return;
         }
         ResearchSphereData data = paper.getOrDefault(ModComponents.RESEARCH_SPHERE.get(), ResearchSphereData.EMPTY);

@@ -29,7 +29,10 @@
       "${group}.gametest.WandAssemblyGameTest",
       "${group}.gametest.GoldbergGridGameTest",
       "${group}.gametest.LinkingPuzzleGameTest",
-      "${group}.gametest.ArcaneOrreryPersistenceGameTest"
+      "${group}.gametest.ArcaneOrreryPersistenceGameTest",
+      "${group}.gametest.AspectEconomyGameTest",
+      "${group}.gametest.PuzzleGeneratorGameTest",
+      "${group}.gametest.OrrerySolveGameTest"
     ]
   },
   "depends": {

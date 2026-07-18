@@ -84,8 +84,77 @@ public final class NewAgeThaumNetwork {
 
     private static void handleOrreryEdit(OrreryEditPayload payload, NetworkManager.PacketContext context) {
         var orrery = orreryInReach(context, payload.pos());
-        if (orrery != null) {
-            orrery.editSphere(payload.cell(), payload.aspect());
+        if (orrery == null || !(context.getPlayer() instanceof ServerPlayer player)) {
+            return;
+        }
+        if (!applyOrreryEdit(player, orrery, payload.cell(), payload.aspect())) {
+            // Rejected (can't afford / no paper / unknown aspect): the client painted
+            // optimistically, so force a full menu resync to roll it back.
+            player.containerMenu.broadcastFullState();
+        }
+    }
+
+    /**
+     * The authoritative edit: placing costs 1 observation point of the placed aspect
+     * (m2-gameplay-spec §A — repainting pays for the new aspect, the old is lost);
+     * clearing refunds only via the future research seam ({@code refundChance}, 0 now).
+     * Public so gametests can drive the exact server path.
+     */
+    public static boolean applyOrreryEdit(ServerPlayer player,
+            io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity orrery,
+            int cell, java.util.Optional<ResourceLocation> aspect) {
+        if (!orrery.canEditSphere()) {
+            return false;
+        }
+        var puzzle = orrery.puzzle().orElse(null);
+        if (puzzle != null) {
+            // A solved paper is sealed; endpoints are locked pre-placed cells; gaps are
+            // holes in the sphere.
+            if (puzzle.solved() || puzzle.isEndpoint(cell) || puzzle.isGap(cell)
+                    || cell < 0 || cell >= io.github.minerguy341.new_age_thaum.core.research.PuzzleGenerator
+                            .gridFor(puzzle.frequency()).size()) {
+                return false;
+            }
+        }
+        if (aspect.isPresent()) {
+            if (!AspectRegistry.exists(aspect.get())) {
+                return false;
+            }
+            if (!io.github.minerguy341.new_age_thaum.core.player.PlayerProgressService.trySpend(player, aspect.get(), 1)) {
+                return false;
+            }
+            orrery.editSphere(cell, aspect);
+            maybeCompletePuzzle(player, orrery, puzzle);
+            return true;
+        }
+        ResourceLocation cleared = orrery.aspectAt(cell);
+        orrery.editSphere(cell, aspect);
+        if (cleared != null && player.getRandom().nextDouble()
+                < io.github.minerguy341.new_age_thaum.core.player.PlayerProgressService.refundChance(player)) {
+            io.github.minerguy341.new_age_thaum.core.player.PlayerProgressService.scanlessGrant(player, cleared, 1);
+        }
+        return true;
+    }
+
+    /**
+     * After a successful placement: if every endpoint now shares one linked web, the
+     * puzzle is complete — seal the paper and let the orrery hum (m2-gameplay-spec §D).
+     */
+    private static void maybeCompletePuzzle(ServerPlayer player,
+            io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity orrery,
+            io.github.minerguy341.new_age_thaum.core.research.ResearchPuzzle puzzle) {
+        if (puzzle == null || puzzle.solved()) {
+            return;
+        }
+        var grid = io.github.minerguy341.new_age_thaum.core.research.PuzzleGenerator.gridFor(puzzle.frequency());
+        Map<Integer, ResourceLocation> cells = new HashMap<>(orrery.sphereCells());
+        cells.putAll(puzzle.endpoints());
+        if (io.github.minerguy341.new_age_thaum.core.research.LinkingPuzzle.allEndpointsLinked(
+                grid, cells, puzzle.endpoints().keySet())) {
+            orrery.markSolved();
+            player.serverLevel().playSound(null, orrery.getBlockPos(),
+                    net.minecraft.sounds.SoundEvents.BEACON_ACTIVATE,
+                    net.minecraft.sounds.SoundSource.BLOCKS, 0.8f, 1.2f);
         }
     }
 

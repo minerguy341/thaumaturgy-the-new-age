@@ -49,4 +49,30 @@ public record PlayerProgress(Set<String> scanned, Map<ResourceLocation, Integer>
         gained.amounts().forEach((aspect, amount) -> newPoints.merge(aspect, amount, Integer::sum));
         return new PlayerProgress(newScanned, newPoints);
     }
+
+    /** True once the player has ever earned points of this aspect (spending never un-discovers). */
+    public boolean hasDiscovered(ResourceLocation aspect) {
+        return points.containsKey(aspect);
+    }
+
+    /** Adds points without marking anything scanned (refund seam, future rewards). */
+    public PlayerProgress withGained(ResourceLocation aspect, int amount) {
+        Map<ResourceLocation, Integer> newPoints = new HashMap<>(points);
+        newPoints.merge(aspect, amount, Integer::sum);
+        return new PlayerProgress(scanned, newPoints);
+    }
+
+    /**
+     * Spends observation points, or returns null if the balance is insufficient.
+     * The aspect's key stays in the map at 0 so discovery is permanent.
+     */
+    public PlayerProgress withSpent(ResourceLocation aspect, int amount) {
+        int balance = points(aspect);
+        if (balance < amount) {
+            return null;
+        }
+        Map<ResourceLocation, Integer> newPoints = new HashMap<>(points);
+        newPoints.put(aspect, balance - amount);
+        return new PlayerProgress(scanned, newPoints);
+    }
 }
