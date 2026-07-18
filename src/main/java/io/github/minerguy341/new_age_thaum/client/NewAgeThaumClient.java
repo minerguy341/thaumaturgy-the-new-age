@@ -28,6 +28,13 @@ public final class NewAgeThaumClient {
         // (CLIENT_SETUP would be too late — the screen factory would never register).
         ModMenus.ARCANE_ORRERY.listen(type ->
                 MenuRegistry.registerScreenFactory(type, ResearchSphereScreen::new));
+        // Saplings are cross models with transparency; same listen() timing rule.
+        io.github.minerguy341.new_age_thaum.core.ModRegistries.GREATWOOD_SAPLING.listen(block ->
+                dev.architectury.registry.client.rendering.RenderTypeRegistry
+                        .register(net.minecraft.client.renderer.RenderType.cutout(), block));
+        io.github.minerguy341.new_age_thaum.core.ModRegistries.SILVERWOOD_SAPLING.listen(block ->
+                dev.architectury.registry.client.rendering.RenderTypeRegistry
+                        .register(net.minecraft.client.renderer.RenderType.cutout(), block));
         ClientTooltipEvent.ITEM.register((stack, lines, context, flag) -> {
             var level = Minecraft.getInstance().level;
             if (level == null) {

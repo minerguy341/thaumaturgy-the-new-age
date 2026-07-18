@@ -127,5 +127,11 @@
   "aspect.new_age_thaum.ensis.desc": "Weapons and the art of war.",
   "aspect.new_age_thaum.praesidium.desc": "Protection, armor, and wards.",
   "aspect.new_age_thaum.opes.desc": "Wealth, riches, and greed.",
-  "aspect.new_age_thaum.barathrum.desc": "The abyss and the eldritch deep."
+  "aspect.new_age_thaum.barathrum.desc": "The abyss and the eldritch deep.",
+  "block.new_age_thaum.greatwood_log": "Greatwood Log",
+  "block.new_age_thaum.greatwood_leaves": "Greatwood Leaves",
+  "block.new_age_thaum.greatwood_sapling": "Greatwood Sapling",
+  "block.new_age_thaum.silverwood_log": "Silverwood Log",
+  "block.new_age_thaum.silverwood_leaves": "Silverwood Leaves",
+  "block.new_age_thaum.silverwood_sapling": "Silverwood Sapling"
 }

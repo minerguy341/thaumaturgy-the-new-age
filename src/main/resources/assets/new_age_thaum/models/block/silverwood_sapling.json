@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:block/cross",
+  "textures": {
+    "cross": "new_age_thaum:block/silverwood_sapling"
+  }
+}

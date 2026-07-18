@@ -32,7 +32,8 @@
       "${group}.gametest.ArcaneOrreryPersistenceGameTest",
       "${group}.gametest.AspectEconomyGameTest",
       "${group}.gametest.PuzzleGeneratorGameTest",
-      "${group}.gametest.OrrerySolveGameTest"
+      "${group}.gametest.OrrerySolveGameTest",
+      "${group}.gametest.TreeGenGameTest"
     ]
   },
   "depends": {

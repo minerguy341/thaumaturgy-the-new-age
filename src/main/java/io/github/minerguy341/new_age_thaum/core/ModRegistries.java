@@ -47,6 +47,55 @@ public final class ModRegistries {
     public static final RegistrySupplier<Item> PROOF_OF_FORGE = ITEMS.register("proof_of_forge",
             () -> new Item(new Item.Properties()));
 
+    // --- Homage trees (art-direction.md): greatwood warm and massive, silverwood pale
+    // and pure. Tree shapes live in datapack JSON (worldgen/configured_feature); the
+    // saplings reference them by key, and world placement is injected per loader
+    // (NeoForge: data/neoforge/biome_modifier JSON; Fabric: BiomeModifications in the
+    // entrypoint) against the has_greatwood/has_silverwood biome tags.
+    public static final net.minecraft.resources.ResourceKey<net.minecraft.world.level.levelgen.feature.ConfiguredFeature<?, ?>> GREATWOOD_TREE =
+            net.minecraft.resources.ResourceKey.create(Registries.CONFIGURED_FEATURE,
+                    ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, "greatwood_tree"));
+    public static final net.minecraft.resources.ResourceKey<net.minecraft.world.level.levelgen.feature.ConfiguredFeature<?, ?>> SILVERWOOD_TREE =
+            net.minecraft.resources.ResourceKey.create(Registries.CONFIGURED_FEATURE,
+                    ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, "silverwood_tree"));
+
+    public static final RegistrySupplier<Block> GREATWOOD_LOG = BLOCKS.register("greatwood_log",
+            () -> new net.minecraft.world.level.block.RotatedPillarBlock(
+                    BlockBehaviour.Properties.ofFullCopy(net.minecraft.world.level.block.Blocks.OAK_LOG)
+                            .mapColor(MapColor.PODZOL)));
+    public static final RegistrySupplier<Block> GREATWOOD_LEAVES = BLOCKS.register("greatwood_leaves",
+            () -> new net.minecraft.world.level.block.LeavesBlock(
+                    BlockBehaviour.Properties.ofFullCopy(net.minecraft.world.level.block.Blocks.OAK_LEAVES)));
+    public static final RegistrySupplier<Block> GREATWOOD_SAPLING = BLOCKS.register("greatwood_sapling",
+            () -> new net.minecraft.world.level.block.SaplingBlock(
+                    new net.minecraft.world.level.block.grower.TreeGrower("new_age_thaum:greatwood",
+                            java.util.Optional.empty(), java.util.Optional.of(GREATWOOD_TREE), java.util.Optional.empty()),
+                    BlockBehaviour.Properties.ofFullCopy(net.minecraft.world.level.block.Blocks.OAK_SAPLING)));
+    public static final RegistrySupplier<Block> SILVERWOOD_LOG = BLOCKS.register("silverwood_log",
+            () -> new net.minecraft.world.level.block.RotatedPillarBlock(
+                    BlockBehaviour.Properties.ofFullCopy(net.minecraft.world.level.block.Blocks.BIRCH_LOG)
+                            .mapColor(MapColor.QUARTZ)));
+    public static final RegistrySupplier<Block> SILVERWOOD_LEAVES = BLOCKS.register("silverwood_leaves",
+            () -> new net.minecraft.world.level.block.LeavesBlock(
+                    BlockBehaviour.Properties.ofFullCopy(net.minecraft.world.level.block.Blocks.BIRCH_LEAVES)));
+    public static final RegistrySupplier<Block> SILVERWOOD_SAPLING = BLOCKS.register("silverwood_sapling",
+            () -> new net.minecraft.world.level.block.SaplingBlock(
+                    new net.minecraft.world.level.block.grower.TreeGrower("new_age_thaum:silverwood",
+                            java.util.Optional.empty(), java.util.Optional.of(SILVERWOOD_TREE), java.util.Optional.empty()),
+                    BlockBehaviour.Properties.ofFullCopy(net.minecraft.world.level.block.Blocks.BIRCH_SAPLING)
+                            .lightLevel(s -> 4)));
+
+    public static final RegistrySupplier<Item> GREATWOOD_LOG_ITEM = blockItem("greatwood_log", GREATWOOD_LOG);
+    public static final RegistrySupplier<Item> GREATWOOD_LEAVES_ITEM = blockItem("greatwood_leaves", GREATWOOD_LEAVES);
+    public static final RegistrySupplier<Item> GREATWOOD_SAPLING_ITEM = blockItem("greatwood_sapling", GREATWOOD_SAPLING);
+    public static final RegistrySupplier<Item> SILVERWOOD_LOG_ITEM = blockItem("silverwood_log", SILVERWOOD_LOG);
+    public static final RegistrySupplier<Item> SILVERWOOD_LEAVES_ITEM = blockItem("silverwood_leaves", SILVERWOOD_LEAVES);
+    public static final RegistrySupplier<Item> SILVERWOOD_SAPLING_ITEM = blockItem("silverwood_sapling", SILVERWOOD_SAPLING);
+
+    private static RegistrySupplier<Item> blockItem(String name, RegistrySupplier<Block> block) {
+        return ITEMS.register(name, () -> new BlockItem(block.get(), new Item.Properties()));
+    }
+
     /** The scanning tool: turns blocks and entities into observation points. */
     public static final RegistrySupplier<Item> AETHERLENS = ITEMS.register("aetherlens",
             () -> new AetherlensItem(new Item.Properties().stacksTo(1)));
@@ -92,6 +141,12 @@ public final class ModRegistries {
                     .icon(() -> new ItemStack(WAND.get()))
                     .displayItems((parameters, output) -> {
                         output.accept(ARCANE_ORRERY_ITEM.get());
+                        output.accept(GREATWOOD_LOG_ITEM.get());
+                        output.accept(GREATWOOD_LEAVES_ITEM.get());
+                        output.accept(GREATWOOD_SAPLING_ITEM.get());
+                        output.accept(SILVERWOOD_LOG_ITEM.get());
+                        output.accept(SILVERWOOD_LEAVES_ITEM.get());
+                        output.accept(SILVERWOOD_SAPLING_ITEM.get());
                         output.accept(PAPER_FLEDGLING.get());
                         output.accept(PAPER_APPRENTICE.get());
                         output.accept(PAPER_SCHOLAR.get());
