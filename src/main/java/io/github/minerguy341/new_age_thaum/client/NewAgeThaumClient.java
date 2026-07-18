@@ -32,6 +32,10 @@ public final class NewAgeThaumClient {
         // (CLIENT_SETUP would be too late — the screen factory would never register).
         ModMenus.ARCANE_ORRERY.listen(type ->
                 MenuRegistry.registerScreenFactory(type, ResearchSphereScreen::new));
+        // Same listen() timing rule as the screen factory: no eager .get() in client init.
+        io.github.minerguy341.new_age_thaum.core.ModBlockEntities.ARCANE_ORRERY.listen(type ->
+                dev.architectury.registry.client.rendering.BlockEntityRendererRegistry
+                        .register(type, OrreryHologramRenderer::new));
         // Synced state is per-server. Without this reset, a vanilla server joined next
         // (which never syncs) would render the previous server's aspects in tooltips and
         // report its point balances. Singleplayer repopulates on world load (reload

@@ -109,9 +109,9 @@ public class ArcaneOrreryBlockEntity extends BlockEntity implements Container {
         ResearchSphereData data = paper.getOrDefault(ModComponents.RESEARCH_SPHERE.get(), ResearchSphereData.EMPTY);
         ResearchSphereData next = aspect.map(a -> data.with(cell, a)).orElseGet(() -> data.without(cell));
         paper.set(ModComponents.RESEARCH_SPHERE.get(), next);
-        // Menu slot sync already carries the edited paper (components included) to every
-        // viewer; a full BE broadcast per painted cell would just duplicate that traffic.
-        setChanged();
+        // Full BE broadcast per edit: the in-world hologram renders from this block
+        // entity on every nearby client, not from menu slot sync.
+        sync();
     }
 
     private void sync() {

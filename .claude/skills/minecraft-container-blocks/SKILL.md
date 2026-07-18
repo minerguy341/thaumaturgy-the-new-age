@@ -62,12 +62,13 @@ it; for a processing machine, allow outputs only.
 
 - `setChanged()` alone = persisted, no packet. Correct when the only consumer is a
   menu/screen — vanilla slot sync already carries the ItemStack (components included)
-  to every viewer. The orrery's per-cell edits used to fire a full
-  `ClientboundBlockEntityDataPacket` to all tracking clients per click, duplicating
-  slot sync with a payload that grew with sphere fill.
-- `sendBlockUpdated(...)` (via a `sync()` helper) only where in-WORLD rendering needs
-  the data (a future BER): content insert/remove (`setPaper`) and rare state flips
-  (`markSolved`), not per-edit.
+  to every viewer.
+- `sendBlockUpdated(...)` (via a `sync()` helper) only where in-WORLD rendering
+  consumes the data. The orrery is the worked example of BOTH sides of this rule: its
+  per-cell edits were downgraded to `setChanged()` in the m2 review (no world renderer
+  existed, so the broadcast only duplicated slot sync) and upgraded back to `sync()`
+  the moment the hologram BER started rendering the sphere from the block entity.
+  Decide per mutation by asking "does anything outside a menu read this on the client?"
 - `setChanged()` is null-level safe, so BE logic stays testable on a bare
   `new MyBlockEntity(BlockPos.ZERO, state)`.
 
