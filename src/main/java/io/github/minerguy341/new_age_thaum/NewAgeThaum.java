@@ -63,14 +63,20 @@ public final class NewAgeThaum {
                 io.github.minerguy341.new_age_thaum.core.aura.AuraField.get(level).diffuse();
             }
         });
-        PlayerEvent.PLAYER_JOIN.register(player -> {
-            NewAgeThaumNetwork.syncAspectsTo(player);
-            NewAgeThaumNetwork.syncAssignmentsTo(player);
-            NewAgeThaumNetwork.syncCodexTo(player);
-            NewAgeThaumNetwork.syncWandMaterialsTo(player);
-            PlayerProgressService.syncOnJoin(player);
-        });
+        PlayerEvent.PLAYER_JOIN.register(NewAgeThaum::syncAllTo);
+        // Respawn rebuilds the client player: resync so the mirrors can't go stale
+        // (and so any client-side reset around the respawn edge heals immediately).
+        PlayerEvent.PLAYER_RESPAWN.register((player, conqueredEnd) -> syncAllTo(player));
         dev.architectury.utils.EnvExecutor.runInEnv(dev.architectury.utils.Env.CLIENT,
                 () -> io.github.minerguy341.new_age_thaum.client.NewAgeThaumClient::init);
+    }
+
+    /** Everything a client mirror needs, sent on join and respawn. */
+    private static void syncAllTo(net.minecraft.server.level.ServerPlayer player) {
+        NewAgeThaumNetwork.syncAspectsTo(player);
+        NewAgeThaumNetwork.syncAssignmentsTo(player);
+        NewAgeThaumNetwork.syncCodexTo(player);
+        NewAgeThaumNetwork.syncWandMaterialsTo(player);
+        PlayerProgressService.syncOnJoin(player);
     }
 }

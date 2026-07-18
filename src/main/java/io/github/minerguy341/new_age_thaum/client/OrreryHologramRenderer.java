@@ -98,15 +98,16 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
 
         int rgb;
         int alpha;
+        // Alphas tuned brighter after in-game feedback: the first pass was hard to read.
         if (endpoint) {
             rgb = SphereColors.blend(SphereColors.colorOf(aspect), SphereColors.GOLD, 0.5);
-            alpha = 0xC0;
+            alpha = 0xEE;
         } else if (aspect != null) {
             rgb = SphereColors.colorOf(aspect);
-            alpha = 0x90;
+            alpha = 0xD4;
         } else {
             rgb = SphereColors.EMPTY_CELL;
-            alpha = 0x30;
+            alpha = 0x60;
         }
         if (breath > 0) {
             rgb = SphereColors.blend(rgb, SphereColors.GOLD, breath);

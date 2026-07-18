@@ -49,13 +49,15 @@ public class AuraNodeRenderer implements BlockEntityRenderer<AuraNodeBlockEntity
         double seconds = now / 1000.0;
         float pulse = 1.0f + 0.08f * (float) Math.sin(seconds * 2.1);
         float base = 0.28f * (0.7f + 0.3f * node.size());
-        // Outer halo breathes, the mid swirl and bright core counter-rotate.
+        // Outer halo breathes, the mid swirl and bright core counter-rotate. Each layer
+        // sits at its own depth along the view axis (after mulPose(camera.rotation()),
+        // +Z points away from the viewer) — coplanar discs Z-fight. Drawn far to near.
         disc(buffer, poseStack, base * 1.7f * pulse, SphereColors.blend(color, 0xFFFFFF, 0.10), 0x2E,
-                (float) (seconds * 0.35));
+                (float) (seconds * 0.35), 0.04f);
         disc(buffer, poseStack, base * 1.15f, SphereColors.blend(color, 0xFFFFFF, 0.25), 0x78,
-                (float) (seconds * 0.9));
+                (float) (seconds * 0.9), 0f);
         disc(buffer, poseStack, base * 0.55f * (2.0f - pulse), SphereColors.blend(color, 0xFFFFFF, 0.65), 0xE6,
-                (float) (-seconds * 1.6));
+                (float) (-seconds * 1.6), -0.04f);
         poseStack.popPose();
 
         if (holdingAetherlens()) {
@@ -114,7 +116,7 @@ public class AuraNodeRenderer implements BlockEntityRenderer<AuraNodeBlockEntity
 
     /** A flat hexagon fan in the billboarded view plane, spun by {@code spin} radians. */
     private static void disc(VertexConsumer buffer, PoseStack poseStack,
-            float radius, int rgb, int alpha, float spin) {
+            float radius, int rgb, int alpha, float spin, float depth) {
         Matrix4f pose = poseStack.last().pose();
         int r = (rgb >> 16) & 0xFF;
         int g = (rgb >> 8) & 0xFF;
@@ -123,10 +125,10 @@ public class AuraNodeRenderer implements BlockEntityRenderer<AuraNodeBlockEntity
             float a1 = spin + (float) (i * Math.PI / 3.0);
             float a2 = spin + (float) ((i + 1) * Math.PI / 3.0);
             // Degenerate quads (last vertex repeated) — debugQuads draws QUADS.
-            buffer.addVertex(pose, 0, 0, 0).setColor(r, g, b, alpha);
-            buffer.addVertex(pose, radius * Mth.cos(a1), radius * Mth.sin(a1), 0).setColor(r, g, b, alpha);
-            buffer.addVertex(pose, radius * Mth.cos(a2), radius * Mth.sin(a2), 0).setColor(r, g, b, alpha);
-            buffer.addVertex(pose, radius * Mth.cos(a2), radius * Mth.sin(a2), 0).setColor(r, g, b, alpha);
+            buffer.addVertex(pose, 0, 0, depth).setColor(r, g, b, alpha);
+            buffer.addVertex(pose, radius * Mth.cos(a1), radius * Mth.sin(a1), depth).setColor(r, g, b, alpha);
+            buffer.addVertex(pose, radius * Mth.cos(a2), radius * Mth.sin(a2), depth).setColor(r, g, b, alpha);
+            buffer.addVertex(pose, radius * Mth.cos(a2), radius * Mth.sin(a2), depth).setColor(r, g, b, alpha);
         }
     }
 
