@@ -1,6 +1,7 @@
 package io.github.minerguy341.new_age_thaum;
 
 import dev.architectury.event.events.common.PlayerEvent;
+import dev.architectury.event.events.common.TickEvent;
 import dev.architectury.registry.ReloadListenerRegistry;
 import io.github.minerguy341.new_age_thaum.core.ModBlockEntities;
 import io.github.minerguy341.new_age_thaum.core.ModCommands;
@@ -56,14 +57,26 @@ public final class NewAgeThaum {
         ReloadListenerRegistry.register(PackType.SERVER_DATA, new AspectAssignments(), id("aspect_assignments"));
         ReloadListenerRegistry.register(PackType.SERVER_DATA, new CodexReloadListener(), id("codex_entries"));
         ReloadListenerRegistry.register(PackType.SERVER_DATA, new WandMaterialReloadListener(), id("wand_materials"));
-        PlayerEvent.PLAYER_JOIN.register(player -> {
-            NewAgeThaumNetwork.syncAspectsTo(player);
-            NewAgeThaumNetwork.syncAssignmentsTo(player);
-            NewAgeThaumNetwork.syncCodexTo(player);
-            NewAgeThaumNetwork.syncWandMaterialsTo(player);
-            PlayerProgressService.syncOnJoin(player);
+        // Aura diffusion: budgeted pass every 2 seconds per dimension (PLAN §4.3/§5).
+        TickEvent.SERVER_LEVEL_POST.register(level -> {
+            if (level.getGameTime() % 40 == 0) {
+                io.github.minerguy341.new_age_thaum.core.aura.AuraField.get(level).diffuse();
+            }
         });
+        PlayerEvent.PLAYER_JOIN.register(NewAgeThaum::syncAllTo);
+        // Respawn rebuilds the client player: resync so the mirrors can't go stale
+        // (and so any client-side reset around the respawn edge heals immediately).
+        PlayerEvent.PLAYER_RESPAWN.register((player, conqueredEnd) -> syncAllTo(player));
         dev.architectury.utils.EnvExecutor.runInEnv(dev.architectury.utils.Env.CLIENT,
                 () -> io.github.minerguy341.new_age_thaum.client.NewAgeThaumClient::init);
+    }
+
+    /** Everything a client mirror needs, sent on join and respawn. */
+    private static void syncAllTo(net.minecraft.server.level.ServerPlayer player) {
+        NewAgeThaumNetwork.syncAspectsTo(player);
+        NewAgeThaumNetwork.syncAssignmentsTo(player);
+        NewAgeThaumNetwork.syncCodexTo(player);
+        NewAgeThaumNetwork.syncWandMaterialsTo(player);
+        PlayerProgressService.syncOnJoin(player);
     }
 }

@@ -54,11 +54,21 @@ public final class NewAgeThaumClient {
         ModBlockEntities.ARCANE_ORRERY.listen(type ->
                 BlockEntityRendererRegistry
                         .register(type, OrreryHologramRenderer::new));
+        ModBlockEntities.AURA_NODE.listen(type ->
+                BlockEntityRendererRegistry.register(type, AuraNodeRenderer::new));
         // Synced state is per-server. Without this reset, a vanilla server joined next
         // (which never syncs) would render the previous server's aspects in tooltips and
         // report its point balances. Singleplayer repopulates on world load (reload
         // listeners) and multiplayer on the join sync, so clearing is always safe.
         ClientPlayerEvent.CLIENT_PLAYER_QUIT.register(player -> {
+            if (player == null) {
+                // NeoForge can deliver spurious logging-out fires with no player
+                // (startup, respawn edges). Wiping live registries on one of those
+                // empties the aspect list and codex mid-session — only reset when an
+                // actual player is leaving a world. Missing an occasional reset is
+                // harmless (the next join sync overwrites everything anyway).
+                return;
+            }
             ClientPlayerProgress.set(PlayerProgress.EMPTY);
             AspectRegistry.reload(Map.of());
             AspectAssignments.accept(Map.of(), Map.of());
