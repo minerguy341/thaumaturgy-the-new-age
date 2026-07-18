@@ -24,8 +24,10 @@ import java.util.Set;
 public record ResearchPuzzle(int frequency, Map<Integer, ResourceLocation> endpoints, Set<Integer> gaps,
         boolean solved) {
 
+    // ResearchSphereData.CELL_INDEX fails soft on non-numeric keys instead of throwing
+    // NumberFormatException through item deserialization.
     private static final Codec<Map<Integer, ResourceLocation>> ENDPOINT_CODEC = Codec
-            .unboundedMap(Codec.STRING.xmap(Integer::parseInt, String::valueOf), ResourceLocation.CODEC);
+            .unboundedMap(ResearchSphereData.CELL_INDEX, ResourceLocation.CODEC);
 
     public static final Codec<ResearchPuzzle> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             Codec.intRange(1, 8).fieldOf("frequency").forGetter(ResearchPuzzle::frequency),

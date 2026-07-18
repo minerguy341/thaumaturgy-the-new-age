@@ -1,6 +1,7 @@
 package io.github.minerguy341.new_age_thaum.core.research;
 
 import com.mojang.serialization.Codec;
+import com.mojang.serialization.DataResult;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.ResourceLocation;
@@ -17,9 +18,21 @@ import java.util.Map;
 public record ResearchSphereData(Map<Integer, ResourceLocation> cells) {
     public static final ResearchSphereData EMPTY = new ResearchSphereData(Map.of());
 
-    /** NBT/JSON map keys must be strings, so cell indices round-trip through String. */
+    /**
+     * NBT/JSON map keys must be strings, so cell indices round-trip through String.
+     * comapFlatMap, not xmap: a thrown NumberFormatException would escape the codec and
+     * crash item/block-entity deserialization (a chunk-load crash loop) on corrupt data.
+     */
+    static final Codec<Integer> CELL_INDEX = Codec.STRING.comapFlatMap(s -> {
+        try {
+            return DataResult.success(Integer.parseInt(s));
+        } catch (NumberFormatException e) {
+            return DataResult.error(() -> "Cell index is not an integer: '" + s + "'");
+        }
+    }, String::valueOf);
+
     public static final Codec<ResearchSphereData> CODEC = Codec
-            .unboundedMap(Codec.STRING.xmap(Integer::parseInt, String::valueOf), ResourceLocation.CODEC)
+            .unboundedMap(CELL_INDEX, ResourceLocation.CODEC)
             .xmap(ResearchSphereData::new, ResearchSphereData::cells);
 
     public static final StreamCodec<RegistryFriendlyByteBuf, ResearchSphereData> STREAM_CODEC =

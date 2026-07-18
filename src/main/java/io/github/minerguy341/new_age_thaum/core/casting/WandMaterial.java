@@ -20,9 +20,16 @@ public record WandMaterial(ResourceLocation id, Kind kind, int color,
     public enum Kind {
         CORE, CAP;
 
-        public static final Codec<Kind> CODEC = Codec.STRING.xmap(
-                s -> Kind.valueOf(s.toUpperCase(java.util.Locale.ROOT)),
-                k -> k.name().toLowerCase(java.util.Locale.ROOT));
+        // comapFlatMap, not xmap: Kind.valueOf throwing on a typo'd "kind" would escape
+        // resultOrPartial and fail the whole datapack reload instead of skipping the file.
+        public static final Codec<Kind> CODEC = Codec.STRING.comapFlatMap(s -> {
+            for (Kind kind : values()) {
+                if (kind.name().equalsIgnoreCase(s)) {
+                    return com.mojang.serialization.DataResult.success(kind);
+                }
+            }
+            return com.mojang.serialization.DataResult.error(() -> "Unknown wand material kind '" + s + "'");
+        }, k -> k.name().toLowerCase(java.util.Locale.ROOT));
     }
 
     /** File body: {@code {"kind":"core","color":"#7A5B3C","capacity":50,"recharge_affinity":"new_age_thaum:silva"}}. */
