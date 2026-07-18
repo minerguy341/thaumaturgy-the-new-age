@@ -167,9 +167,15 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         return puzzle != null && puzzle.isGap(cell);
     }
 
+    private boolean isSolved() {
+        ResearchPuzzle puzzle = puzzle();
+        return puzzle != null && puzzle.solved();
+    }
+
     private boolean isLockedCell(int cell) {
         ResearchPuzzle puzzle = puzzle();
-        return puzzle != null && (puzzle.isEndpoint(cell) || puzzle.isGap(cell));
+        // A solved paper is sealed shut; endpoints and gaps are always untouchable.
+        return puzzle != null && (puzzle.solved() || puzzle.isEndpoint(cell) || puzzle.isGap(cell));
     }
 
     /** Swaps in the sphere matching the paper's puzzle (tierScaledSpheres config). */
@@ -234,6 +240,10 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             Component hint = Component.translatable("screen.new_age_thaum.insert_paper");
             graphics.drawCenteredString(this.font, hint, (int) sphereCx,
                     (int) (sphereCy + sphereR + 2), 0x9A8CBF);
+        } else if (isSolved()) {
+            Component done = Component.translatable("screen.new_age_thaum.research_complete");
+            graphics.drawCenteredString(this.font, done, (int) sphereCx,
+                    (int) (sphereCy + sphereR + 2), 0xE8C86A);
         }
         this.renderTooltip(graphics, mouseX, mouseY);
 
@@ -288,13 +298,16 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         ResearchPuzzle puzzle = puzzle();
         Map<Integer, ResourceLocation> placed = effectiveMap();
         java.util.Set<Integer> unlinked = unlinkedFor(placed);
+        // -1 while unsolved; 0..1 breathing wave once the circuit has closed.
+        double solvedBreath = puzzle != null && puzzle.solved()
+                ? 0.5 + 0.5 * Math.sin(net.minecraft.Util.getMillis() / 1000.0 * 2.4) : -1;
 
         // Drop preview: while dragging, the target cell gets a rim — white when the drop
         // would immediately link to a related neighbor, dim grey when it would sit unlinked.
         // Endpoint cells are locked, so they never preview.
         int previewCell = -1;
         boolean previewLinks = false;
-        if (dragging != null && hasPaper() && inSphere(mouseX, mouseY)) {
+        if (dragging != null && hasPaper() && !isSolved() && inSphere(mouseX, mouseY)) {
             previewCell = pickCell(mouseX, mouseY);
             if (previewCell >= 0 && puzzle != null && puzzle.isEndpoint(previewCell)) {
                 previewCell = -1;
@@ -352,11 +365,15 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
                         pc[1] + (full[i][1] - pc[1]) * shrink};
             }
 
-            // Rims first (full, un-shrunk face), fill on top. Endpoints wear gold.
+            // Rims first (full, un-shrunk face), fill on top. Endpoints wear gold;
+            // on a solved paper the gold breathes with the completed circuit.
             if (cell.index() == previewCell) {
                 addPolygon(buffer, matrix, pc, full, previewLinks ? 0xFFFFFF : 0x8A8794, (int) (200 * fade));
             } else if (endpoint) {
-                addPolygon(buffer, matrix, pc, full, 0xE8C86A, (int) (235 * fade));
+                int rimAlpha = solvedBreath >= 0
+                        ? (int) ((190 + 60 * solvedBreath) * fade)
+                        : (int) (235 * fade);
+                addPolygon(buffer, matrix, pc, full, 0xE8C86A, rimAlpha);
             }
             addPolygon(buffer, matrix, pc, pts, rgb, (int) (255 * fade));
         }
@@ -382,6 +399,9 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             return;
         }
         double time = net.minecraft.Util.getMillis() / 1000.0;
+        boolean solved = isSolved();
+        // Closed circuit: once solved, the whole web breathes gold in unison.
+        double breath = solved ? 0.30 + 0.20 * Math.sin(time * 2.4) : 0;
         BufferBuilder buffer = Tesselator.getInstance().begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
         for (int[] pair : pairs) {
@@ -408,14 +428,18 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
                     : colorOf(placed.get(from));
             int c2 = custom ? io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.currentBaseColor
                     : colorOf(placed.get(to));
+            if (solved) {
+                c1 = blend(c1, 0xE8C86A, breath);
+                c2 = blend(c2, 0xE8C86A, breath);
+            }
             // Chain phase makes crests continue cell-to-cell along the web; the hash
             // jitter keeps parallel links from moving in lockstep.
             int depth = lastFlowDepth.getOrDefault(from, 0);
             double chainPhase = depth * 2.2;
             double jitter = (pair[0] * 31 + pair[1] * 17) % 97 / 97.0 * 0.9;
             float widthScale = (float) io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.currentWidth;
-            ribbon(buffer, matrix, p1, p2, c1, c2, 3.8f * widthScale, (int) (70 * edgeFade), time, chainPhase + jitter, depth);   // soft glow
-            ribbon(buffer, matrix, p1, p2, c1, c2, 1.6f * widthScale, (int) (235 * edgeFade), time, chainPhase + jitter, depth);  // bright core
+            ribbon(buffer, matrix, p1, p2, c1, c2, 3.8f * widthScale, (int) ((solved ? 110 : 70) * edgeFade), time, chainPhase + jitter, depth);   // soft glow
+            ribbon(buffer, matrix, p1, p2, c1, c2, 1.6f * widthScale, (int) ((solved ? 255 : 235) * edgeFade), time, chainPhase + jitter, depth);  // bright core
         }
 
         MeshData mesh = buffer.build();

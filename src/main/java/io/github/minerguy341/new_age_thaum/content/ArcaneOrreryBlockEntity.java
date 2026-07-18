@@ -54,6 +54,21 @@ public class ArcaneOrreryBlockEntity extends BlockEntity implements Container {
                 paper.get(ModComponents.RESEARCH_PUZZLE.get()));
     }
 
+    /** All painted cells on the held paper. */
+    public java.util.Map<Integer, ResourceLocation> sphereCells() {
+        return paper.getOrDefault(ModComponents.RESEARCH_SPHERE.get(), ResearchSphereData.EMPTY).cells();
+    }
+
+    /** Seals the paper's puzzle as solved. Server authority; flips exactly once. */
+    public void markSolved() {
+        io.github.minerguy341.new_age_thaum.core.research.ResearchPuzzle puzzle =
+                paper.get(ModComponents.RESEARCH_PUZZLE.get());
+        if (puzzle != null && !puzzle.solved()) {
+            paper.set(ModComponents.RESEARCH_PUZZLE.get(), puzzle.asSolved());
+            sync();
+        }
+    }
+
     /**
      * Lazy generation: the first time a tiered paper sits in a (server-side) orrery, its
      * puzzle is rolled from the tier parameters and stamped on as a component.

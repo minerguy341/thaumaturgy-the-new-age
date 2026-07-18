@@ -17,9 +17,12 @@ import java.util.Set;
  * A generated puzzle definition, stamped onto a research paper as a data component the
  * first time it enters an orrery: the sphere size, the fixed endpoint aspects the player
  * must join, and the gap cells (voids that hold nothing). Player placements live in the
- * separate {@link ResearchSphereData} component. Immutable.
+ * separate {@link ResearchSphereData} component. {@code solved} flips once — when the
+ * server sees every endpoint joined in one web — and permanently seals the paper.
+ * Immutable.
  */
-public record ResearchPuzzle(int frequency, Map<Integer, ResourceLocation> endpoints, Set<Integer> gaps) {
+public record ResearchPuzzle(int frequency, Map<Integer, ResourceLocation> endpoints, Set<Integer> gaps,
+        boolean solved) {
 
     private static final Codec<Map<Integer, ResourceLocation>> ENDPOINT_CODEC = Codec
             .unboundedMap(Codec.STRING.xmap(Integer::parseInt, String::valueOf), ResourceLocation.CODEC);
@@ -27,7 +30,9 @@ public record ResearchPuzzle(int frequency, Map<Integer, ResourceLocation> endpo
     public static final Codec<ResearchPuzzle> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             Codec.intRange(1, 8).fieldOf("frequency").forGetter(ResearchPuzzle::frequency),
             ENDPOINT_CODEC.fieldOf("endpoints").forGetter(ResearchPuzzle::endpoints),
-            Codec.INT.listOf().<Set<Integer>>xmap(HashSet::new, List::copyOf).fieldOf("gaps").forGetter(ResearchPuzzle::gaps)
+            Codec.INT.listOf().<Set<Integer>>xmap(HashSet::new, List::copyOf).fieldOf("gaps").forGetter(ResearchPuzzle::gaps),
+            // optional: papers stamped before the solve mechanic existed load as unsolved
+            Codec.BOOL.optionalFieldOf("solved", false).forGetter(ResearchPuzzle::solved)
     ).apply(instance, ResearchPuzzle::new));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, ResearchPuzzle> STREAM_CODEC =
@@ -36,6 +41,14 @@ public record ResearchPuzzle(int frequency, Map<Integer, ResourceLocation> endpo
     public ResearchPuzzle {
         endpoints = Map.copyOf(endpoints);
         gaps = Set.copyOf(gaps);
+    }
+
+    public ResearchPuzzle(int frequency, Map<Integer, ResourceLocation> endpoints, Set<Integer> gaps) {
+        this(frequency, endpoints, gaps, false);
+    }
+
+    public ResearchPuzzle asSolved() {
+        return solved ? this : new ResearchPuzzle(frequency, endpoints, gaps, true);
     }
 
     public boolean isEndpoint(int cell) {
@@ -54,6 +67,7 @@ public record ResearchPuzzle(int frequency, Map<Integer, ResourceLocation> endpo
             buf.writeResourceLocation(aspect);
         });
         buf.writeCollection(puzzle.gaps, FriendlyByteBuf::writeVarInt);
+        buf.writeBoolean(puzzle.solved);
     }
 
     private static ResearchPuzzle read(RegistryFriendlyByteBuf buf) {
@@ -65,6 +79,7 @@ public record ResearchPuzzle(int frequency, Map<Integer, ResourceLocation> endpo
             endpoints.put(cell, buf.readResourceLocation());
         }
         Set<Integer> gaps = buf.readCollection(HashSet::new, FriendlyByteBuf::readVarInt);
-        return new ResearchPuzzle(frequency, endpoints, gaps);
+        boolean solved = buf.readBoolean();
+        return new ResearchPuzzle(frequency, endpoints, gaps, solved);
     }
 }
