@@ -6,10 +6,13 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.BonemealableBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.GenerationStep;
+
+import java.util.List;
 
 /**
  * The homage trees end to end: the datapack worldgen definitions must actually load
@@ -22,10 +25,6 @@ import net.minecraft.world.level.block.state.BlockState;
 //?}
 public class TreeGenGameTest {
 
-    private static ResourceLocation id(String path) {
-        return ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, path);
-    }
-
     //? if neoforge {
     @GameTest(template = "empty")
     //?} else {
@@ -34,20 +33,33 @@ public class TreeGenGameTest {
     public void worldgenDefinitionsLoad(GameTestHelper helper) {
         var registries = helper.getLevel().registryAccess();
         var configured = registries.registryOrThrow(Registries.CONFIGURED_FEATURE);
+        // The same keys the saplings' TreeGrowers consume — not re-derived strings.
+        for (var tree : List.of(ModRegistries.GREATWOOD_TREE, ModRegistries.SILVERWOOD_TREE)) {
+            helper.assertTrue(configured.containsKey(tree.location()),
+                    "Configured feature " + tree.location() + " failed to load from the datapack");
+        }
+
+        // Injection is the one piece wired per loader (NeoForge biome_modifier JSON vs
+        // Fabric BiomeModifications), so assert past the ingredients to the effect:
+        // every TREE_PLACEMENTS pair must be present in its tagged biomes' generation
+        // settings. This is what catches one loader silently generating no trees.
         var placed = registries.registryOrThrow(Registries.PLACED_FEATURE);
-        for (String tree : new String[]{"greatwood_tree", "silverwood_tree"}) {
-            helper.assertTrue(configured.containsKey(id(tree)),
-                    "Configured feature " + tree + " failed to load from the datapack");
-        }
-        for (String placement : new String[]{"greatwood_trees", "silverwood_trees"}) {
-            helper.assertTrue(placed.containsKey(id(placement)),
-                    "Placed feature " + placement + " failed to load from the datapack");
-        }
         var biomes = registries.registryOrThrow(Registries.BIOME);
-        for (String tag : new String[]{"has_greatwood", "has_silverwood"}) {
-            var tagKey = net.minecraft.tags.TagKey.create(Registries.BIOME, id(tag));
-            helper.assertTrue(biomes.getTag(tagKey).map(set -> set.size() > 0).orElse(false),
-                    "Biome tag " + tag + " should resolve to at least one biome");
+        int step = GenerationStep.Decoration.VEGETAL_DECORATION.ordinal();
+        for (ModRegistries.TreePlacement placement : ModRegistries.TREE_PLACEMENTS) {
+            helper.assertTrue(placed.containsKey(placement.feature().location()),
+                    "Placed feature " + placement.feature().location() + " failed to load from the datapack");
+            var tagged = biomes.getTag(placement.biomes()).orElse(null);
+            helper.assertTrue(tagged != null && tagged.size() > 0,
+                    "Biome tag " + placement.biomes().location() + " should resolve to at least one biome");
+            for (var biome : tagged) {
+                var steps = biome.value().getGenerationSettings().features();
+                boolean injected = steps.size() > step
+                        && steps.get(step).stream().anyMatch(feature -> feature.is(placement.feature()));
+                helper.assertTrue(injected, "Placed feature " + placement.feature().location()
+                        + " was not injected into " + biome.unwrapKey().map(k -> k.location().toString()).orElse("?")
+                        + " — this loader's biome wiring is broken");
+            }
         }
         helper.succeed();
     }
@@ -67,19 +79,23 @@ public class TreeGenGameTest {
 
         BlockPos absolute = helper.absolutePos(saplingPos);
         var level = helper.getLevel();
+        Block saplingBlock = ModRegistries.SILVERWOOD_SAPLING.get();
         // Force growth through the real sapling path (stage 0 -> 1 -> tree); a few
         // attempts cover the random stage advance.
-        for (int i = 0; i < 8 && level.getBlockState(absolute).is(ModRegistries.SILVERWOOD_SAPLING.get()); i++) {
+        for (int i = 0; i < 8; i++) {
             BlockState state = level.getBlockState(absolute);
+            if (!state.is(saplingBlock)) {
+                break;
+            }
             if (state.getBlock() instanceof BonemealableBlock sapling) {
                 sapling.performBonemeal(level, level.random, absolute, state);
             }
         }
 
         // The trunk grows in place: the sapling cell should now hold a silverwood log.
-        helper.assertTrue(level.getBlockState(absolute).is(ModRegistries.SILVERWOOD_LOG.get()),
-                "Sapling should have grown into a silverwood trunk, got "
-                        + level.getBlockState(absolute));
+        BlockState grown = level.getBlockState(absolute);
+        helper.assertTrue(grown.is(ModRegistries.SILVERWOOD_LOG.get()),
+                "Sapling should have grown into a silverwood trunk, got " + grown);
         helper.succeed();
     }
 }

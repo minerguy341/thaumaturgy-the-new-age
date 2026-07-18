@@ -1,13 +1,17 @@
 package io.github.minerguy341.new_age_thaum.client;
 
 import dev.architectury.event.events.client.ClientTooltipEvent;
+import dev.architectury.registry.client.rendering.RenderTypeRegistry;
 import dev.architectury.registry.menu.MenuRegistry;
+import dev.architectury.registry.registries.RegistrySupplier;
 import io.github.minerguy341.new_age_thaum.core.ModMenus;
+import io.github.minerguy341.new_age_thaum.core.ModRegistries;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectBag;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectNames;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectResolver;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
@@ -29,12 +33,8 @@ public final class NewAgeThaumClient {
         ModMenus.ARCANE_ORRERY.listen(type ->
                 MenuRegistry.registerScreenFactory(type, ResearchSphereScreen::new));
         // Saplings are cross models with transparency; same listen() timing rule.
-        io.github.minerguy341.new_age_thaum.core.ModRegistries.GREATWOOD_SAPLING.listen(block ->
-                dev.architectury.registry.client.rendering.RenderTypeRegistry
-                        .register(net.minecraft.client.renderer.RenderType.cutout(), block));
-        io.github.minerguy341.new_age_thaum.core.ModRegistries.SILVERWOOD_SAPLING.listen(block ->
-                dev.architectury.registry.client.rendering.RenderTypeRegistry
-                        .register(net.minecraft.client.renderer.RenderType.cutout(), block));
+        cutout(ModRegistries.GREATWOOD_SAPLING);
+        cutout(ModRegistries.SILVERWOOD_SAPLING);
         ClientTooltipEvent.ITEM.register((stack, lines, context, flag) -> {
             var level = Minecraft.getInstance().level;
             if (level == null) {
@@ -51,5 +51,9 @@ public final class NewAgeThaumClient {
                         .append(Component.literal(" ×" + entry.getValue()).withStyle(ChatFormatting.DARK_GRAY)));
             }
         });
+    }
+
+    private static void cutout(RegistrySupplier<net.minecraft.world.level.block.Block> block) {
+        block.listen(b -> RenderTypeRegistry.register(RenderType.cutout(), b));
     }
 }
