@@ -42,7 +42,7 @@ public class ArcaneOrreryMenu extends AbstractContainerMenu {
         addSlot(new Slot(container, 0, PAPER_SLOT_X, PAPER_SLOT_Y) {
             @Override
             public boolean mayPlace(ItemStack stack) {
-                return stack.is(ModRegistries.RESEARCH_PAPER.get());
+                return stack.getItem() instanceof ResearchPaperItem;
             }
 
             @Override

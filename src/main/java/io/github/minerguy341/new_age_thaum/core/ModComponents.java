@@ -18,6 +18,14 @@ public final class ModComponents {
                     .networkSynchronized(WandComponent.STREAM_CODEC)
                     .build());
 
+    /** The generated puzzle definition (frequency, endpoints, gaps) on a research paper. */
+    public static final RegistrySupplier<DataComponentType<io.github.minerguy341.new_age_thaum.core.research.ResearchPuzzle>> RESEARCH_PUZZLE =
+            COMPONENTS.register("research_puzzle",
+                    () -> DataComponentType.<io.github.minerguy341.new_age_thaum.core.research.ResearchPuzzle>builder()
+                            .persistent(io.github.minerguy341.new_age_thaum.core.research.ResearchPuzzle.CODEC)
+                            .networkSynchronized(io.github.minerguy341.new_age_thaum.core.research.ResearchPuzzle.STREAM_CODEC)
+                            .build());
+
     /** The painted research sphere, carried by the research paper itself. */
     public static final RegistrySupplier<DataComponentType<io.github.minerguy341.new_age_thaum.core.research.ResearchSphereData>> RESEARCH_SPHERE =
             COMPONENTS.register("research_sphere",

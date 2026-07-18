@@ -9,6 +9,8 @@ import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import io.github.minerguy341.new_age_thaum.content.ArcaneOrreryMenu;
 import io.github.minerguy341.new_age_thaum.core.ModComponents;
+import io.github.minerguy341.new_age_thaum.core.research.PuzzleGenerator;
+import io.github.minerguy341.new_age_thaum.core.research.ResearchPuzzle;
 import io.github.minerguy341.new_age_thaum.core.research.ResearchSphereData;
 import io.github.minerguy341.new_age_thaum.core.aspect.Aspect;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectNames;
@@ -35,6 +37,7 @@ import org.joml.Vector3f;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -61,7 +64,8 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     private static final double ROTATE_SPEED = 0.008;
     private static final Quaternionf DEFAULT_ORIENTATION = new Quaternionf().rotateY(0.6f).rotateX(-0.35f);
 
-    private final GoldbergGrid grid = GoldbergGrid.generate(FREQUENCY);
+    private GoldbergGrid grid = PuzzleGenerator.gridFor(FREQUENCY);
+    private int gridFrequency = FREQUENCY;
     private final Quaternionf orientation = new Quaternionf(DEFAULT_ORIENTATION);
     private List<ResourceLocation> aspects = new ArrayList<>();
 
@@ -140,6 +144,45 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
                 : paper.getOrDefault(ModComponents.RESEARCH_SPHERE.get(), ResearchSphereData.EMPTY).cells();
     }
 
+    /** The held paper's generated puzzle (endpoints, gaps, sphere size), or null. */
+    private ResearchPuzzle puzzle() {
+        net.minecraft.world.item.ItemStack paper = paperStack();
+        return paper.isEmpty() ? null : paper.get(ModComponents.RESEARCH_PUZZLE.get());
+    }
+
+    /** Player placements plus the puzzle's fixed endpoint aspects — what the rules see. */
+    private Map<Integer, ResourceLocation> effectiveMap() {
+        ResearchPuzzle puzzle = puzzle();
+        Map<Integer, ResourceLocation> placed = placedMap();
+        if (puzzle == null || puzzle.endpoints().isEmpty()) {
+            return placed;
+        }
+        Map<Integer, ResourceLocation> combined = new HashMap<>(placed);
+        combined.putAll(puzzle.endpoints());
+        return combined;
+    }
+
+    private boolean isGapCell(int cell) {
+        ResearchPuzzle puzzle = puzzle();
+        return puzzle != null && puzzle.isGap(cell);
+    }
+
+    private boolean isLockedCell(int cell) {
+        ResearchPuzzle puzzle = puzzle();
+        return puzzle != null && (puzzle.isEndpoint(cell) || puzzle.isGap(cell));
+    }
+
+    /** Swaps in the sphere matching the paper's puzzle (tierScaledSpheres config). */
+    private void updateGrid() {
+        ResearchPuzzle puzzle = puzzle();
+        int frequency = puzzle != null ? puzzle.frequency() : FREQUENCY;
+        if (frequency != gridFrequency) {
+            gridFrequency = frequency;
+            grid = PuzzleGenerator.gridFor(frequency);
+            lastLinkInput = null;
+        }
+    }
+
     private void toggleCamera() {
         freeRotation = !freeRotation;
         pitchAccum = 0;
@@ -183,6 +226,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        updateGrid();
         super.render(graphics, mouseX, mouseY, partialTick);
         graphics.flush();
         renderSphere(graphics, mouseX, mouseY);
@@ -241,15 +285,20 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     }
 
     private void renderSphere(GuiGraphics graphics, int mouseX, int mouseY) {
-        Map<Integer, ResourceLocation> placed = placedMap();
+        ResearchPuzzle puzzle = puzzle();
+        Map<Integer, ResourceLocation> placed = effectiveMap();
         java.util.Set<Integer> unlinked = unlinkedFor(placed);
 
         // Drop preview: while dragging, the target cell gets a rim — white when the drop
         // would immediately link to a related neighbor, dim grey when it would sit unlinked.
+        // Endpoint cells are locked, so they never preview.
         int previewCell = -1;
         boolean previewLinks = false;
         if (dragging != null && hasPaper() && inSphere(mouseX, mouseY)) {
             previewCell = pickCell(mouseX, mouseY);
+            if (previewCell >= 0 && puzzle != null && puzzle.isEndpoint(previewCell)) {
+                previewCell = -1;
+            }
             if (previewCell >= 0) {
                 previewLinks = io.github.minerguy341.new_age_thaum.core.research.LinkingPuzzle
                         .wouldLink(grid, placed, previewCell, dragging);
@@ -258,6 +307,10 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
 
         List<GoldbergGrid.Cell> front = new ArrayList<>();
         for (GoldbergGrid.Cell cell : grid.cells()) {
+            // Gap cells are holes in the sphere: not drawn, not paintable.
+            if (puzzle != null && puzzle.isGap(cell.index())) {
+                continue;
+            }
             if (rotate(cell.x(), cell.y(), cell.z()).z > 0) {
                 front.add(cell);
             }
@@ -274,9 +327,11 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         BufferBuilder buffer = tesselator.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
         for (GoldbergGrid.Cell cell : front) {
+            boolean endpoint = puzzle != null && puzzle.isEndpoint(cell.index());
             int rgb = placed.containsKey(cell.index()) ? colorOf(placed.get(cell.index())) : EMPTY_CELL;
-            // No valid connection -> greyed out (unrelated neighbors are ignored, not errors).
-            if (unlinked.contains(cell.index())) {
+            // No valid connection -> greyed out (unrelated neighbors are ignored, not
+            // errors). Endpoints keep their true color — the player plans around them.
+            if (!endpoint && unlinked.contains(cell.index())) {
                 rgb = blend(rgb, 0x45434E, 0.65);
             }
 
@@ -292,9 +347,11 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
                 pts[i] = new double[]{pc[0] + (p[0] - pc[0]) * shrink, pc[1] + (p[1] - pc[1]) * shrink};
             }
 
-            // Preview rim first (full, un-shrunk face), fill on top.
+            // Rims first (full, un-shrunk face), fill on top. Endpoints wear gold.
             if (cell.index() == previewCell) {
                 addPolygon(buffer, matrix, pc, full, previewLinks ? 0xFFFFFF : 0x8A8794, 200);
+            } else if (endpoint) {
+                addPolygon(buffer, matrix, pc, full, 0xE8C86A, 235);
             }
             addPolygon(buffer, matrix, pc, pts, rgb, 255);
         }
@@ -490,28 +547,42 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         }
         lastPairs = pairs;
 
-        // Flow depths: BFS each link-component from its lowest cell index (the "chain
-        // start" — endpoints will take this role once puzzles exist), so the current's
-        // wave phase propagates outward along the web, branch by branch.
+        // Flow depths: the puzzle's endpoints are the springs — multi-source BFS from
+        // every endpoint in the web, so the current visibly flows outward from the fixed
+        // cells. Components touching no endpoint fall back to their lowest cell index.
         Map<Integer, Integer> depth = new java.util.HashMap<>();
-        for (Integer start : linkAdjacency.keySet().stream().sorted().toList()) {
-            if (depth.containsKey(start)) {
-                continue;
-            }
-            depth.put(start, 0);
-            java.util.ArrayDeque<Integer> queue = new java.util.ArrayDeque<>();
-            queue.add(start);
-            while (!queue.isEmpty()) {
-                int current = queue.poll();
-                for (int next : linkAdjacency.get(current)) {
-                    if (!depth.containsKey(next)) {
-                        depth.put(next, depth.get(current) + 1);
-                        queue.add(next);
-                    }
+        java.util.ArrayDeque<Integer> queue = new java.util.ArrayDeque<>();
+        ResearchPuzzle puzzle = puzzle();
+        if (puzzle != null) {
+            for (Integer endpoint : puzzle.endpoints().keySet()) {
+                if (linkAdjacency.containsKey(endpoint) && !depth.containsKey(endpoint)) {
+                    depth.put(endpoint, 0);
+                    queue.add(endpoint);
                 }
+            }
+            drainDepths(queue, depth, linkAdjacency);
+        }
+        for (Integer start : linkAdjacency.keySet().stream().sorted().toList()) {
+            if (!depth.containsKey(start)) {
+                depth.put(start, 0);
+                queue.add(start);
+                drainDepths(queue, depth, linkAdjacency);
             }
         }
         lastFlowDepth = depth;
+    }
+
+    private static void drainDepths(java.util.ArrayDeque<Integer> queue, Map<Integer, Integer> depth,
+            Map<Integer, List<Integer>> adjacency) {
+        while (!queue.isEmpty()) {
+            int current = queue.poll();
+            for (int next : adjacency.get(current)) {
+                if (!depth.containsKey(next)) {
+                    depth.put(next, depth.get(current) + 1);
+                    queue.add(next);
+                }
+            }
+        }
     }
 
     private java.util.Set<Integer> unlinkedFor(Map<Integer, ResourceLocation> placed) {
@@ -650,9 +721,10 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     // --- edits (optimistic client + C2S; server persists onto the paper) --------
 
     private void paintCell(int cell, ResourceLocation aspect) {
-        if (!hasPaper() || ClientPlayerProgress.get().points(aspect) < 1) {
+        if (!hasPaper() || isLockedCell(cell) || ClientPlayerProgress.get().points(aspect) < 1) {
             // Audible refusal — a silent no-op here reads as "placement is broken".
-            // No paper, or can't afford the 1-point placement cost (server re-checks).
+            // No paper, a locked endpoint/gap cell, or can't afford the 1-point
+            // placement cost (server re-checks all of it).
             playUi(SoundEvents.VILLAGER_NO, 1.0f);
             return;
         }
@@ -666,6 +738,10 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
 
     private void clearCell(int cell) {
         if (!hasPaper()) {
+            return;
+        }
+        if (isLockedCell(cell)) {
+            playUi(SoundEvents.VILLAGER_NO, 1.0f);
             return;
         }
         net.minecraft.world.item.ItemStack paper = paperStack();
@@ -713,6 +789,9 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         int best = -1;
         double bestZ = Double.NEGATIVE_INFINITY;
         for (GoldbergGrid.Cell cell : grid.cells()) {
+            if (isGapCell(cell.index())) {
+                continue; // holes can't be picked
+            }
             Vector3f c = rotate(cell.x(), cell.y(), cell.z());
             if (c.z <= 0) {
                 continue;

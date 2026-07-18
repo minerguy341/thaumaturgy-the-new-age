@@ -111,4 +111,35 @@ public final class LinkingPuzzle {
         }
         return false;
     }
+
+    /**
+     * The puzzle-solved condition: every endpoint cell belongs to one connected web of
+     * valid links. BFS over the link graph of {@code cells} from the first endpoint.
+     */
+    public static boolean allEndpointsLinked(GoldbergGrid grid, Map<Integer, ResourceLocation> cells,
+            Set<Integer> endpointCells) {
+        if (endpointCells.size() < 2) {
+            return !endpointCells.isEmpty() && cells.keySet().containsAll(endpointCells);
+        }
+        Integer start = endpointCells.iterator().next();
+        if (!cells.containsKey(start)) {
+            return false;
+        }
+        Set<Integer> reached = new HashSet<>();
+        reached.add(start);
+        java.util.ArrayDeque<Integer> queue = new java.util.ArrayDeque<>();
+        queue.add(start);
+        while (!queue.isEmpty()) {
+            int current = queue.poll();
+            ResourceLocation here = cells.get(current);
+            for (int neighbor : grid.cell(current).neighbors()) {
+                ResourceLocation there = cells.get(neighbor);
+                if (there != null && !reached.contains(neighbor) && AspectRelations.related(here, there)) {
+                    reached.add(neighbor);
+                    queue.add(neighbor);
+                }
+            }
+        }
+        return reached.containsAll(endpointCells);
+    }
 }

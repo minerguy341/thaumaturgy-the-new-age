@@ -106,6 +106,15 @@ public final class NewAgeThaumNetwork {
         if (!orrery.canEditSphere()) {
             return false;
         }
+        var puzzle = orrery.puzzle().orElse(null);
+        if (puzzle != null) {
+            // Endpoints are locked pre-placed cells; gaps are holes in the sphere.
+            if (puzzle.isEndpoint(cell) || puzzle.isGap(cell)
+                    || cell < 0 || cell >= io.github.minerguy341.new_age_thaum.core.research.PuzzleGenerator
+                            .gridFor(puzzle.frequency()).size()) {
+                return false;
+            }
+        }
         if (aspect.isPresent()) {
             if (!AspectRegistry.exists(aspect.get())) {
                 return false;

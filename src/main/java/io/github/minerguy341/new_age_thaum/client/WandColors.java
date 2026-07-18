@@ -51,6 +51,23 @@ public final class WandColors {
             return colorOf(part.materialId());
         }, ModRegistries.GREATWOOD_ROD, ModRegistries.SILVERWOOD_ROD,
                 ModRegistries.BRASS_CAP, ModRegistries.AETHERIUM_CAP);
+
+        // Tier papers share the vanilla paper texture; the tint tells them apart
+        // until each gets real art. Grandmaster gold matches the endpoint rim.
+        ColorHandlerRegistry.registerItemColors((stack, tintIndex) -> {
+            if (tintIndex != 0 || !(stack.getItem()
+                    instanceof io.github.minerguy341.new_age_thaum.content.ResearchPaperItem paper)) {
+                return UNTINTED;
+            }
+            return 0xFF000000 | switch (paper.tier()) {
+                case FLEDGLING -> 0xEFE6C8;
+                case APPRENTICE -> 0x9FD8A0;
+                case SCHOLAR -> 0x8FB8E8;
+                case MASTER -> 0xC49AE8;
+                case GRANDMASTER -> 0xE8C86A;
+            };
+        }, ModRegistries.PAPER_FLEDGLING, ModRegistries.PAPER_APPRENTICE, ModRegistries.PAPER_SCHOLAR,
+                ModRegistries.PAPER_MASTER, ModRegistries.PAPER_GRANDMASTER);
     }
 
     private static int colorOf(ResourceLocation materialId) {

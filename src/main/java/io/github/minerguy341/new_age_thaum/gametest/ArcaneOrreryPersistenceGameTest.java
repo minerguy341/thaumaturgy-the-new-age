@@ -38,7 +38,7 @@ public class ArcaneOrreryPersistenceGameTest {
         ResourceLocation flamma = ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, "flamma");
 
         ArcaneOrreryBlockEntity orrery = new ArcaneOrreryBlockEntity(BlockPos.ZERO, state);
-        orrery.setPaper(new ItemStack(ModRegistries.RESEARCH_PAPER.get()));
+        orrery.setPaper(new ItemStack(ModRegistries.PAPER_FLEDGLING.get()));
         orrery.editSphere(7, Optional.of(flamma));
 
         // Survives the block entity's NBT round trip (world save/load) …
@@ -56,7 +56,7 @@ public class ArcaneOrreryPersistenceGameTest {
         helper.assertTrue(flamma.equals(carried.cells().get(7)), "The removed paper should carry the research");
 
         // A fresh paper starts blank, and edits without a paper are rejected.
-        copy.setPaper(new ItemStack(ModRegistries.RESEARCH_PAPER.get()));
+        copy.setPaper(new ItemStack(ModRegistries.PAPER_FLEDGLING.get()));
         helper.assertTrue(copy.paper().getOrDefault(ModComponents.RESEARCH_SPHERE.get(), ResearchSphereData.EMPTY)
                 .cells().isEmpty(), "A fresh paper must start blank");
         copy.setPaper(ItemStack.EMPTY);

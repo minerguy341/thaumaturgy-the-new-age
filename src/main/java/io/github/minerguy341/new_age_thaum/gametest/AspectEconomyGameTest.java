@@ -58,7 +58,7 @@ public class AspectEconomyGameTest {
         ResourceLocation flamma = aspect("flamma");
         ArcaneOrreryBlockEntity orrery = new ArcaneOrreryBlockEntity(BlockPos.ZERO,
                 ModRegistries.ARCANE_ORRERY.get().defaultBlockState());
-        orrery.setPaper(new ItemStack(ModRegistries.RESEARCH_PAPER.get()));
+        orrery.setPaper(new ItemStack(ModRegistries.PAPER_FLEDGLING.get()));
 
         PlayerProgressService.scan(player, "test/economy2", new AspectBag(Map.of(flamma, 1)));
 

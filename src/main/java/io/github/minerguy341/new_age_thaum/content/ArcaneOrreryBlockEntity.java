@@ -39,12 +39,33 @@ public class ArcaneOrreryBlockEntity extends BlockEntity implements Container {
 
     public void setPaper(ItemStack stack) {
         paper = stack;
+        stampPuzzleIfNeeded();
         sync();
     }
 
     /** True when the slot holds a research paper whose sphere can be edited. */
     public boolean canEditSphere() {
-        return paper.is(ModRegistries.RESEARCH_PAPER.get());
+        return paper.getItem() instanceof ResearchPaperItem;
+    }
+
+    /** The paper's generated puzzle, if it has one yet. */
+    public java.util.Optional<io.github.minerguy341.new_age_thaum.core.research.ResearchPuzzle> puzzle() {
+        return java.util.Optional.ofNullable(
+                paper.get(ModComponents.RESEARCH_PUZZLE.get()));
+    }
+
+    /**
+     * Lazy generation: the first time a tiered paper sits in a (server-side) orrery, its
+     * puzzle is rolled from the tier parameters and stamped on as a component.
+     */
+    private void stampPuzzleIfNeeded() {
+        if (level == null || level.isClientSide
+                || !(paper.getItem() instanceof ResearchPaperItem item)
+                || paper.has(ModComponents.RESEARCH_PUZZLE.get())) {
+            return;
+        }
+        paper.set(ModComponents.RESEARCH_PUZZLE.get(),
+                io.github.minerguy341.new_age_thaum.core.research.PuzzleGenerator.generate(item.tier(), level.random));
     }
 
     /** The aspect currently painted at {@code cell}, or null. */
