@@ -41,7 +41,23 @@ public class AuraNodeRenderer implements BlockEntityRenderer<AuraNodeBlockEntity
         long now = Util.getMillis();
         int color = SphereColors.colorOf(node.aspect()); // grey until the server rolls it
         VertexConsumer buffer = bufferSource.getBuffer(RenderType.debugQuads());
-        Quaternionf facing = Minecraft.getInstance().gameRenderer.getMainCamera().rotation();
+        // Point-at-camera billboard, not screen-aligned: each orb's disc plane must be
+        // perpendicular to the line from THIS node to the camera. With the shared
+        // camera.rotation() plane, nodes off the view axis tilt relative to their own
+        // sight line at close range and their edges/layers clip terrain and each other.
+        var camera = Minecraft.getInstance().gameRenderer.getMainCamera();
+        BlockPos origin = node.getBlockPos();
+        float toCamX = (float) (camera.getPosition().x - (origin.getX() + 0.5));
+        float toCamY = (float) (camera.getPosition().y - (origin.getY() + 0.5));
+        float toCamZ = (float) (camera.getPosition().z - (origin.getZ() + 0.5));
+        Quaternionf facing;
+        if (toCamX * toCamX + toCamY * toCamY + toCamZ * toCamZ > 1.0e-6f) {
+            // Local +Z ends up pointing away from the camera, same convention as the
+            // screen-aligned billboard, so the far-to-near layer depths below still hold.
+            facing = new Quaternionf().rotationTo(0f, 0f, 1f, -toCamX, -toCamY, -toCamZ);
+        } else {
+            facing = camera.rotation(); // camera inside the node; any facing works
+        }
 
         poseStack.pushPose();
         poseStack.translate(0.5, 0.5, 0.5);
@@ -50,8 +66,8 @@ public class AuraNodeRenderer implements BlockEntityRenderer<AuraNodeBlockEntity
         float pulse = 1.0f + 0.08f * (float) Math.sin(seconds * 2.1);
         float base = 0.28f * (0.7f + 0.3f * node.size());
         // Outer halo breathes, the mid swirl and bright core counter-rotate. Each layer
-        // sits at its own depth along the view axis (after mulPose(camera.rotation()),
-        // +Z points away from the viewer) — coplanar discs Z-fight. Drawn far to near.
+        // sits at its own depth along the local view axis (+Z points away from the
+        // camera) — coplanar discs Z-fight. Drawn far to near.
         disc(buffer, poseStack, base * 1.7f * pulse, SphereColors.blend(color, 0xFFFFFF, 0.10), 0x2E,
                 (float) (seconds * 0.35), 0.04f);
         disc(buffer, poseStack, base * 1.15f, SphereColors.blend(color, 0xFFFFFF, 0.25), 0x78,
