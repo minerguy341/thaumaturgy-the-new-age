@@ -234,13 +234,16 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
 
         int rgb;
         int alpha;
-        // Alphas tuned brighter after in-game feedback: the first pass was hard to read.
+        // Filled cells are OPAQUE: with no depth writes in the color pass, anything
+        // translucent lets the back hemisphere bleed through as misaligned grey patches.
+        // Only the empty-cell veil stays see-through — that's the "hologram" read, and
+        // the far side showing faintly through unpainted glass is intentional.
         if (endpoint) {
             rgb = SphereColors.blend(SphereColors.colorOf(aspect), SphereColors.GOLD, 0.5);
-            alpha = 0xEE;
+            alpha = 0xFF;
         } else if (aspect != null) {
             rgb = SphereColors.colorOf(aspect);
-            alpha = 0xD4;
+            alpha = 0xFF;
         } else {
             rgb = SphereColors.EMPTY_CELL;
             alpha = 0x60;
