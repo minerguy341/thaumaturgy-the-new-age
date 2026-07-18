@@ -1,5 +1,6 @@
 package io.github.minerguy341.new_age_thaum.client;
 
+import io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig;
 import io.github.minerguy341.new_age_thaum.core.aspect.Aspect;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectRegistry;
 import net.minecraft.resources.ResourceLocation;
@@ -35,5 +36,31 @@ final class SphereColors {
     /** Gold-breathing intensity once a puzzle is solved; 0 when unsolved. */
     static double solvedBreath(boolean solved, long millis) {
         return solved ? 0.30 + 0.20 * Math.sin(millis / 1000.0 * 2.4) : 0;
+    }
+
+    /** Wavelength of the currents' travelling pulse, measured in links of the chain. */
+    private static final double GLINT_WAVELENGTH = 2.6;
+
+    /**
+     * A bright pulse travelling in a current's flow direction. The wave lives in global
+     * chain coordinates (depth + t), so a pulse leaves one link exactly as it enters the
+     * next — a continuous relay along the whole web. No per-link jitter here.
+     * In custom color mode the pulse itself grades pulseFrom→pulseTo with intensity.
+     */
+    static int glinted(int rgb, double t, double time, double speed, int chainDepth) {
+        double s = (chainDepth + t) / GLINT_WAVELENGTH;
+        double wave = Math.sin(2 * Math.PI * (s - time * speed * 0.5));
+        double strength = Math.pow(Math.max(0, wave), 3);
+        if (strength <= 0) {
+            return rgb;
+        }
+        int pulseColor;
+        if (NewAgeThaumConfig.customCurrentColors()) {
+            pulseColor = blend(NewAgeThaumConfig.currentPulseFrom,
+                    NewAgeThaumConfig.currentPulseTo, strength);
+        } else {
+            pulseColor = 0xFFFFFF;
+        }
+        return blend(rgb, pulseColor, strength * 0.55);
     }
 }

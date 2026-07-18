@@ -10,7 +10,6 @@ import com.mojang.blaze3d.vertex.VertexFormat;
 import io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity;
 import io.github.minerguy341.new_age_thaum.content.ArcaneOrreryMenu;
 import io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig;
-import io.github.minerguy341.new_age_thaum.core.aspect.AspectRelations;
 import io.github.minerguy341.new_age_thaum.core.research.LinkingPuzzle;
 import io.github.minerguy341.new_age_thaum.network.OrientationFrame;
 import io.github.minerguy341.new_age_thaum.core.ModComponents;
@@ -43,7 +42,6 @@ import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -551,36 +549,10 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             right[i] = new double[]{cx - nx * half, cy - ny * half};
         }
         for (int i = 0; i < segments; i++) {
-            int colA = glinted(SphereColors.blend(rgb1, rgb2, (double) i / segments), (double) i / segments, time, speed, chainDepth);
-            int colB = glinted(SphereColors.blend(rgb1, rgb2, (double) (i + 1) / segments), (double) (i + 1) / segments, time, speed, chainDepth);
+            int colA = SphereColors.glinted(SphereColors.blend(rgb1, rgb2, (double) i / segments), (double) i / segments, time, speed, chainDepth);
+            int colB = SphereColors.glinted(SphereColors.blend(rgb1, rgb2, (double) (i + 1) / segments), (double) (i + 1) / segments, time, speed, chainDepth);
             quad(buffer, matrix, left[i], right[i], right[i + 1], left[i + 1], colA, colB, alpha);
         }
-    }
-
-    /** Wavelength of the travelling pulse, measured in links of the chain. */
-    private static final double GLINT_WAVELENGTH = 2.6;
-
-    /**
-     * A bright pulse travelling in the flow direction. The wave lives in global chain
-     * coordinates (depth + t), so a pulse leaves one link exactly as it enters the
-     * next — a continuous relay along the whole web. No per-link jitter here.
-     * In custom color mode the pulse itself grades pulseFrom→pulseTo with intensity.
-     */
-    private static int glinted(int rgb, double t, double time, double speed, int chainDepth) {
-        double s = (chainDepth + t) / GLINT_WAVELENGTH;
-        double wave = Math.sin(2 * Math.PI * (s - time * speed * 0.5));
-        double strength = Math.pow(Math.max(0, wave), 3);
-        if (strength <= 0) {
-            return rgb;
-        }
-        int pulseColor;
-        if (NewAgeThaumConfig.customCurrentColors()) {
-            pulseColor = SphereColors.blend(NewAgeThaumConfig.currentPulseFrom,
-                    NewAgeThaumConfig.currentPulseTo, strength);
-        } else {
-            pulseColor = 0xFFFFFF;
-        }
-        return SphereColors.blend(rgb, pulseColor, strength * 0.55);
     }
 
     private void quad(BufferBuilder buffer, Matrix4f matrix, double[] l0, double[] r0, double[] r1, double[] l1,
@@ -627,70 +599,10 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             return;
         }
         lastLinkInput = placed;
-        // A crafted/corrupt component can carry out-of-range cell indices; every filled
-        // key goes through grid.cell() below (and inside LinkingPuzzle), so drop them
-        // here or one bad paper crashes the render loop of every viewer.
-        Map<Integer, ResourceLocation> sane = new HashMap<>();
-        for (Map.Entry<Integer, ResourceLocation> entry : placed.entrySet()) {
-            if (entry.getKey() >= 0 && entry.getKey() < grid.size()) {
-                sane.put(entry.getKey(), entry.getValue());
-            }
-        }
-        lastUnlinked = LinkingPuzzle.unlinked(grid, sane);
-        List<int[]> pairs = new ArrayList<>();
-        Map<Integer, List<Integer>> linkAdjacency = new HashMap<>();
-        for (Map.Entry<Integer, ResourceLocation> entry : sane.entrySet()) {
-            for (int neighbor : grid.cell(entry.getKey()).neighbors()) {
-                if (neighbor <= entry.getKey()) {
-                    continue; // each edge once
-                }
-                ResourceLocation there = sane.get(neighbor);
-                if (there != null && AspectRelations
-                        .related(entry.getValue(), there)) {
-                    pairs.add(new int[]{entry.getKey(), neighbor});
-                    linkAdjacency.computeIfAbsent(entry.getKey(), k -> new ArrayList<>()).add(neighbor);
-                    linkAdjacency.computeIfAbsent(neighbor, k -> new ArrayList<>()).add(entry.getKey());
-                }
-            }
-        }
-        lastPairs = pairs;
-
-        // Flow depths: the puzzle's endpoints are the springs — multi-source BFS from
-        // every endpoint in the web, so the current visibly flows outward from the fixed
-        // cells. Components touching no endpoint fall back to their lowest cell index.
-        Map<Integer, Integer> depth = new HashMap<>();
-        ArrayDeque<Integer> queue = new ArrayDeque<>();
-        ResearchPuzzle puzzle = puzzle();
-        if (puzzle != null) {
-            for (Integer endpoint : puzzle.endpoints().keySet()) {
-                if (linkAdjacency.containsKey(endpoint) && !depth.containsKey(endpoint)) {
-                    depth.put(endpoint, 0);
-                    queue.add(endpoint);
-                }
-            }
-            drainDepths(queue, depth, linkAdjacency);
-        }
-        for (Integer start : linkAdjacency.keySet().stream().sorted().toList()) {
-            if (!depth.containsKey(start)) {
-                depth.put(start, 0);
-                queue.add(start);
-                drainDepths(queue, depth, linkAdjacency);
-            }
-        }
-        lastFlowDepth = depth;
-    }
-
-    private static void drainDepths(ArrayDeque<Integer> queue, Map<Integer, Integer> depth,
-            Map<Integer, List<Integer>> adjacency) {
-        while (!queue.isEmpty()) {
-            int current = queue.poll();
-            for (int next : adjacency.get(current)) {
-                if (!depth.containsKey(next)) {
-                    depth.put(next, depth.get(current) + 1);
-                    queue.add(next);
-                }
-            }
-        }
+        SphereLinks links = SphereLinks.compute(grid, placed, puzzle());
+        lastUnlinked = LinkingPuzzle.unlinked(grid, links.sane());
+        lastPairs = links.pairs();
+        lastFlowDepth = links.depth();
     }
 
     private Set<Integer> unlinkedFor(Map<Integer, ResourceLocation> placed) {
