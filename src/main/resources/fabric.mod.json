@@ -17,6 +17,9 @@
     "main": [
       "${group}.platform.fabric.NewAgeThaumFabric"
     ],
+    "client": [
+      "${group}.platform.fabric.NewAgeThaumFabricClient"
+    ],
     "fabric-gametest": [
       "${group}.gametest.ProofOfForgeGameTest",
       "${group}.gametest.AspectGameTest",
