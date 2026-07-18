@@ -25,6 +25,13 @@ public final class PlayerProgressService {
     }
 
     public static void set(ServerPlayer player, PlayerProgress progress) {
+        if (bridge == null) {
+            // Same degraded mode as get(): a missing bridge (loader-init regression,
+            // bare test harness) must not NPE the server thread mid-scan.
+            io.github.minerguy341.new_age_thaum.NewAgeThaum.LOGGER
+                    .error("PlayerDataBridge not installed; dropping progress update for {}", player.getName().getString());
+            return;
+        }
         bridge.set(player, progress);
         NewAgeThaumNetwork.syncProgressTo(player, progress);
     }

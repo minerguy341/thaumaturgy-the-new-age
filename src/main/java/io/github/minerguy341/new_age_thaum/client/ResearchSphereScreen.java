@@ -318,17 +318,24 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             }
         }
 
+        // One rotation per cell per frame, reused by the cull, the depth sort, the fade,
+        // and the currents — re-rotating inside the sort comparator alone was O(n log n)
+        // fresh Vector3fs per frame.
+        Vector3f[] rotated = new Vector3f[grid.size()];
+        for (GoldbergGrid.Cell cell : grid.cells()) {
+            rotated[cell.index()] = rotate(cell.x(), cell.y(), cell.z());
+        }
         List<GoldbergGrid.Cell> front = new ArrayList<>();
         for (GoldbergGrid.Cell cell : grid.cells()) {
             // Gap cells are holes in the sphere: not drawn, not paintable.
             if (puzzle != null && puzzle.isGap(cell.index())) {
                 continue;
             }
-            if (rotate(cell.x(), cell.y(), cell.z()).z > 0) {
+            if (rotated[cell.index()].z > 0) {
                 front.add(cell);
             }
         }
-        front.sort(Comparator.comparingDouble(cell -> rotate(cell.x(), cell.y(), cell.z()).z));
+        front.sort(Comparator.comparingDouble(cell -> rotated[cell.index()].z));
 
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
@@ -355,7 +362,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             // Fade the cell out as its center reaches the horizon: together with the
             // clip this swallows cells smoothly at the limb — no pop-out, and no
             // leftover sliver peeking through the neighbors' dividers.
-            float fade = Math.min(1.0f, rotate(cell.x(), cell.y(), cell.z()).z / 0.12f);
+            float fade = Math.min(1.0f, rotated[cell.index()].z / 0.12f);
             double[] pc = polygonCenter(full);
             int n = full.length;
             double shrink = cellShrink();
@@ -383,7 +390,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             BufferUploader.drawWithShader(mesh);
         }
 
-        renderCurrents(matrix, placed);
+        renderCurrents(matrix, placed, rotated);
         RenderSystem.enableCull();
         RenderSystem.disableBlend();
     }
@@ -393,7 +400,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
      * distorted by two layered travelling sine waves, colored as a gradient between the
      * two aspects. Drawn on top of the fills; both cells must face the viewer.
      */
-    private void renderCurrents(Matrix4f matrix, Map<Integer, ResourceLocation> placed) {
+    private void renderCurrents(Matrix4f matrix, Map<Integer, ResourceLocation> placed, Vector3f[] rotated) {
         List<int[]> pairs = linkedPairsFor(placed);
         if (pairs.isEmpty()) {
             return;
@@ -412,10 +419,8 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
                 from = pair[1];
                 to = pair[0];
             }
-            GoldbergGrid.Cell a = grid.cell(from);
-            GoldbergGrid.Cell b = grid.cell(to);
-            Vector3f ra = rotate(a.x(), a.y(), a.z());
-            Vector3f rb = rotate(b.x(), b.y(), b.z());
+            Vector3f ra = rotated[from];
+            Vector3f rb = rotated[to];
             // Currents fade with their cells at the horizon (same window as the fills).
             float edgeFade = Math.min(1.0f, Math.min(ra.z, rb.z) / 0.12f);
             if (edgeFade <= 0) {
@@ -829,7 +834,9 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         if (x < listLeft || x >= listLeft + rowW || y < listTop || y >= listTop + listH) {
             return null;
         }
-        int index = (int) ((y - listTop + scroll) / ROW_HEIGHT);
+        // Truncate exactly like renderList's `listTop - (int) scroll`, or a fractional
+        // scrollbar drag makes the top pixel row of each entry hit-test as its neighbor.
+        int index = (int) ((y - listTop + (int) scroll) / ROW_HEIGHT);
         return index >= 0 && index < aspects.size() ? aspects.get(index) : null;
     }
 

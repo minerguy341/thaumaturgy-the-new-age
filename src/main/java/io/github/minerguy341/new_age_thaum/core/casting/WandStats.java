@@ -25,7 +25,7 @@ public record WandStats(double capacity, double discount, double potency,
         double capacity = core != null && core.isCore() ? core.capacity() * form.capacityMultiplier() : 0;
         double discount = Math.min(MAX_DISCOUNT, capDiscount(capA) + capDiscount(capB));
         double potency = capPotency(capA) + capPotency(capB);
-        Optional<ResourceLocation> affinity = core != null ? core.rechargeAffinity() : Optional.empty();
+        Optional<ResourceLocation> affinity = core != null && core.isCore() ? core.rechargeAffinity() : Optional.empty();
         return new WandStats(capacity, discount, potency, affinity);
     }
 

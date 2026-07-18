@@ -80,10 +80,14 @@ public final class NewAgeThaumConfig {
 
     private static void apply(Map<String, String> values) {
         tierScaledSpheres = parseBool(values.get("tierScaledSpheres"), tierScaledSpheres);
-        currentAmplitude = parseDouble(values.get("currentAmplitude"), currentAmplitude);
-        currentSpeed = parseDouble(values.get("currentSpeed"), currentSpeed);
-        currentWidth = parseDouble(values.get("currentWidth"), currentWidth);
-        cellBorderWidth = parseDouble(values.get("cellBorderWidth"), cellBorderWidth);
+        // Clamps match the ranges documented in the written file; parseDouble also
+        // rejects NaN/Infinity, which the render math would otherwise propagate into
+        // invisible geometry — and the rewrite-on-load would then canonicalize the
+        // bad value back into the file.
+        currentAmplitude = parseDouble(values.get("currentAmplitude"), currentAmplitude, 0.0, 100.0);
+        currentSpeed = parseDouble(values.get("currentSpeed"), currentSpeed, 0.0, 100.0);
+        currentWidth = parseDouble(values.get("currentWidth"), currentWidth, 0.0, 10.0);
+        cellBorderWidth = parseDouble(values.get("cellBorderWidth"), cellBorderWidth, 0.0, 3.5);
         if (values.containsKey("currentColorMode")) {
             currentColorMode = values.get("currentColorMode");
         }
@@ -193,9 +197,13 @@ public final class NewAgeThaumConfig {
         return value == null ? fallback : Boolean.parseBoolean(value);
     }
 
-    private static double parseDouble(String value, double fallback) {
+    private static double parseDouble(String value, double fallback, double min, double max) {
         try {
-            return value == null ? fallback : Double.parseDouble(value);
+            if (value == null) {
+                return fallback;
+            }
+            double parsed = Double.parseDouble(value);
+            return Double.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback;
         } catch (NumberFormatException e) {
             return fallback;
         }
@@ -203,7 +211,9 @@ public final class NewAgeThaumConfig {
 
     private static int parseHex(String value, int fallback) {
         try {
-            return value == null ? fallback : Integer.parseInt(value.replace("#", ""), 16);
+            // Unsigned parse masked to 24 bits, so "-FF" or 8-digit values can't smuggle
+            // a negative/out-of-range color into the render path.
+            return value == null ? fallback : (int) (Long.parseLong(value.replace("#", ""), 16) & 0xFFFFFF);
         } catch (NumberFormatException e) {
             return fallback;
         }
