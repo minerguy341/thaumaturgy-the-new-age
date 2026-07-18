@@ -240,7 +240,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     }
 
     private void recenter() {
-        orientation.set(DEFAULT_ORIENTATION);
+        orientation.set(ArcaneOrreryBlockEntity.DEFAULT_ORIENTATION);
         pitchAccum = 0;
         pushOrientation(true);
     }
