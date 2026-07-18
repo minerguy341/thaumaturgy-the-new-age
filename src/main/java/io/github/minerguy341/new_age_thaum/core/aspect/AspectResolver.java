@@ -12,8 +12,10 @@ import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -23,6 +25,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * sidesteps reload-listener ordering: by the time anything asks, tags and
  * recipes are bound. Runs identically on server and client (recipes and
  * assignments are both synced), so tooltips never need a round trip.
+ *
+ * <p>Invalidated when assignments change ({@link AspectAssignments#accept}), when tags
+ * rebind (loader hooks in the platform entrypoints — on {@code /reload} the tag/recipe
+ * swap lands AFTER the reload listeners run, so the assignment-time invalidation alone
+ * would let bags computed in that window stick with stale tags), and on client
+ * disconnect.
  */
 public final class AspectResolver {
     private static final double DAMPENING = 0.75;
@@ -30,6 +38,14 @@ public final class AspectResolver {
 
     private static final Map<Item, AspectBag> CACHE = new ConcurrentHashMap<>();
     private static volatile Map<Item, List<RecipeHolder<CraftingRecipe>>> recipesByResult;
+    /**
+     * Recipe-cycle guard, per thread. Not a cache sentinel: in singleplayer the client
+     * render thread and the server thread share {@code CACHE}, so a shared EMPTY
+     * sentinel becomes the other side's final answer mid-inference (an Aetherlens scan
+     * in that window would record the scan and grant zero points, forever), and a
+     * throwing {@code infer} would leave it poisoned until the next reload.
+     */
+    private static final ThreadLocal<Set<Item>> IN_PROGRESS = ThreadLocal.withInitial(HashSet::new);
 
     private AspectResolver() {
     }
@@ -58,11 +74,17 @@ public final class AspectResolver {
             return fromTags;
         }
 
-        // Sentinel guards recipe cycles: anything re-entering for this item sees EMPTY.
-        CACHE.put(item, AspectBag.EMPTY);
-        AspectBag inferred = infer(item, level);
-        CACHE.put(item, inferred);
-        return inferred;
+        Set<Item> inProgress = IN_PROGRESS.get();
+        if (!inProgress.add(item)) {
+            return AspectBag.EMPTY; // recipe cycle: this thread is already inferring it
+        }
+        try {
+            AspectBag inferred = infer(item, level);
+            CACHE.put(item, inferred);
+            return inferred;
+        } finally {
+            inProgress.remove(item);
+        }
     }
 
     private static AspectBag resolveFromTags(Item item) {
