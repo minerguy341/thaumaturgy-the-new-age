@@ -62,7 +62,10 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         return Math.max(0.5, Math.min(1.0, 1.0 - 0.14 * width));
     }
     private static final double ROTATE_SPEED = 0.008;
-    private static final Quaternionf DEFAULT_ORIENTATION = new Quaternionf().rotateY(0.6f).rotateX(-0.35f);
+    private static final Quaternionf DEFAULT_ORIENTATION =
+            io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity.DEFAULT_ORIENTATION;
+    /** Drag rotations stream to the server at most this often; release always sends. */
+    private static final long ROTATION_SEND_INTERVAL_MS = 50;
 
     private GoldbergGrid grid = PuzzleGenerator.gridFor(FREQUENCY);
     private int gridFrequency = FREQUENCY;
@@ -79,6 +82,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     private double sphereR;
 
     private double scroll;
+    private long lastRotationSent;
     private boolean freeRotation;
     private float pitchAccum;
     private boolean rotating;
@@ -96,6 +100,12 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     protected void init() {
         super.init();
         io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.maybeReload();
+        // Continue from the orrery's stored orientation (also keeps the screen and the
+        // world hologram agreeing across reopen/resize).
+        var orrery = clientOrrery();
+        if (orrery != null) {
+            orientation.set(orrery.orientation());
+        }
 
         // Discovery: the six primals are always listed; compounds only once the player
         // has ever earned points of them (m2-gameplay-spec §A).
@@ -203,6 +213,32 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     private void recenter() {
         orientation.set(DEFAULT_ORIENTATION);
         pitchAccum = 0;
+        pushOrientation(true);
+    }
+
+    private io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity clientOrrery() {
+        var level = Minecraft.getInstance().level;
+        return level != null && level.getBlockEntity(this.menu.pos())
+                instanceof io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity orrery
+                ? orrery : null;
+    }
+
+    /**
+     * Mirrors the screen rotation onto the world hologram: writes through to this
+     * client's block entity immediately and streams the quaternion to the server
+     * (throttled while dragging; release/recenter force-send the final pose).
+     */
+    private void pushOrientation(boolean force) {
+        var orrery = clientOrrery();
+        if (orrery != null) {
+            orrery.setOrientation(new Quaternionf(orientation));
+        }
+        long now = net.minecraft.Util.getMillis();
+        if (!force && now - lastRotationSent < ROTATION_SEND_INTERVAL_MS) {
+            return;
+        }
+        lastRotationSent = now;
+        NewAgeThaumNetwork.sendOrreryRotation(this.menu.pos(), orientation);
     }
 
     // --- rendering -------------------------------------------------------------
@@ -749,7 +785,11 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             dragging = null;
             return true;
         }
-        rotating = false;
+        if (rotating) {
+            rotating = false;
+            pushOrientation(true); // final pose always reaches the server
+            return true;
+        }
         return super.mouseReleased(mouseX, mouseY, button);
     }
 
@@ -816,6 +856,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             orientation.premul(new Quaternionf().rotateX(target - pitchAccum));
             pitchAccum = target;
         }
+        pushOrientation(false);
     }
 
     private void setScrollFromMouse(double mouseY) {

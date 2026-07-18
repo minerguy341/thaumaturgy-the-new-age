@@ -27,10 +27,27 @@ import java.util.Optional;
  * goes with it.
  */
 public class ArcaneOrreryBlockEntity extends BlockEntity implements Container {
+    /** The sphere's rest pose, shared with the screen. JOML is mutable — never mutate this. */
+    public static final org.joml.Quaternionf DEFAULT_ORIENTATION =
+            new org.joml.Quaternionf().rotateY(0.6f).rotateX(-0.35f);
+
     private ItemStack paper = ItemStack.EMPTY;
+    // The puzzle's world orientation, mirrored by the hologram. Driven by the screen's
+    // drag rotation via OrreryRotatePayload; persisted so it survives reload.
+    private final org.joml.Quaternionf orientation = new org.joml.Quaternionf(DEFAULT_ORIENTATION);
 
     public ArcaneOrreryBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.ARCANE_ORRERY.get(), pos, state);
+    }
+
+    /** Read-only by convention — callers must not mutate the returned quaternion. */
+    public org.joml.Quaternionf orientation() {
+        return orientation;
+    }
+
+    public void setOrientation(org.joml.Quaternionf value) {
+        orientation.set(value).normalize();
+        setChanged();
     }
 
     public ItemStack paper() {
@@ -193,6 +210,10 @@ public class ArcaneOrreryBlockEntity extends BlockEntity implements Container {
         if (!paper.isEmpty()) {
             tag.put("Paper", paper.save(registries));
         }
+        tag.putFloat("RotX", orientation.x);
+        tag.putFloat("RotY", orientation.y);
+        tag.putFloat("RotZ", orientation.z);
+        tag.putFloat("RotW", orientation.w);
     }
 
     @Override
@@ -201,6 +222,19 @@ public class ArcaneOrreryBlockEntity extends BlockEntity implements Container {
         paper = tag.contains("Paper")
                 ? ItemStack.parse(registries, tag.getCompound("Paper")).orElse(ItemStack.EMPTY)
                 : ItemStack.EMPTY;
+        if (tag.contains("RotW")) {
+            float x = tag.getFloat("RotX");
+            float y = tag.getFloat("RotY");
+            float z = tag.getFloat("RotZ");
+            float w = tag.getFloat("RotW");
+            // Hand-edited/corrupt NBT must not produce a degenerate rotation.
+            if (Float.isFinite(x) && Float.isFinite(y) && Float.isFinite(z) && Float.isFinite(w)
+                    && x * x + y * y + z * z + w * w > 1.0e-6f) {
+                orientation.set(x, y, z, w).normalize();
+            } else {
+                orientation.set(DEFAULT_ORIENTATION);
+            }
+        }
     }
 
     @Override

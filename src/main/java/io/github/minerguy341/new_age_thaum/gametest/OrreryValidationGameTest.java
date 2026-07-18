@@ -230,6 +230,41 @@ public class OrreryValidationGameTest {
     //?} else {
     /*@GameTest(template = "new_age_thaum:empty")
     *///?}
+    public void rotationValidatesNormalizesAndPersists(GameTestHelper helper) {
+        var registries = helper.getLevel().registryAccess();
+        var state = ModRegistries.ARCANE_ORRERY.get().defaultBlockState();
+        ArcaneOrreryBlockEntity orrery = new ArcaneOrreryBlockEntity(BlockPos.ZERO, state);
+
+        helper.assertFalse(NewAgeThaumNetwork.applyOrreryRotation(orrery, Float.NaN, 0, 0, 1),
+                "A NaN quaternion must be rejected");
+        helper.assertFalse(NewAgeThaumNetwork.applyOrreryRotation(orrery, 0, 0, 0, 0),
+                "A zero-length quaternion must be rejected");
+        helper.assertTrue(
+                orrery.orientation().equals(ArcaneOrreryBlockEntity.DEFAULT_ORIENTATION),
+                "Rejected rotations must leave the orientation untouched");
+
+        helper.assertTrue(NewAgeThaumNetwork.applyOrreryRotation(orrery, 0, 2, 0, 0),
+                "A finite non-degenerate quaternion is accepted");
+        var stored = orrery.orientation();
+        helper.assertTrue(Math.abs(stored.lengthSquared() - 1.0f) < 1.0e-4f,
+                "Stored orientation must be normalized, got lengthSquared " + stored.lengthSquared());
+        helper.assertTrue(Math.abs(stored.y) > 0.99f,
+                "Stored orientation should be the normalized input, got " + stored);
+
+        // World save/load round trip carries the orientation.
+        var tag = orrery.saveWithFullMetadata(registries);
+        var loaded = net.minecraft.world.level.block.entity.BlockEntity.loadStatic(BlockPos.ZERO, state, tag, registries);
+        helper.assertTrue(loaded instanceof ArcaneOrreryBlockEntity copy
+                        && copy.orientation().equals(stored, 1.0e-5f),
+                "Orientation must survive the NBT round trip");
+        helper.succeed();
+    }
+
+    //? if neoforge {
+    @GameTest(template = "empty")
+    //?} else {
+    /*@GameTest(template = "new_age_thaum:empty")
+    *///?}
     public void duplicateComponentCompoundsAreRejected(GameTestHelper helper) {
         ResourceLocation primal = aspect("test_dup_p");
         ResourceLocation bad = aspect("test_dup_x");

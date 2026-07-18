@@ -2,7 +2,6 @@ package io.github.minerguy341.new_age_thaum.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import com.mojang.math.Axis;
 import io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity;
 import io.github.minerguy341.new_age_thaum.core.aspect.Aspect;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectRegistry;
@@ -18,6 +17,8 @@ import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,12 +29,13 @@ import java.util.Map;
  * paper sits in the slot (M2 prototype). Rendered with {@code RenderType.debugQuads} —
  * a vanilla position-color, translucent, no-cull type, so no core-shader dependence
  * (PLAN.md §5 Iris/Sodium rule). Geometry, colors, and puzzle state all come from the
- * same sources the screen uses; the block entity's sync keeps them live.
+ * same sources the screen uses; the block entity's sync keeps them live, and the
+ * hologram mirrors the block entity's stored orientation — so it turns in world as a
+ * viewing player drags the sphere around in the screen.
  */
 public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryBlockEntity> {
     private static final float HEIGHT = 1.55f;
     private static final float SCALE = 0.45f;
-    private static final long SPIN_MILLIS = 24_000L;
     private static final int GOLD = 0xE8C86A;
     private static final int EMPTY_CELL = 0x2A2438;
 
@@ -51,26 +53,27 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
         Map<Integer, ResourceLocation> placed = orrery.sphereCells();
 
         long now = Util.getMillis();
-        float angle = (now % SPIN_MILLIS) / (float) SPIN_MILLIS * ((float) Math.PI * 2f);
         boolean solved = puzzle != null && puzzle.solved();
         // Same breathing pulse the screen uses once the circuit has closed.
         double breath = solved ? 0.30 + 0.20 * Math.sin(now / 1000.0 * 2.4) : 0;
+        // The screen's drag orientation, streamed to the BE. If in-game testing shows
+        // the world rotation vertically mirrored versus the screen (screen space is
+        // y-down), the first knob to try is rendering `orientation.conjugate()` here.
+        Quaternionf orientation = new Quaternionf(orrery.orientation());
 
         poseStack.pushPose();
         poseStack.translate(0.5, HEIGHT, 0.5);
-        poseStack.mulPose(Axis.YP.rotation(angle));
+        poseStack.mulPose(orientation);
         poseStack.scale(SCALE, SCALE, SCALE);
         Matrix4f pose = poseStack.last().pose();
         VertexConsumer buffer = bufferSource.getBuffer(RenderType.debugQuads());
 
         // Translucency blends in emission order, so draw the camera-facing-away
-        // hemisphere first. The facing test manually applies the same Y spin the pose
-        // does: for JOML rotateY, x' = x cos + z sin, z' = -x sin + z cos.
+        // hemisphere first — facing computed against each cell's rotated normal.
         Vec3 camera = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
         Vec3 center = Vec3.atLowerCornerOf(orrery.getBlockPos()).add(0.5, HEIGHT, 0.5);
         Vec3 toCamera = camera.subtract(center);
-        float cos = (float) Math.cos(angle);
-        float sin = (float) Math.sin(angle);
+        Vector3f rotated = new Vector3f();
 
         List<GoldbergGrid.Cell> back = new ArrayList<>();
         List<GoldbergGrid.Cell> front = new ArrayList<>();
@@ -78,9 +81,8 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
             if (puzzle != null && puzzle.isGap(cell.index())) {
                 continue; // gaps are holes in the sphere
             }
-            double nx = cell.x() * cos + cell.z() * sin;
-            double nz = -cell.x() * sin + cell.z() * cos;
-            (nx * toCamera.x + cell.y() * toCamera.y + nz * toCamera.z > 0 ? front : back).add(cell);
+            orientation.transform((float) cell.x(), (float) cell.y(), (float) cell.z(), rotated);
+            (rotated.x * toCamera.x + rotated.y * toCamera.y + rotated.z * toCamera.z > 0 ? front : back).add(cell);
         }
         for (GoldbergGrid.Cell cell : back) {
             drawCell(buffer, pose, cell, puzzle, placed, breath);

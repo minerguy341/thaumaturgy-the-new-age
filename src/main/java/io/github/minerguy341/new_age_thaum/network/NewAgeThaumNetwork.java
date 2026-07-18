@@ -50,6 +50,9 @@ public final class NewAgeThaumNetwork {
                         }
                         io.github.minerguy341.new_age_thaum.core.codex.CodexRegistry.reload(incoming);
                     });
+            NetworkManager.registerReceiver(NetworkManager.s2c(), OrreryOrientationPayload.TYPE, OrreryOrientationPayload.STREAM_CODEC,
+                    (payload, context) -> context.queue(() ->
+                            io.github.minerguy341.new_age_thaum.client.NewAgeThaumClient.applyOrreryOrientation(payload)));
             NetworkManager.registerReceiver(NetworkManager.s2c(), WandMaterialSyncPayload.TYPE, WandMaterialSyncPayload.STREAM_CODEC,
                     (payload, context) -> {
                         Map<ResourceLocation, io.github.minerguy341.new_age_thaum.core.casting.WandMaterial> incoming = new HashMap<>();
@@ -64,6 +67,7 @@ public final class NewAgeThaumNetwork {
             NetworkManager.registerS2CPayloadType(PlayerProgressSyncPayload.TYPE, PlayerProgressSyncPayload.STREAM_CODEC);
             NetworkManager.registerS2CPayloadType(CodexSyncPayload.TYPE, CodexSyncPayload.STREAM_CODEC);
             NetworkManager.registerS2CPayloadType(WandMaterialSyncPayload.TYPE, WandMaterialSyncPayload.STREAM_CODEC);
+            NetworkManager.registerS2CPayloadType(OrreryOrientationPayload.TYPE, OrreryOrientationPayload.STREAM_CODEC);
         }
 
         // C2S: registered on both sides (client needs the type to send; the handler only
@@ -71,6 +75,8 @@ public final class NewAgeThaumNetwork {
         // The paper slot needs no custom packet: it is a real menu slot now.
         NetworkManager.registerReceiver(NetworkManager.c2s(), OrreryEditPayload.TYPE, OrreryEditPayload.STREAM_CODEC,
                 (payload, context) -> context.queue(() -> handleOrreryEdit(payload, context)));
+        NetworkManager.registerReceiver(NetworkManager.c2s(), OrreryRotatePayload.TYPE, OrreryRotatePayload.STREAM_CODEC,
+                (payload, context) -> context.queue(() -> handleOrreryRotate(payload, context)));
     }
 
     private static io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity orreryInReach(
@@ -184,6 +190,53 @@ public final class NewAgeThaumNetwork {
 
     public static void sendOrreryEdit(net.minecraft.core.BlockPos pos, int cell, java.util.Optional<ResourceLocation> aspect) {
         NetworkManager.sendToServer(new OrreryEditPayload(pos, cell, aspect));
+    }
+
+    private static void handleOrreryRotate(OrreryRotatePayload payload, NetworkManager.PacketContext context) {
+        var orrery = orreryInReach(context, payload.pos());
+        if (orrery == null || !(context.getPlayer() instanceof ServerPlayer player)) {
+            return;
+        }
+        // Same authorization as edits: only the player working at this orrery may spin it.
+        if (!(player.containerMenu instanceof io.github.minerguy341.new_age_thaum.content.ArcaneOrreryMenu menu)
+                || !menu.pos().equals(payload.pos())) {
+            return;
+        }
+        if (!applyOrreryRotation(orrery, payload.x(), payload.y(), payload.z(), payload.w())) {
+            return;
+        }
+        // Mirror to other nearby players; the sender's client already wrote through.
+        var q = orrery.orientation();
+        OrreryOrientationPayload out = new OrreryOrientationPayload(payload.pos(), q.x, q.y, q.z, q.w);
+        for (ServerPlayer other : player.serverLevel().players()) {
+            if (other != player
+                    && other.distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(payload.pos())) < 64.0 * 64.0) {
+                sendIfPossible(other, out, OrreryOrientationPayload.TYPE);
+            }
+        }
+    }
+
+    /**
+     * The authoritative rotation: rejects non-finite or degenerate quaternions (a hacked
+     * client must not park NaN in world save data), normalizes, stores. Public so
+     * gametests drive the exact server path.
+     */
+    public static boolean applyOrreryRotation(
+            io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity orrery,
+            float x, float y, float z, float w) {
+        if (!Float.isFinite(x) || !Float.isFinite(y) || !Float.isFinite(z) || !Float.isFinite(w)) {
+            return false;
+        }
+        if (x * x + y * y + z * z + w * w < 1.0e-6f) {
+            return false;
+        }
+        orrery.setOrientation(new org.joml.Quaternionf(x, y, z, w));
+        return true;
+    }
+
+    public static void sendOrreryRotation(net.minecraft.core.BlockPos pos, org.joml.Quaternionf orientation) {
+        NetworkManager.sendToServer(new OrreryRotatePayload(pos,
+                orientation.x, orientation.y, orientation.z, orientation.w));
     }
 
     /**

@@ -25,6 +25,17 @@ public final class NewAgeThaumClient {
     private NewAgeThaumClient() {
     }
 
+    /** S2C orientation mirror: another player rotated an orrery's sphere. Main thread. */
+    public static void applyOrreryOrientation(io.github.minerguy341.new_age_thaum.network.OrreryOrientationPayload payload) {
+        var level = Minecraft.getInstance().level;
+        if (level != null && level.getBlockEntity(payload.pos())
+                instanceof io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity orrery) {
+            // Reuses the server-path validation (finite, non-degenerate, normalized).
+            io.github.minerguy341.new_age_thaum.network.NewAgeThaumNetwork.applyOrreryRotation(
+                    orrery, payload.x(), payload.y(), payload.z(), payload.w());
+        }
+    }
+
     public static void init() {
         WandColors.register();
         // listen() fires the moment the menu type is actually registered: late enough to
