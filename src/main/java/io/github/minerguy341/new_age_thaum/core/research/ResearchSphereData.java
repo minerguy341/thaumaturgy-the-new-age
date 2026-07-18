@@ -23,7 +23,7 @@ public record ResearchSphereData(Map<Integer, ResourceLocation> cells) {
      * comapFlatMap, not xmap: a thrown NumberFormatException would escape the codec and
      * crash item/block-entity deserialization (a chunk-load crash loop) on corrupt data.
      */
-    static final Codec<Integer> CELL_INDEX = Codec.STRING.comapFlatMap(s -> {
+    public static final Codec<Integer> CELL_INDEX = Codec.STRING.comapFlatMap(s -> {
         try {
             return DataResult.success(Integer.parseInt(s));
         } catch (NumberFormatException e) {
