@@ -41,7 +41,10 @@ public final class NewAgeThaumNetwork {
                     (payload, context) -> io.github.minerguy341.new_age_thaum.client.ClientPlayerProgress.set(payload.progress()));
             NetworkManager.registerReceiver(NetworkManager.s2c(), CodexSyncPayload.TYPE, CodexSyncPayload.STREAM_CODEC,
                     (payload, context) -> {
-                        Map<ResourceLocation, io.github.minerguy341.new_age_thaum.core.codex.CodexEntry> incoming = new HashMap<>();
+                        // LinkedHashMap: the payload list carries the server's category/entry
+                        // order, and byCategory/categories() promise stable insertion order.
+                        Map<ResourceLocation, io.github.minerguy341.new_age_thaum.core.codex.CodexEntry> incoming =
+                                new java.util.LinkedHashMap<>();
                         for (var entry : payload.entries()) {
                             incoming.put(entry.id(), entry);
                         }

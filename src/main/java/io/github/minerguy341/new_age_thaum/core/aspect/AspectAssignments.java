@@ -70,7 +70,11 @@ public final class AspectAssignments extends SimpleJsonResourceReloadListener {
     protected void apply(Map<ResourceLocation, JsonElement> files, ResourceManager resourceManager, ProfilerFiller profiler) {
         Map<ResourceLocation, AspectBag> items = new HashMap<>();
         Map<ResourceLocation, AspectBag> tags = new HashMap<>();
-        for (Map.Entry<ResourceLocation, JsonElement> file : files.entrySet()) {
+        // Sorted file order: scanDirectory hands over a plain HashMap, so duplicate
+        // matches across files would otherwise resolve by hash order — nondeterministic
+        // across JVMs. Later file (by id) wins, and conflicts get a log line.
+        for (Map.Entry<ResourceLocation, JsonElement> file : files.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey()).toList()) {
             List<Entry> entries = FILE_CODEC.parse(JsonOps.INSTANCE, file.getValue())
                     .resultOrPartial(error ->
                             NewAgeThaum.LOGGER.warn("Skipping malformed aspect assignments {}: {}", file.getKey(), error))
@@ -80,14 +84,18 @@ public final class AspectAssignments extends SimpleJsonResourceReloadListener {
                     if (match.startsWith("#")) {
                         ResourceLocation tagId = ResourceLocation.tryParse(match.substring(1));
                         if (tagId != null) {
-                            tags.put(tagId, entry.aspects());
+                            if (tags.put(tagId, entry.aspects()) != null) {
+                                NewAgeThaum.LOGGER.warn("Duplicate aspect assignment for tag #{} — {} wins", tagId, file.getKey());
+                            }
                         } else {
                             NewAgeThaum.LOGGER.warn("Bad tag id '{}' in {}", match, file.getKey());
                         }
                     } else {
                         ResourceLocation itemId = ResourceLocation.tryParse(match);
                         if (itemId != null) {
-                            items.put(itemId, entry.aspects());
+                            if (items.put(itemId, entry.aspects()) != null) {
+                                NewAgeThaum.LOGGER.warn("Duplicate aspect assignment for item {} — {} wins", itemId, file.getKey());
+                            }
                         } else {
                             NewAgeThaum.LOGGER.warn("Bad item id '{}' in {}", match, file.getKey());
                         }

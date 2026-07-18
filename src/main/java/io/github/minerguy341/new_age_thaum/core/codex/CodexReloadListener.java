@@ -24,7 +24,10 @@ public final class CodexReloadListener extends SimpleJsonResourceReloadListener 
     @Override
     protected void apply(Map<ResourceLocation, JsonElement> files, ResourceManager resourceManager, ProfilerFiller profiler) {
         Map<ResourceLocation, CodexEntry> parsed = new LinkedHashMap<>();
-        for (Map.Entry<ResourceLocation, JsonElement> entry : files.entrySet()) {
+        // scanDirectory hands over a plain HashMap, so without an explicit sort the
+        // category/entry order would be hash order — different per JVM and per sync.
+        for (Map.Entry<ResourceLocation, JsonElement> entry : files.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey()).toList()) {
             CodexEntry.Data.CODEC.parse(com.mojang.serialization.JsonOps.INSTANCE, entry.getValue())
                     .resultOrPartial(error ->
                             NewAgeThaum.LOGGER.warn("Skipping malformed codex entry {}: {}", entry.getKey(), error))
