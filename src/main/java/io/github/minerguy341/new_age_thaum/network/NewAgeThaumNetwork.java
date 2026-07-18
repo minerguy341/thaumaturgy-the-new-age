@@ -87,6 +87,12 @@ public final class NewAgeThaumNetwork {
         if (orrery == null || !(context.getPlayer() instanceof ServerPlayer player)) {
             return;
         }
+        // Only the player actually working at this orrery may edit it — without the
+        // open-menu check, anyone within reach could wipe another player's sphere.
+        if (!(player.containerMenu instanceof io.github.minerguy341.new_age_thaum.content.ArcaneOrreryMenu menu)
+                || !menu.pos().equals(payload.pos())) {
+            return;
+        }
         if (!applyOrreryEdit(player, orrery, payload.cell(), payload.aspect())) {
             // Rejected (can't afford / no paper / unknown aspect): the client painted
             // optimistically, so force a full menu resync to roll it back.
@@ -106,17 +112,26 @@ public final class NewAgeThaumNetwork {
         if (!orrery.canEditSphere()) {
             return false;
         }
+        // Unstamped papers are never editable: every paper is stamped on insertion or on
+        // chunk load, so a missing puzzle means broken data — and skipping the checks
+        // below would let arbitrary cell indices persist into the item component.
         var puzzle = orrery.puzzle().orElse(null);
-        if (puzzle != null) {
-            // A solved paper is sealed; endpoints are locked pre-placed cells; gaps are
-            // holes in the sphere.
-            if (puzzle.solved() || puzzle.isEndpoint(cell) || puzzle.isGap(cell)
-                    || cell < 0 || cell >= io.github.minerguy341.new_age_thaum.core.research.PuzzleGenerator
-                            .gridFor(puzzle.frequency()).size()) {
-                return false;
-            }
+        if (puzzle == null) {
+            return false;
+        }
+        // A solved paper is sealed; endpoints are locked pre-placed cells; gaps are
+        // holes in the sphere.
+        if (puzzle.solved() || puzzle.isEndpoint(cell) || puzzle.isGap(cell)
+                || cell < 0 || cell >= io.github.minerguy341.new_age_thaum.core.research.PuzzleGenerator
+                        .gridFor(puzzle.frequency()).size()) {
+            return false;
         }
         if (aspect.isPresent()) {
+            if (aspect.get().equals(orrery.aspectAt(cell))) {
+                // Repainting a cell with the aspect it already holds changes nothing —
+                // succeed without charging the point or rebroadcasting.
+                return true;
+            }
             if (!AspectRegistry.exists(aspect.get())) {
                 return false;
             }
@@ -128,6 +143,9 @@ public final class NewAgeThaumNetwork {
             return true;
         }
         ResourceLocation cleared = orrery.aspectAt(cell);
+        if (cleared == null) {
+            return true;
+        }
         orrery.editSphere(cell, aspect);
         if (cleared != null && player.getRandom().nextDouble()
                 < io.github.minerguy341.new_age_thaum.core.player.PlayerProgressService.refundChance(player)) {
@@ -149,6 +167,9 @@ public final class NewAgeThaumNetwork {
         var grid = io.github.minerguy341.new_age_thaum.core.research.PuzzleGenerator.gridFor(puzzle.frequency());
         Map<Integer, ResourceLocation> cells = new HashMap<>(orrery.sphereCells());
         cells.putAll(puzzle.endpoints());
+        // Papers written before edit validation existed can carry out-of-range cells;
+        // LinkingPuzzle calls grid.cell() on every key, so drop them or the BFS crashes.
+        cells.keySet().removeIf(index -> index < 0 || index >= grid.size());
         if (io.github.minerguy341.new_age_thaum.core.research.LinkingPuzzle.allEndpointsLinked(
                 grid, cells, puzzle.endpoints().keySet())) {
             orrery.markSolved();

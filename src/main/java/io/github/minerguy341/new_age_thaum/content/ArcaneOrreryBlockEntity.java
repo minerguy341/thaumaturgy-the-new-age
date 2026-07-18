@@ -73,14 +73,26 @@ public class ArcaneOrreryBlockEntity extends BlockEntity implements Container {
      * Lazy generation: the first time a tiered paper sits in a (server-side) orrery, its
      * puzzle is rolled from the tier parameters and stamped on as a component.
      */
-    private void stampPuzzleIfNeeded() {
+    private boolean stampPuzzleIfNeeded() {
         if (level == null || level.isClientSide
                 || !(paper.getItem() instanceof ResearchPaperItem item)
                 || paper.has(ModComponents.RESEARCH_PUZZLE.get())) {
-            return;
+            return false;
         }
         paper.set(ModComponents.RESEARCH_PUZZLE.get(),
                 io.github.minerguy341.new_age_thaum.core.research.PuzzleGenerator.generate(item.tier(), level.random));
+        return true;
+    }
+
+    @Override
+    public void setLevel(net.minecraft.world.level.Level level) {
+        super.setLevel(level);
+        // loadAdditional restores the paper before a level exists, so papers saved
+        // unstamped (pre-puzzle worlds, structure NBT) get their puzzle here — edits on
+        // unstamped papers are rejected outright by the network handler.
+        if (stampPuzzleIfNeeded()) {
+            setChanged();
+        }
     }
 
     /** The aspect currently painted at {@code cell}, or null. */
@@ -97,7 +109,9 @@ public class ArcaneOrreryBlockEntity extends BlockEntity implements Container {
         ResearchSphereData data = paper.getOrDefault(ModComponents.RESEARCH_SPHERE.get(), ResearchSphereData.EMPTY);
         ResearchSphereData next = aspect.map(a -> data.with(cell, a)).orElseGet(() -> data.without(cell));
         paper.set(ModComponents.RESEARCH_SPHERE.get(), next);
-        sync();
+        // Menu slot sync already carries the edited paper (components included) to every
+        // viewer; a full BE broadcast per painted cell would just duplicate that traffic.
+        setChanged();
     }
 
     private void sync() {
@@ -151,6 +165,19 @@ public class ArcaneOrreryBlockEntity extends BlockEntity implements Container {
     @Override
     public boolean stillValid(Player player) {
         return Container.stillValidBlockEntity(this, player);
+    }
+
+    @Override
+    public boolean canPlaceItem(int slot, ItemStack stack) {
+        // Hopper-facing rule (the menu slot enforces its own): one research paper only.
+        return slot == 0 && paper.isEmpty() && stack.getItem() instanceof ResearchPaperItem;
+    }
+
+    @Override
+    public boolean canTakeItem(Container target, int slot, ItemStack stack) {
+        // Research papers carry the player's work; automation may not silently
+        // extract them — retrieval stays a deliberate act at the menu.
+        return false;
     }
 
     @Override

@@ -559,15 +559,24 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             return;
         }
         lastLinkInput = Map.copyOf(placed);
-        lastUnlinked = io.github.minerguy341.new_age_thaum.core.research.LinkingPuzzle.unlinked(grid, placed);
+        // A crafted/corrupt component can carry out-of-range cell indices; every filled
+        // key goes through grid.cell() below (and inside LinkingPuzzle), so drop them
+        // here or one bad paper crashes the render loop of every viewer.
+        Map<Integer, ResourceLocation> sane = new HashMap<>();
+        for (Map.Entry<Integer, ResourceLocation> entry : placed.entrySet()) {
+            if (entry.getKey() >= 0 && entry.getKey() < grid.size()) {
+                sane.put(entry.getKey(), entry.getValue());
+            }
+        }
+        lastUnlinked = io.github.minerguy341.new_age_thaum.core.research.LinkingPuzzle.unlinked(grid, sane);
         List<int[]> pairs = new ArrayList<>();
         Map<Integer, List<Integer>> linkAdjacency = new java.util.HashMap<>();
-        for (Map.Entry<Integer, ResourceLocation> entry : placed.entrySet()) {
+        for (Map.Entry<Integer, ResourceLocation> entry : sane.entrySet()) {
             for (int neighbor : grid.cell(entry.getKey()).neighbors()) {
                 if (neighbor <= entry.getKey()) {
                     continue; // each edge once
                 }
-                ResourceLocation there = placed.get(neighbor);
+                ResourceLocation there = sane.get(neighbor);
                 if (there != null && io.github.minerguy341.new_age_thaum.core.aspect.AspectRelations
                         .related(entry.getValue(), there)) {
                     pairs.add(new int[]{entry.getKey(), neighbor});
@@ -752,6 +761,11 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     // --- edits (optimistic client + C2S; server persists onto the paper) --------
 
     private void paintCell(int cell, ResourceLocation aspect) {
+        if (aspect.equals(placedMap().get(cell))) {
+            // Repainting the same aspect changes nothing — don't send a packet the
+            // server would (correctly) treat as a paid edit.
+            return;
+        }
         if (!hasPaper() || isLockedCell(cell) || ClientPlayerProgress.get().points(aspect) < 1) {
             // Audible refusal — a silent no-op here reads as "placement is broken".
             // No paper, a locked endpoint/gap cell, or can't afford the 1-point
@@ -774,6 +788,9 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         if (isLockedCell(cell)) {
             playUi(SoundEvents.VILLAGER_NO, 1.0f);
             return;
+        }
+        if (!placedMap().containsKey(cell)) {
+            return; // nothing painted here — no packet for a no-op clear
         }
         net.minecraft.world.item.ItemStack paper = paperStack();
         paper.set(ModComponents.RESEARCH_SPHERE.get(),
