@@ -83,6 +83,12 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
 
     private double scroll;
     private long lastRotationSent;
+    // Flick momentum: drag velocity in pixels/ms, decayed by friction after release.
+    private double spinVelX;
+    private double spinVelY;
+    private long lastDragMillis;
+    private long lastSpinTick;
+    private boolean spinning;
     private boolean freeRotation;
     private float pitchAccum;
     private boolean rotating;
@@ -269,6 +275,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         updateGrid();
+        tickSpin();
         super.render(graphics, mouseX, mouseY, partialTick);
         graphics.flush();
         renderSphere(graphics, mouseX, mouseY);
@@ -752,7 +759,12 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
                 return true;
             }
             if (button == 0) {
+                // Grabbing the sphere catches it: any ongoing momentum stops.
                 rotating = true;
+                spinning = false;
+                spinVelX = 0;
+                spinVelY = 0;
+                lastDragMillis = net.minecraft.Util.getMillis();
                 return true;
             }
         }
@@ -766,6 +778,12 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             return true;
         }
         if (rotating) {
+            // Smoothed velocity estimate feeding the flick momentum on release.
+            long now = net.minecraft.Util.getMillis();
+            double dt = Math.max(1, now - lastDragMillis);
+            lastDragMillis = now;
+            spinVelX = spinVelX * 0.75 + (dragX / dt) * 0.25;
+            spinVelY = spinVelY * 0.75 + (dragY / dt) * 0.25;
             applyRotation(dragX, dragY);
             return true;
         }
@@ -787,7 +805,16 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         }
         if (rotating) {
             rotating = false;
-            pushOrientation(true); // final pose always reaches the server
+            long now = net.minecraft.Util.getMillis();
+            // A flick (release while still moving) keeps the sphere spinning; a release
+            // after holding still (no drag events for 100ms) parks it where it is.
+            if (now - lastDragMillis <= 100 && Math.hypot(spinVelX, spinVelY) > 0.04) {
+                spinning = true;
+                lastSpinTick = now;
+            } else {
+                spinning = false;
+                pushOrientation(true); // final pose always reaches the server
+            }
             return true;
         }
         return super.mouseReleased(mouseX, mouseY, button);
@@ -844,6 +871,35 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     }
 
     // --- helpers ---------------------------------------------------------------
+
+    /** Friction integration for flick momentum; runs once per frame while the screen is open. */
+    private void tickSpin() {
+        if (!spinning || rotating) {
+            return;
+        }
+        long now = net.minecraft.Util.getMillis();
+        double dt = Math.min(100, now - lastSpinTick); // clamp frame hitches
+        lastSpinTick = now;
+        if (dt <= 0) {
+            return;
+        }
+        applyRotation(spinVelX * dt, spinVelY * dt);
+        double decay = Math.exp(-dt / 700.0); // ~3s from a fast flick to standstill
+        spinVelX *= decay;
+        spinVelY *= decay;
+        if (Math.hypot(spinVelX, spinVelY) < 0.004) {
+            spinning = false;
+            pushOrientation(true); // the rest pose reaches the server exactly
+        }
+    }
+
+    @Override
+    public void removed() {
+        if (spinning) {
+            pushOrientation(true); // closing mid-spin parks the hologram at the current pose
+        }
+        super.removed();
+    }
 
     private void applyRotation(double dragX, double dragY) {
         if (freeRotation) {
