@@ -335,25 +335,30 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
                 rgb = blend(rgb, 0x45434E, 0.65);
             }
 
-            double[] pc = project(rotate(cell.x(), cell.y(), cell.z()));
-            double[][] corners = cell.corners();
-            int n = corners.length;
+            double[][] full = visiblePolygon(cell);
+            if (full == null) {
+                continue;
+            }
+            // Fade the cell out as its center reaches the horizon: together with the
+            // clip this swallows cells smoothly at the limb — no pop-out, and no
+            // leftover sliver peeking through the neighbors' dividers.
+            float fade = Math.min(1.0f, rotate(cell.x(), cell.y(), cell.z()).z / 0.12f);
+            double[] pc = polygonCenter(full);
+            int n = full.length;
             double shrink = cellShrink();
-            double[][] full = new double[n][];
             double[][] pts = new double[n][];
             for (int i = 0; i < n; i++) {
-                double[] p = project(rotate(corners[i][0], corners[i][1], corners[i][2]));
-                full[i] = p;
-                pts[i] = new double[]{pc[0] + (p[0] - pc[0]) * shrink, pc[1] + (p[1] - pc[1]) * shrink};
+                pts[i] = new double[]{pc[0] + (full[i][0] - pc[0]) * shrink,
+                        pc[1] + (full[i][1] - pc[1]) * shrink};
             }
 
             // Rims first (full, un-shrunk face), fill on top. Endpoints wear gold.
             if (cell.index() == previewCell) {
-                addPolygon(buffer, matrix, pc, full, previewLinks ? 0xFFFFFF : 0x8A8794, 200);
+                addPolygon(buffer, matrix, pc, full, previewLinks ? 0xFFFFFF : 0x8A8794, (int) (200 * fade));
             } else if (endpoint) {
-                addPolygon(buffer, matrix, pc, full, 0xE8C86A, 235);
+                addPolygon(buffer, matrix, pc, full, 0xE8C86A, (int) (235 * fade));
             }
-            addPolygon(buffer, matrix, pc, pts, rgb, 255);
+            addPolygon(buffer, matrix, pc, pts, rgb, (int) (255 * fade));
         }
 
         MeshData mesh = buffer.build();
@@ -391,7 +396,9 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             GoldbergGrid.Cell b = grid.cell(to);
             Vector3f ra = rotate(a.x(), a.y(), a.z());
             Vector3f rb = rotate(b.x(), b.y(), b.z());
-            if (ra.z <= 0.05f || rb.z <= 0.05f) {
+            // Currents fade with their cells at the horizon (same window as the fills).
+            float edgeFade = Math.min(1.0f, Math.min(ra.z, rb.z) / 0.12f);
+            if (edgeFade <= 0) {
                 continue;
             }
             double[] p1 = project(ra);
@@ -407,8 +414,8 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             double chainPhase = depth * 2.2;
             double jitter = (pair[0] * 31 + pair[1] * 17) % 97 / 97.0 * 0.9;
             float widthScale = (float) io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.currentWidth;
-            ribbon(buffer, matrix, p1, p2, c1, c2, 3.8f * widthScale, 70, time, chainPhase + jitter, depth);   // soft glow
-            ribbon(buffer, matrix, p1, p2, c1, c2, 1.6f * widthScale, 235, time, chainPhase + jitter, depth);  // bright core
+            ribbon(buffer, matrix, p1, p2, c1, c2, 3.8f * widthScale, (int) (70 * edgeFade), time, chainPhase + jitter, depth);   // soft glow
+            ribbon(buffer, matrix, p1, p2, c1, c2, 1.6f * widthScale, (int) (235 * edgeFade), time, chainPhase + jitter, depth);  // bright core
         }
 
         MeshData mesh = buffer.build();
@@ -794,15 +801,17 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             }
             Vector3f c = rotate(cell.x(), cell.y(), cell.z());
             if (c.z <= 0) {
+                continue; // faded out at the horizon — not clickable
+            }
+            double[][] poly = visiblePolygon(cell);
+            if (poly == null) {
                 continue;
             }
-            double[][] corners = cell.corners();
-            double[] xs = new double[corners.length];
-            double[] ys = new double[corners.length];
-            for (int i = 0; i < corners.length; i++) {
-                double[] p = project(rotate(corners[i][0], corners[i][1], corners[i][2]));
-                xs[i] = p[0];
-                ys[i] = p[1];
+            double[] xs = new double[poly.length];
+            double[] ys = new double[poly.length];
+            for (int i = 0; i < poly.length; i++) {
+                xs[i] = poly[i][0];
+                ys[i] = poly[i][1];
             }
             if (pointInPolygon(mx, my, xs, ys) && c.z > bestZ) {
                 bestZ = c.z;
@@ -825,6 +834,66 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
 
     private Vector3f rotate(double x, double y, double z) {
         return orientation.transform(new Vector3f((float) x, (float) y, (float) z));
+    }
+
+    /**
+     * The cell's corner polygon, clipped at the horizon plane (z = 0) BEFORE projection
+     * and then projected. Orthographic projection folds behind-the-horizon points back
+     * inside the disc, so an unclipped limb cell overdraws its neighbors' dividers and
+     * shows through gap holes. Null when nothing of the cell is visible.
+     */
+    private double[][] visiblePolygon(GoldbergGrid.Cell cell) {
+        double[][] corners = cell.corners();
+        List<Vector3f> poly = new ArrayList<>(corners.length);
+        boolean anyBehind = false;
+        for (double[] corner : corners) {
+            Vector3f r = rotate(corner[0], corner[1], corner[2]);
+            anyBehind |= r.z < 0;
+            poly.add(r);
+        }
+        if (anyBehind) {
+            poly = clipAtHorizon(poly);
+            if (poly.size() < 3) {
+                return null;
+            }
+        }
+        double[][] projected = new double[poly.size()][];
+        for (int i = 0; i < poly.size(); i++) {
+            projected[i] = project(poly.get(i));
+        }
+        return projected;
+    }
+
+    /** Sutherland–Hodgman against the z >= 0 half-space. */
+    private static List<Vector3f> clipAtHorizon(List<Vector3f> poly) {
+        List<Vector3f> out = new ArrayList<>(poly.size() + 2);
+        int n = poly.size();
+        for (int i = 0; i < n; i++) {
+            Vector3f prev = poly.get((i + n - 1) % n);
+            Vector3f current = poly.get(i);
+            boolean prevIn = prev.z >= 0;
+            boolean currentIn = current.z >= 0;
+            if (prevIn != currentIn) {
+                float t = prev.z / (prev.z - current.z);
+                out.add(new Vector3f(prev.x + (current.x - prev.x) * t,
+                        prev.y + (current.y - prev.y) * t, 0));
+            }
+            if (currentIn) {
+                out.add(current);
+            }
+        }
+        return out;
+    }
+
+    /** Vertex average — projection is affine, so this tracks the cell's visible middle. */
+    private static double[] polygonCenter(double[][] poly) {
+        double x = 0;
+        double y = 0;
+        for (double[] p : poly) {
+            x += p[0];
+            y += p[1];
+        }
+        return new double[]{x / poly.length, y / poly.length};
     }
 
     private double[] project(Vector3f rotated) {

@@ -1,0 +1,134 @@
+Running Stonecutter 0.9.6
+
+> Configure project :1.21.1-fabric
+Architectury Loom: 1.14.476
+This version of Architectury Loom is in beta! Please report any issues you encounter: https://github.com/architectury/architectury-loom/issues
+
+> Task :1.21.1-neoforge:compileJava
+C:\Users\jthue\Documents\Claude Projects\Thaumcraft Rewritten\src\main\java\io\github\minerguy341\new_age_thaum\gametest\AetherlensGameTest.java:40: warning: [removal] makeMockServerPlayerInLevel() in GameTestHelper has been deprecated and marked for removal
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                    ^
+C:\Users\jthue\Documents\Claude Projects\Thaumcraft Rewritten\src\main\java\io\github\minerguy341\new_age_thaum\gametest\AspectEconomyGameTest.java:37: warning: [removal] makeMockServerPlayerInLevel() in GameTestHelper has been deprecated and marked for removal
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                    ^
+C:\Users\jthue\Documents\Claude Projects\Thaumcraft Rewritten\src\main\java\io\github\minerguy341\new_age_thaum\gametest\AspectEconomyGameTest.java:57: warning: [removal] makeMockServerPlayerInLevel() in GameTestHelper has been deprecated and marked for removal
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                    ^
+C:\Users\jthue\Documents\Claude Projects\Thaumcraft Rewritten\src\main\java\io\github\minerguy341\new_age_thaum\gametest\PlayerProgressGameTest.java:35: warning: [removal] makeMockServerPlayerInLevel() in GameTestHelper has been deprecated and marked for removal
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                    ^
+C:\Users\jthue\Documents\Claude Projects\Thaumcraft Rewritten\src\main\java\io\github\minerguy341\new_age_thaum\gametest\PuzzleGeneratorGameTest.java:122: warning: [removal] makeMockServerPlayerInLevel() in GameTestHelper has been deprecated and marked for removal
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+                                    ^
+Note: C:\Users\jthue\Documents\Claude Projects\Thaumcraft Rewritten\src\main\java\io\github\minerguy341\new_age_thaum\core\aspect\AspectResolver.java uses or overrides a deprecated API.
+Note: Recompile with -Xlint:deprecation for details.
+5 warnings
+
+> Task :1.21.1-neoforge:stonecutterPrepare
+> Task :1.21.1-neoforge:stonecutterGenerate
+> Task :1.21.1-neoforge:processResources UP-TO-DATE
+> Task :1.21.1-neoforge:classes
+> Task :1.21.1-neoforge:generateLog4jConfig UP-TO-DATE
+> Task :1.21.1-neoforge:generateRemapClasspath UP-TO-DATE
+> Task :1.21.1-neoforge:generateDLIConfig UP-TO-DATE
+> Task :1.21.1-neoforge:configureLaunch UP-TO-DATE
+> Task :1.21.1-neoforge:downloadAssets UP-TO-DATE
+> Task :1.21.1-neoforge:configureClientLaunch UP-TO-DATE
+> Task :1.21.1-neoforge:configureMinecraftClient
+
+> Task :1.21.1-neoforge:runClient
+ERROR StatusConsoleListener Unable to delete file C:\Users\jthue\Documents\Claude Projects\Thaumcraft Rewritten\run\logs\latest.log: java.nio.file.FileSystemException C:\Users\jthue\Documents\Claude Projects\Thaumcraft Rewritten\run\logs\latest.log: The process cannot access the file because it is being used by another process
+ERROR StatusConsoleListener Unable to delete file C:\Users\jthue\Documents\Claude Projects\Thaumcraft Rewritten\run\logs\debug.log: java.nio.file.FileSystemException C:\Users\jthue\Documents\Claude Projects\Thaumcraft Rewritten\run\logs\debug.log: The process cannot access the file because it is being used by another process
+[21:54:02] [main/INFO] (Launcher) ModLauncher running: args [--launchTarget, forgeclientdev, --version, 21.1.235, --assetIndex, 1.21.1-17, --assetsDir, C:\Users\jthue\.gradle\caches\fabric-loom\assets, --gameDir, ., --fml.fmlVersion, 4.0.42, --fml.mcVersion, 1.21.1, --fml.neoForgeVersion, 21.1.235, --fml.neoFormVersion, 20240808.144430, --username=developer]
+[21:54:02] [main/INFO] (Launcher) JVM identified as Oracle Corporation Java HotSpot(TM) 64-Bit Server VM 21.0.11+9-LTS-211
+[21:54:02] [main/INFO] (Launcher) ModLauncher 11.0.5+main.901c6ea8 starting: java version 21.0.11 by Oracle Corporation; OS Windows 11 arch amd64 version 10.0
+[21:54:02] [main/INFO] (unprotect) Initializing Unprotect using ModLauncher backend, target: Minecraft and loader classes (minecraft+forge)
+[21:54:02] [main/INFO] (ImmediateWindowHandler) Loading ImmediateWindowProvider fmlearlywindow
+[21:54:02] [main/INFO] (EARLYDISPLAY) Trying GL version 4.6
+[21:54:03] [main/INFO] (EARLYDISPLAY) Requested GL version 4.6 got version 4.6
+[21:54:03] [main/INFO] (mixin) SpongePowered MIXIN Subsystem Version=0.8.7 Source=union:/C:/Users/jthue/.gradle/caches/modules-2/files-2.1/net.fabricmc/sponge-mixin/0.15.2+mixin.0.8.7/2af2f021d8e02a0220dc27a7a72b4666d66d44ca/sponge-mixin-0.15.2+mixin.0.8.7.jar%23127!/ Service=ModLauncher Env=CLIENT
+[21:54:03] [main/INFO] (ModDiscoverer) Found mod file "neoforge-21.1.235-minecraft-merged-3cd55d26b7-1.21.1-loom.mappings.1_21_1.layered+hash.40545-v2-neoforge-21.1.235.jar" [locator: neoforge devenv provider ([C:\Users\jthue\Documents\Claude Projects\Thaumcraft Rewritten\.gradle\loom-cache\minecraftMaven\net\minecraft\neoforge-21.1.235-minecraft-merged-3cd55d26b7\1.21.1-loom.mappings.1_21_1.layered+hash.40545-v2-neoforge-21.1.235\neoforge-21.1.235-minecraft-merged-3cd55d26b7-1.21.1-loom.mappings.1_21_1.layered+hash.40545-v2-neoforge-21.1.235.jar])]
+[21:54:03] [main/INFO] (ModDiscoverer) Found mod file "neoforge-21.1.235-minecraft-merged-3cd55d26b7-1.21.1-loom.mappings.1_21_1.layered+hash.40545-v2-neoforge-21.1.235.jar" [locator: neoforge devenv provider ([C:\Users\jthue\Documents\Claude Projects\Thaumcraft Rewritten\.gradle\loom-cache\minecraftMaven\net\minecraft\neoforge-21.1.235-minecraft-merged-3cd55d26b7\1.21.1-loom.mappings.1_21_1.layered+hash.40545-v2-neoforge-21.1.235\neoforge-21.1.235-minecraft-merged-3cd55d26b7-1.21.1-loom.mappings.1_21_1.layered+hash.40545-v2-neoforge-21.1.235.jar])]
+[21:54:03] [pool-2-thread-1/INFO] (EARLYDISPLAY) GL info: NVIDIA GeForce RTX 5060 Ti/PCIe/SSE2 GL version 4.6.0 NVIDIA 596.21, NVIDIA Corporation
+[21:54:03] [main/INFO] (ModDiscoverer) Found mod file "main" [locator: userdev mods and services, reader: mod manifest]
+[21:54:03] [main/INFO] (ModDiscoverer) Found mod file "neoforge-21.1.235-minecraft-merged-3cd55d26b7-1.21.1-loom.mappings.1_21_1.layered+hash.40545-v2-neoforge-21.1.235.jar" [locator: userdev mods and services, reader: mod manifest]
+[21:54:03] [main/INFO] (ModDiscoverer) Found mod file "architectury-neoforge-52df5c06-13.0.8.jar" [locator: userdev mods and services, reader: mod manifest]
+[21:54:03] [main/INFO] (ModDiscoverer) Found gamelibrary file "mixinextras-neoforge-0.5.3.jar" [locator: userdev mods and services, reader: mod manifest]
+[21:54:04] [main/WARN] (JarSelector) Attempted to select a dependency jar for JarJar which was passed in as source: library:mixinextras.neoforge. Using Mod File: C:\Users\jthue\.gradle\caches\modules-2\files-2.1\io.github.llamalad7\mixinextras-neoforge\0.5.3\a0919957808de97707c5fb4ce073e66aeef3e187\mixinextras-neoforge-0.5.3.jar
+[21:54:04] [main/INFO] (JarInJarDependencyLocator) Found 1 dependencies adding them to mods collection
+[21:54:04] [main/INFO] (ModDiscoverer) Found library file "net.neoforged.neoforge-coremods-21.1.235.jar" [parent: neoforge-21.1.235-minecraft-merged-3cd55d26b7-1.21.1-loom.mappings.1_21_1.layered+hash.40545-v2-neoforge-21.1.235.jar, locator: jarinjar, reader: mod manifest]
+[21:54:04] [main/INFO] (ModDiscoverer) 
+     Mod List:
+		Name Version (Mod Id)
+
+		Architectury 13.0.8 (architectury)
+		Minecraft 1.21.1 (minecraft)
+		NeoForge 21.1.235 (neoforge)
+		Thaumaturgy: The New Age 0.1.0 (new_age_thaum)
+[21:54:05] [main/INFO] (LaunchServiceHandler) Launching target 'forgeclientdev' with arguments [--version, 21.1.235, --gameDir, ., --assetsDir, C:\Users\jthue\.gradle\caches\fabric-loom\assets, --assetIndex, 1.21.1-17, --username=developer]
+[21:54:05] [main/INFO] (unprotect) Found 8254 Minecraft classes
+[21:54:06] [main/INFO] (MixinExtras|Service) Initializing MixinExtras via com.llamalad7.mixinextras.service.MixinExtrasServiceImpl(version=0.5.3).
+WARN StatusConsoleListener Error parsing URI C:\Users\jthue\Documents\Claude Projects\Thaumcraft Rewritten\versions\1.21.1-neoforge\.gradle\loom-cache\log4j.xml
+WARN StatusConsoleListener Advanced terminal features are not available in this environment
+[21:54:10] [Datafixer Bootstrap/INFO] [mojang/DataFixerBuilder]: 229 Datafixer optimizations took 504 milliseconds
+[21:54:17] [main/WARN] [minecraft/Commands]: Ambiguity between arguments [teleport, location] and [teleport, destination] with inputs: [0.1 -0.5 .9, 0 0 0]
+[21:54:17] [main/WARN] [minecraft/Commands]: Ambiguity between arguments [teleport, location] and [teleport, targets] with inputs: [0.1 -0.5 .9, 0 0 0]
+[21:54:17] [main/WARN] [minecraft/Commands]: Ambiguity between arguments [teleport, destination] and [teleport, targets] with inputs: [Player, 0123, @e, dd12be42-52a9-4a91-a8a1-11c01849e498]
+[21:54:17] [main/WARN] [minecraft/Commands]: Ambiguity between arguments [teleport, targets] and [teleport, destination] with inputs: [Player, 0123, dd12be42-52a9-4a91-a8a1-11c01849e498]
+[21:54:17] [main/WARN] [minecraft/Commands]: Ambiguity between arguments [teleport, targets, location] and [teleport, targets, destination] with inputs: [0.1 -0.5 .9, 0 0 0]
+[21:54:18] [Render thread/WARN] [minecraft/VanillaPackResourcesBuilder]: Assets URL 'union:/C:/Users/jthue/Documents/Claude%20Projects/Thaumcraft%20Rewritten/.gradle/loom-cache/minecraftMaven/net/minecraft/neoforge-21.1.235-minecraft-merged-3cd55d26b7/1.21.1-loom.mappings.1_21_1.layered+hash.40545-v2-neoforge-21.1.235/neoforge-21.1.235-minecraft-merged-3cd55d26b7-1.21.1-loom.mappings.1_21_1.layered+hash.40545-v2-neoforge-21.1.235.jar%23202!/assets/.mcassetsroot' uses unexpected schema
+[21:54:18] [Render thread/WARN] [minecraft/VanillaPackResourcesBuilder]: Assets URL 'union:/C:/Users/jthue/Documents/Claude%20Projects/Thaumcraft%20Rewritten/.gradle/loom-cache/minecraftMaven/net/minecraft/neoforge-21.1.235-minecraft-merged-3cd55d26b7/1.21.1-loom.mappings.1_21_1.layered+hash.40545-v2-neoforge-21.1.235/neoforge-21.1.235-minecraft-merged-3cd55d26b7-1.21.1-loom.mappings.1_21_1.layered+hash.40545-v2-neoforge-21.1.235.jar%23202!/data/.mcassetsroot' uses unexpected schema
+[21:54:18] [Render thread/INFO] [mojang/YggdrasilAuthenticationService]: Environment: Environment[sessionHost=https://sessionserver.mojang.com, servicesHost=https://api.minecraftservices.com, name=PROD]
+[21:54:18] [Render thread/INFO] [minecraft/Minecraft]: Setting user: developer
+[21:54:18] [Render thread/INFO] [minecraft/Minecraft]: Backend library: LWJGL version 3.3.3+5
+[21:54:18] [modloading-worker-0/INFO] [ne.ne.ne.co.NeoForgeMod/NEOFORGE-MOD]: NeoForge mod loading, version 21.1.235, for MC 1.21.1
+[21:54:19] [modloading-worker-0/INFO] [Thaumaturgy: The New Age/]: Loader-constant branch active: NEOFORGE
+[21:54:19] [modloading-worker-0/INFO] [Thaumaturgy: The New Age/]: PlatformInfo resolved: loader=NeoForge, developmentEnvironment=true
+[21:54:19] [modloading-worker-0/INFO] [Thaumaturgy: The New Age/]: Config loaded: tierScaledSpheres=true, currentAmplitude=1.5, currentSpeed=3.0, currentWidth=1.5, cellBorderWidth=0.25, currentColorMode=custom
+[21:54:19] [Render thread/INFO] [ne.ne.ne.ga.GameTestHooks/]: Enabled Gametest Namespaces: []
+[21:54:20] [Render thread/INFO] [minecraft/ReloadableResourceManager]: Reloading ResourceManager: vanilla, mod_resources, mod/architectury, mod/new_age_thaum, mod/neoforge
+[21:54:20] [Worker-Main-31/INFO] [minecraft/UnihexProvider]: Found unifont_all_no_pua-15.1.05.hex, loading
+[21:54:20] [Worker-Main-1/INFO] [minecraft/UnihexProvider]: Found unifont_jp_patch-15.1.05.hex, loading
+[21:54:22] [Render thread/WARN] [minecraft/SoundEngine]: Missing sound for event: minecraft:item.goat_horn.play
+[21:54:22] [Render thread/WARN] [minecraft/SoundEngine]: Missing sound for event: minecraft:entity.goat.screaming.horn_break
+[21:54:22] [Render thread/INFO] [mojang/Library]: OpenAL initialized on device OpenAL Soft on Speakers (THX Spatial)
+[21:54:22] [Render thread/INFO] [minecraft/SoundEngine]: Sound engine started
+[21:54:22] [Render thread/INFO] [minecraft/TextureAtlas]: Created: 1024x512x4 minecraft:textures/atlas/blocks.png-atlas
+[21:54:22] [Render thread/INFO] [minecraft/TextureAtlas]: Created: 256x256x4 minecraft:textures/atlas/signs.png-atlas
+[21:54:22] [Render thread/INFO] [minecraft/TextureAtlas]: Created: 512x512x4 minecraft:textures/atlas/banner_patterns.png-atlas
+[21:54:22] [Render thread/INFO] [minecraft/TextureAtlas]: Created: 512x512x4 minecraft:textures/atlas/shield_patterns.png-atlas
+[21:54:22] [Render thread/INFO] [minecraft/TextureAtlas]: Created: 1024x1024x4 minecraft:textures/atlas/armor_trims.png-atlas
+[21:54:22] [Render thread/INFO] [minecraft/TextureAtlas]: Created: 256x256x4 minecraft:textures/atlas/chest.png-atlas
+[21:54:22] [Render thread/INFO] [minecraft/TextureAtlas]: Created: 128x64x4 minecraft:textures/atlas/decorated_pot.png-atlas
+[21:54:22] [Render thread/INFO] [minecraft/TextureAtlas]: Created: 512x256x4 minecraft:textures/atlas/beds.png-atlas
+[21:54:22] [Render thread/INFO] [minecraft/TextureAtlas]: Created: 512x256x4 minecraft:textures/atlas/shulker_boxes.png-atlas
+[21:54:22] [Render thread/INFO] [minecraft/TextureAtlas]: Created: 512x256x0 minecraft:textures/atlas/particles.png-atlas
+[21:54:22] [Render thread/INFO] [minecraft/TextureAtlas]: Created: 512x256x0 minecraft:textures/atlas/paintings.png-atlas
+[21:54:22] [Render thread/INFO] [minecraft/TextureAtlas]: Created: 256x128x0 minecraft:textures/atlas/mob_effects.png-atlas
+[21:54:22] [Render thread/INFO] [minecraft/TextureAtlas]: Created: 64x64x0 minecraft:textures/atlas/map_decorations.png-atlas
+[21:54:22] [Render thread/INFO] [minecraft/TextureAtlas]: Created: 1024x512x0 minecraft:textures/atlas/gui.png-atlas
+[21:54:22] [Render thread/WARN] [minecraft/ShaderInstance]: Shader rendertype_entity_translucent_emissive could not find sampler named Sampler2 in the specified shader program.
+[21:54:22] [Render thread/INFO] [ne.ne.ne.cl.en.an.js.AnimationLoader/]: Loaded 0 entity animations
+[21:54:32] [Render thread/INFO] [minecraft/RecipeManager]: Loaded 1291 recipes
+[21:54:32] [Render thread/INFO] [minecraft/AdvancementTree]: Loaded 1399 advancements
+[21:54:32] [Render thread/INFO] [Thaumaturgy: The New Age/]: Loaded 41 aspects (41 files)
+[21:54:32] [Render thread/INFO] [Thaumaturgy: The New Age/]: Loaded aspect assignments: 33 item entries, 11 tag entries
+[21:54:32] [Render thread/INFO] [Thaumaturgy: The New Age/]: Loaded 3 codex entries (3 files)
+[21:54:32] [Render thread/INFO] [Thaumaturgy: The New Age/]: Loaded 4 wand materials (4 files)
+[21:54:32] [Server thread/INFO] [minecraft/IntegratedServer]: Starting integrated minecraft server version 1.21.1
+[21:54:32] [Server thread/INFO] [minecraft/MinecraftServer]: Generating keypair
+[21:54:33] [Server thread/INFO] [minecraft/MinecraftServer]: Preparing start region for dimension minecraft:overworld
+[21:54:34] [progressListener/INFO] [minecraft/LoggerChunkProgressListener]: Preparing spawn area: 0%
+[21:54:34] [Server thread/INFO] [ne.ne.ne.se.pe.PermissionAPI/]: Successfully initialized permission handler neoforge:default_handler
+[21:54:34] [progressListener/INFO] [minecraft/LoggerChunkProgressListener]: Time elapsed: 503 ms
+[21:54:34] [Server thread/INFO] [minecraft/IntegratedServer]: Changing view distance to 12, from 10
+[21:54:34] [Server thread/INFO] [minecraft/IntegratedServer]: Changing simulation distance to 12, from 0
+[21:54:35] [Server thread/INFO] [minecraft/PlayerList]: developer[local:E:06a04c2e] logged in with entity id 56 at (28.08915001483091, 80.0, 124.44934511421003)
+[21:54:35] [Server thread/INFO] [minecraft/MinecraftServer]: developer joined the game
+[21:54:35] [Render thread/INFO] [minecraft/AdvancementTree]: Loaded 17 advancements
+[21:54:36] [Server thread/INFO] [minecraft/IntegratedServer]: Saving and pausing game...
+[21:54:36] [Server thread/INFO] [minecraft/MinecraftServer]: Saving chunks for level 'ServerLevel[New World]'/minecraft:overworld
+[21:54:36] [Server thread/INFO] [minecraft/MinecraftServer]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_end
+[21:54:36] [Server thread/INFO] [minecraft/MinecraftServer]: Saving chunks for level 'ServerLevel[New World]'/minecraft:the_nether
+uted, 4 up-to-date
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.3.1/userguide/configuration_cache_enabling.html
