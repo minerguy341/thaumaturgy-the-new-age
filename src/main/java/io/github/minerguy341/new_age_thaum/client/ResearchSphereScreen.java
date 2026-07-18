@@ -92,12 +92,13 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     private long lastRotationSent;
     // Flick momentum: drag velocity in pixels/ms feeds the release flick. The COAST
     // itself is owned by the block entity's model (one pose+velocity packet starts it
-    // everywhere); tickSpin just mirrors the BE's display pose back into the screen.
+    // everywhere); mirrorOrrery() reflects the BE's display pose back into the screen
+    // every frame, so coasts survive reopen and other players' rotations show live.
     private double spinVelX;
     private double spinVelY;
     private long lastDragMillis;
-    private boolean spinning;
-    private boolean freeRotation;
+    // Static: a client-session camera preference, remembered across screen reopens.
+    private static boolean freeRotation;
     private float pitchAccum;
     private boolean rotating;
     private boolean draggingScrollbar;
@@ -298,7 +299,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         updateGrid();
-        tickSpin();
+        mirrorOrrery();
         super.render(graphics, mouseX, mouseY, partialTick);
         graphics.flush();
         renderSphere(graphics, mouseX, mouseY);
@@ -786,11 +787,11 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
                 return true;
             }
             if (button == 0) {
-                // Grabbing the sphere catches it: stop the local coast and tell the
+                // Grabbing the sphere catches it: stop any in-flight coast and tell the
                 // server (and everyone else's hologram) the caught pose right away.
                 rotating = true;
-                if (spinning) {
-                    spinning = false;
+                var orrery = clientOrrery();
+                if (orrery != null && orrery.isCoasting()) {
                     pushOrientation(true);
                 }
                 spinVelX = 0;
@@ -842,7 +843,6 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             if (now - lastDragMillis <= 100 && Math.hypot(spinVelX, spinVelY) > 0.04) {
                 startCoast();
             } else {
-                spinning = false;
                 pushOrientation(true); // final pose always reaches the server
             }
             return true;
@@ -907,7 +907,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
      * horizontal drag spins about Y, vertical about X; locked camera coasts yaw-only so
      * the pitch clamp stays honest) and sends ONE pose+velocity packet — the server
      * stores the analytic rest pose and mirrors the coast to everyone. The client block
-     * entity owns the ONLY coast integration (displayOrientation); tickSpin mirrors it,
+     * entity owns the ONLY coast integration (displayOrientation); mirrorOrrery reflects it,
      * so the coast keeps playing in-world even if this screen closes mid-spin.
      */
     private void startCoast() {
@@ -915,7 +915,6 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         float wy = (float) (spinVelX * ROTATE_SPEED);
         var orrery = clientOrrery();
         if (orrery == null || wx * wx + wy * wy < 1.0e-10) {
-            spinning = false;
             pushOrientation(true);
             return;
         }
@@ -924,24 +923,24 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         float tau = Mth.clamp((float) (NewAgeThaumConfig.coastFriction * 1000.0),
                 ArcaneOrreryBlockEntity.MIN_COAST_TAU_MS, ArcaneOrreryBlockEntity.MAX_COAST_TAU_MS);
         NewAgeThaumNetwork.sendOrreryRotation(this.menu.pos(), orientation, wx, wy, 0f, tau);
-        spinning = NewAgeThaumNetwork.applyOrreryRotation(orrery,
+        NewAgeThaumNetwork.applyOrreryRotation(orrery,
                 OrientationFrame.flick(orientation, wx, wy, 0f, tau));
     }
 
-    /** Mirrors the block entity's coast back into the screen; one call per frame. */
-    private void tickSpin() {
-        if (!spinning || rotating) {
+    /**
+     * Mirrors the block entity's display pose into the screen every frame the local
+     * player is not actively dragging the sphere. The BE is the one authority: this is
+     * what lets a coast keep playing across screen reopens AND shows other players'
+     * drags/flicks live (the server only broadcasts remote frames — our own edits reach
+     * the BE through pushOrientation's write-through, so there is no echo to fight).
+     */
+    private void mirrorOrrery() {
+        if (rotating) {
             return;
         }
         var orrery = clientOrrery();
-        if (orrery == null) {
-            spinning = false;
-            return;
-        }
-        orientation.set(orrery.displayOrientation());
-        if (orientation.equals(orrery.orientation(), 1.0e-4f)) {
-            orientation.set(orrery.orientation()); // land exactly on the rest pose
-            spinning = false;
+        if (orrery != null) {
+            orientation.set(orrery.displayOrientation());
         }
     }
 

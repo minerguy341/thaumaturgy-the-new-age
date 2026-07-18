@@ -66,6 +66,11 @@ public class ArcaneOrreryBlockEntity extends BlockEntity implements Container {
         setChanged();
     }
 
+    /** True while a flick coast is still playing out toward the rest pose. */
+    public boolean isCoasting() {
+        return coastAngle != 0;
+    }
+
     /** Begins the display-only coast toward the (already stored) rest pose. */
     public void startCoast(float axisX, float axisY, float axisZ, float remainingAngle, float tauMs) {
         coastAxis.set(axisX, axisY, axisZ);
