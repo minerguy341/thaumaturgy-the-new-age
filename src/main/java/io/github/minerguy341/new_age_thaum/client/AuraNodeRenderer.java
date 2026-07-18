@@ -48,8 +48,9 @@ public class AuraNodeRenderer implements BlockEntityRenderer<AuraNodeBlockEntity
         float toCamX = (float) (camera.getPosition().x - (origin.getX() + 0.5));
         float toCamY = (float) (camera.getPosition().y - (origin.getY() + 0.5));
         float toCamZ = (float) (camera.getPosition().z - (origin.getZ() + 0.5));
+        float distSqr = toCamX * toCamX + toCamY * toCamY + toCamZ * toCamZ;
         Quaternionf facing;
-        if (toCamX * toCamX + toCamY * toCamY + toCamZ * toCamZ > 1.0e-6f) {
+        if (distSqr > 1.0e-6f) {
             // Roll-free look-at: yaw about Y, then pitch about X, up stays world-up.
             // (rotationTo's shortest-arc solution carries an arbitrary roll that drifts
             // with the view direction — the orb visibly twisted as you walked around it.)
@@ -73,7 +74,7 @@ public class AuraNodeRenderer implements BlockEntityRenderer<AuraNodeBlockEntity
         double seconds = now / 1000.0;
         float pulse = 1.0f + 0.08f * (float) Math.sin(seconds * 2.1);
         float base = 0.28f * (0.7f + 0.3f * node.size());
-        LateHolograms.enqueue(buffer -> {
+        LateHolograms.enqueue(distSqr, buffer -> {
             // Outer halo breathes, the mid swirl and bright core counter-rotate. Each
             // layer sits at its own depth along the local view axis (+Z points away
             // from the camera) so the depth-stamp pass isn't coplanar; blend order is
