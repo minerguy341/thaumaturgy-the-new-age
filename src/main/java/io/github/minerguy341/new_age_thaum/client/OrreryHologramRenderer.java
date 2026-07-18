@@ -10,7 +10,6 @@ import io.github.minerguy341.new_age_thaum.core.research.grid.GoldbergGrid;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.resources.ResourceLocation;
@@ -26,9 +25,9 @@ import java.util.Map;
 
 /**
  * Holographic projection of the research sphere above the orrery, shown only while a
- * paper sits in the slot (M2 prototype). Rendered with {@code RenderType.debugQuads} —
- * a vanilla position-color, translucent, no-cull type, so no core-shader dependence
- * (PLAN.md §5 Iris/Sodium rule). Geometry, colors, and puzzle state all come from the
+ * paper sits in the slot (M2 prototype). Rendered with {@link ModRenderTypes#HOLOGRAM} —
+ * vanilla position-color shader, translucent, no-cull, no depth write, so no core-shader
+ * dependence (PLAN.md §5 Iris/Sodium rule). Geometry, colors, and puzzle state all come from the
  * same sources the screen uses; the block entity's sync keeps them live, and the
  * hologram mirrors the block entity's stored orientation — so it turns in world as a
  * viewing player drags the sphere around in the screen.
@@ -74,7 +73,7 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
         poseStack.mulPose(orientation);
         poseStack.scale(SCALE, SCALE, SCALE);
         Matrix4f pose = poseStack.last().pose();
-        VertexConsumer buffer = bufferSource.getBuffer(RenderType.debugQuads());
+        VertexConsumer buffer = bufferSource.getBuffer(ModRenderTypes.HOLOGRAM);
 
         // Translucency blends in emission order, so draw the camera-facing-away
         // hemisphere first — facing computed against each cell's rotated normal.
@@ -154,10 +153,14 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
         double jitter = (pair[0] * 31 + pair[1] * 17) % 97 / 97.0 * 0.9;
         double phase = depth * 2.2 + jitter;
         float widthScale = (float) NewAgeThaumConfig.currentWidth;
+        // Per-current lift jitter keeps ribbons crossing near a shared cell from being
+        // exactly coplanar, and the core rides above its glow — the upload sort then
+        // orders the layers stably instead of flickering between them.
+        float lift = LIFT + (float) jitter * 0.006f;
         ribbon(buffer, pose, grid.cell(from), grid.cell(to), c1, c2,
-                3.8f * widthScale, solved ? 110 : 70, time, phase, depth);   // soft glow
+                3.8f * widthScale, solved ? 110 : 70, time, phase, depth, lift);            // soft glow
         ribbon(buffer, pose, grid.cell(from), grid.cell(to), c1, c2,
-                1.6f * widthScale, solved ? 255 : 235, time, phase, depth);  // bright core
+                1.6f * widthScale, solved ? 255 : 235, time, phase, depth, lift + 0.004f);  // bright core
     }
 
     /**
@@ -168,7 +171,8 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
      */
     private static void ribbon(VertexConsumer buffer, Matrix4f pose,
             GoldbergGrid.Cell fromCell, GoldbergGrid.Cell toCell,
-            int rgb1, int rgb2, float width, int alpha, double time, double phase, int chainDepth) {
+            int rgb1, int rgb2, float width, int alpha, double time, double phase, int chainDepth,
+            float lift) {
         final int segments = 10;
         Vector3f a = new Vector3f((float) fromCell.x(), (float) fromCell.y(), (float) fromCell.z());
         Vector3f b = new Vector3f((float) toCell.x(), (float) toCell.y(), (float) toCell.z());
@@ -188,7 +192,7 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
             double disp = envelope * amp * (1.9 * Math.sin(2 * Math.PI * 1.3 * t - time * speed * 2.4 + phase)
                     + 1.1 * Math.sin(2 * Math.PI * 2.7 * t - time * speed * 3.3 + phase * 1.7));
             float half = (float) (width * PX * (0.55 + 0.45 * envelope) / 2.0);
-            point.mul(LIFT);
+            point.mul(lift);
             float cx = point.x + side.x * (float) disp;
             float cy = point.y + side.y * (float) disp;
             float cz = point.z + side.z * (float) disp;
