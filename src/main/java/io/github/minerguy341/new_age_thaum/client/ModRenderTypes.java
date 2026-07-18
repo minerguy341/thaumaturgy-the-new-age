@@ -12,14 +12,13 @@ import net.minecraft.client.renderer.RenderType;
 public final class ModRenderTypes extends RenderType {
 
     /**
-     * {@code RenderType.debugQuads} minus the depth WRITE (depth test stays on): vanilla
-     * position-color shader, translucent, no-cull, quads sorted far-to-near on upload.
-     * Depth write is what broke the first pass with debugQuads: block entities render
-     * before translucent terrain, so holograms stamped their depth and the water surface
-     * behind them failed the test — a hole in every lake behind an aura node. It also
-     * z-fights any coplanar layers (aura disc stack, current glow under core). Without
-     * it, translucency layers purely in emission/sort order and water simply blends
-     * over the hologram.
+     * The mod's own {@code RenderType.debugQuads} twin: vanilla position-color shader,
+     * translucent, no-cull, depth test AND depth write, quads sorted far-to-near on
+     * upload. The pipeline trick is not the state but the TIMING: this type is only ever
+     * flushed by {@link LateHolograms#renderAll()}, AFTER translucent terrain — so water
+     * (already drawn) shows through the holograms, while clouds and weather (drawn
+     * later) depth-test behind them. A separate instance also keeps the flush ours
+     * alone: {@code endBatch(HOLOGRAM)} can't drop someone else's debugQuads batch.
      */
     public static final RenderType HOLOGRAM = create("new_age_thaum_hologram",
             DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.QUADS, 1536, false, true,
@@ -27,7 +26,6 @@ public final class ModRenderTypes extends RenderType {
                     .setShaderState(POSITION_COLOR_SHADER)
                     .setTransparencyState(TRANSLUCENT_TRANSPARENCY)
                     .setCullState(NO_CULL)
-                    .setWriteMaskState(COLOR_WRITE)
                     .createCompositeState(false));
 
     private ModRenderTypes(String name, VertexFormat format, VertexFormat.Mode mode, int bufferSize,

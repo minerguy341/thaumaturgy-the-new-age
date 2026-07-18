@@ -72,8 +72,8 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
         poseStack.translate(0.5, HEIGHT, 0.5);
         poseStack.mulPose(orientation);
         poseStack.scale(SCALE, SCALE, SCALE);
-        Matrix4f pose = poseStack.last().pose();
-        VertexConsumer buffer = bufferSource.getBuffer(ModRenderTypes.HOLOGRAM);
+        // COPY — the emission below is deferred past this BER call (LateHolograms).
+        Matrix4f pose = new Matrix4f(poseStack.last().pose());
 
         // Translucency blends in emission order, so draw the camera-facing-away
         // hemisphere first — facing computed against each cell's rotated normal.
@@ -113,19 +113,29 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
         }
 
         double time = now / 1000.0;
-        for (GoldbergGrid.Cell cell : back) {
-            drawCell(buffer, pose, cell, puzzle, placed, breath);
-        }
-        for (int[] pair : backPairs) {
-            drawCurrent(buffer, pose, grid, links, pair, solved, breath, time);
-        }
-        for (GoldbergGrid.Cell cell : front) {
-            drawCell(buffer, pose, cell, puzzle, placed, breath);
-        }
-        for (int[] pair : frontPairs) {
-            drawCurrent(buffer, pose, grid, links, pair, solved, breath, time);
-        }
+        LateHolograms.enqueue(buffer -> {
+            for (GoldbergGrid.Cell cell : back) {
+                drawCell(buffer, pose, cell, puzzle, placed, breath);
+            }
+            for (int[] pair : backPairs) {
+                drawCurrent(buffer, pose, grid, links, pair, solved, breath, time);
+            }
+            for (GoldbergGrid.Cell cell : front) {
+                drawCell(buffer, pose, cell, puzzle, placed, breath);
+            }
+            for (int[] pair : frontPairs) {
+                drawCurrent(buffer, pose, grid, links, pair, solved, breath, time);
+            }
+        });
         poseStack.popPose();
+    }
+
+    @Override
+    public boolean shouldRenderOffScreen(ArcaneOrreryBlockEntity orrery) {
+        // The sphere floats 1.5 blocks above the orrery: vanilla frustum-culls a block
+        // entity by its block's chunk section, so looking slightly up in front of the
+        // block made the projection vanish. Render off-screen like the beacon beam does.
+        return true;
     }
 
     /**

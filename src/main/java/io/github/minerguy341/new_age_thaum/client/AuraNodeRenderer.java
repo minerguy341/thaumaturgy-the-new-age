@@ -39,7 +39,6 @@ public class AuraNodeRenderer implements BlockEntityRenderer<AuraNodeBlockEntity
             MultiBufferSource bufferSource, int packedLight, int packedOverlay) {
         long now = Util.getMillis();
         int color = SphereColors.colorOf(node.aspect()); // grey until the server rolls it
-        VertexConsumer buffer = bufferSource.getBuffer(ModRenderTypes.HOLOGRAM);
         // Point-at-camera billboard, not screen-aligned: each orb's disc plane must be
         // perpendicular to the line from THIS node to the camera. With the shared
         // camera.rotation() plane, nodes off the view axis tilt relative to their own
@@ -66,23 +65,28 @@ public class AuraNodeRenderer implements BlockEntityRenderer<AuraNodeBlockEntity
         poseStack.pushPose();
         poseStack.translate(0.5, 0.5, 0.5);
         poseStack.mulPose(facing);
+        // COPIES — the emission below is deferred past this BER call (LateHolograms).
+        Matrix4f discPose = new Matrix4f(poseStack.last().pose());
+        poseStack.popPose();
+        Matrix4f gridPose = holdingAetherlens() ? new Matrix4f(poseStack.last().pose()) : null;
+
         double seconds = now / 1000.0;
         float pulse = 1.0f + 0.08f * (float) Math.sin(seconds * 2.1);
         float base = 0.28f * (0.7f + 0.3f * node.size());
-        // Outer halo breathes, the mid swirl and bright core counter-rotate. Each layer
-        // sits at its own depth along the local view axis (+Z points away from the
-        // camera) — coplanar discs Z-fight. Drawn far to near.
-        disc(buffer, poseStack, base * 1.7f * pulse, SphereColors.blend(color, 0xFFFFFF, 0.10), 0x2E,
-                (float) (seconds * 0.35), 0.04f);
-        disc(buffer, poseStack, base * 1.15f, SphereColors.blend(color, 0xFFFFFF, 0.25), 0x78,
-                (float) (seconds * 0.9), 0f);
-        disc(buffer, poseStack, base * 0.55f * (2.0f - pulse), SphereColors.blend(color, 0xFFFFFF, 0.65), 0xE6,
-                (float) (-seconds * 1.6), -0.04f);
-        poseStack.popPose();
-
-        if (holdingAetherlens()) {
-            renderAuraGrid(node, poseStack, buffer);
-        }
+        LateHolograms.enqueue(buffer -> {
+            // Outer halo breathes, the mid swirl and bright core counter-rotate. Each
+            // layer sits at its own depth along the local view axis (+Z points away
+            // from the camera) — coplanar discs Z-fight. Drawn far to near.
+            disc(buffer, discPose, base * 1.7f * pulse, SphereColors.blend(color, 0xFFFFFF, 0.10), 0x2E,
+                    (float) (seconds * 0.35), 0.04f);
+            disc(buffer, discPose, base * 1.15f, SphereColors.blend(color, 0xFFFFFF, 0.25), 0x78,
+                    (float) (seconds * 0.9), 0f);
+            disc(buffer, discPose, base * 0.55f * (2.0f - pulse), SphereColors.blend(color, 0xFFFFFF, 0.65), 0xE6,
+                    (float) (-seconds * 1.6), -0.04f);
+            if (gridPose != null) {
+                renderAuraGrid(node, gridPose, buffer);
+            }
+        });
     }
 
     private static boolean holdingAetherlens() {
@@ -92,14 +96,12 @@ public class AuraNodeRenderer implements BlockEntityRenderer<AuraNodeBlockEntity
     }
 
     /** Crossed translucent columns over each surrounding chunk's center, height = vis. */
-    private static void renderAuraGrid(AuraNodeBlockEntity node, PoseStack poseStack, VertexConsumer buffer) {
+    private static void renderAuraGrid(AuraNodeBlockEntity node, Matrix4f pose, VertexConsumer buffer) {
         float[] snapshot = node.auraSnapshot();
         BlockPos origin = node.getBlockPos();
         ChunkPos center = new ChunkPos(origin);
         int half = AuraNodeBlockEntity.GRID / 2;
 
-        poseStack.pushPose();
-        Matrix4f pose = poseStack.last().pose();
         for (int dz = -half; dz <= half; dz++) {
             for (int dx = -half; dx <= half; dx++) {
                 float vis = snapshot[(dz + half) * AuraNodeBlockEntity.GRID + (dx + half)];
@@ -114,7 +116,6 @@ public class AuraNodeRenderer implements BlockEntityRenderer<AuraNodeBlockEntity
                 column(buffer, pose, x, y, z, height, rgb, alpha);
             }
         }
-        poseStack.popPose();
     }
 
     /** Two crossed vertical quads — readable from every angle without billboarding. */
@@ -135,9 +136,8 @@ public class AuraNodeRenderer implements BlockEntityRenderer<AuraNodeBlockEntity
     }
 
     /** A flat hexagon fan in the billboarded view plane, spun by {@code spin} radians. */
-    private static void disc(VertexConsumer buffer, PoseStack poseStack,
+    private static void disc(VertexConsumer buffer, Matrix4f pose,
             float radius, int rgb, int alpha, float spin, float depth) {
-        Matrix4f pose = poseStack.last().pose();
         int r = (rgb >> 16) & 0xFF;
         int g = (rgb >> 8) & 0xFF;
         int b = rgb & 0xFF;

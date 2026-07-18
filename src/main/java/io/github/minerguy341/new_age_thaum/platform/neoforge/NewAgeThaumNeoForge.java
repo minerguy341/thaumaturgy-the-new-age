@@ -19,6 +19,9 @@ public final class NewAgeThaumNeoForge {
         net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(
                 (net.neoforged.neoforge.event.TagsUpdatedEvent event) ->
                         io.github.minerguy341.new_age_thaum.core.aspect.AspectResolver.invalidate());
+        if (net.neoforged.fml.loading.FMLEnvironment.dist == net.neoforged.api.distmarker.Dist.CLIENT) {
+            NeoForgeClientHooks.register();
+        }
     }
 }
 //?}
