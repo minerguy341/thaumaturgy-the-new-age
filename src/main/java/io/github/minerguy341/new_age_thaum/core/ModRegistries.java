@@ -113,12 +113,12 @@ public final class ModRegistries {
 
     private static RegistrySupplier<Item> rod(String name, String material) {
         return ITEMS.register(name, () -> new WandPartItem(new Item.Properties(),
-                ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, material), WandMaterial.Kind.CORE));
+                NewAgeThaum.id(material), WandMaterial.Kind.CORE));
     }
 
     private static RegistrySupplier<Item> cap(String name, String material) {
         return ITEMS.register(name, () -> new WandPartItem(new Item.Properties(),
-                ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, material), WandMaterial.Kind.CAP));
+                NewAgeThaum.id(material), WandMaterial.Kind.CAP));
     }
 
     public static void init() {

@@ -15,7 +15,7 @@ import java.util.Set;
 /** Sends the owning player their own {@link PlayerProgress} on join and after each change. */
 public record PlayerProgressSyncPayload(PlayerProgress progress) implements CustomPacketPayload {
     public static final CustomPacketPayload.Type<PlayerProgressSyncPayload> TYPE =
-            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, "player_progress_sync"));
+            new CustomPacketPayload.Type<>(NewAgeThaum.id("player_progress_sync"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, PlayerProgressSyncPayload> STREAM_CODEC =
             StreamCodec.of(PlayerProgressSyncPayload::write, PlayerProgressSyncPayload::read);

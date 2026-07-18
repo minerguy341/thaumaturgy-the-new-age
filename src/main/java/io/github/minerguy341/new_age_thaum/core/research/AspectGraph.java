@@ -91,15 +91,6 @@ public final class AspectGraph {
     }
 
     /**
-     * Dynamic programming over walk length: {@code reachable[k]} is the set of aspects
-     * reachable from {@code start} in exactly {@code k} derivation steps (walks may
-     * revisit aspects — only consecutive equality is impossible by construction).
-     */
-    public List<Set<ResourceLocation>> reachableByStep(ResourceLocation start, int steps) {
-        return reachableByStep(start, steps, null);
-    }
-
-    /**
      * As above, but every step lands inside {@code allowed} (null = the whole graph).
      * The generator passes the tier pool so a hidden solution never routes through an
      * aspect deeper than the paper's tier permits — the player must be able to place
@@ -120,16 +111,6 @@ public final class AspectGraph {
             layers.add(next);
         }
         return layers;
-    }
-
-    /**
-     * A uniformly random walk of exactly {@code steps} edges from {@code start} to
-     * {@code end}, reconstructed backwards through the DP layers; null if none exists.
-     * The walk is the hidden solution chain of a generated path — the guarantee that
-     * the puzzle can be completed, discarded after generation.
-     */
-    public List<ResourceLocation> walk(ResourceLocation start, ResourceLocation end, int steps, RandomSource random) {
-        return walk(reachableByStep(start, steps), end, random);
     }
 
     /** Walk reconstruction over precomputed layers, so callers don't pay the DP twice. */

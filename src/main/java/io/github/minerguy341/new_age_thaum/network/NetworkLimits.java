@@ -1,5 +1,7 @@
 package io.github.minerguy341.new_age_thaum.network;
 
+import net.minecraft.util.Mth;
+
 /** Decode-side guards shared by the hand-rolled stream codecs. */
 public final class NetworkLimits {
     private NetworkLimits() {
@@ -12,6 +14,6 @@ public final class NetworkLimits {
      * the element reads exhaust the buffer; this only bounds the allocation.
      */
     public static int safeCapacity(int claimed) {
-        return Math.max(0, Math.min(claimed, 1024));
+        return Mth.clamp(claimed, 0, 1024);
     }
 }

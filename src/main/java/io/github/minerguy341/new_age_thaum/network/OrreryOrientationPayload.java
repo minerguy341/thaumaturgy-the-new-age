@@ -5,39 +5,27 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
 
 /**
- * S2C: an orrery's sphere orientation changed — nearby clients update their block
- * entity so the hologram mirrors the rotating player's drag live. A non-zero angular
- * velocity ({@code wx,wy,wz}, radians/ms) means a flick: the receiving client plays the
- * deterministic coast to the same rest pose the server stored. The dragging player is
- * excluded (their client wrote through optimistically).
+ * S2C: an orrery's sphere orientation changed — nearby clients apply the same
+ * {@link OrientationFrame} (deterministic coast included) so every hologram converges
+ * on the rest pose the server stored. The dragging player is excluded (their client
+ * wrote through optimistically).
  */
-public record OrreryOrientationPayload(BlockPos pos, float x, float y, float z, float w,
-        float wx, float wy, float wz, float coastTau) implements CustomPacketPayload {
+public record OrreryOrientationPayload(BlockPos pos, OrientationFrame frame) implements CustomPacketPayload {
     public static final CustomPacketPayload.Type<OrreryOrientationPayload> TYPE =
-            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, "orrery_orientation"));
+            new CustomPacketPayload.Type<>(NewAgeThaum.id("orrery_orientation"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, OrreryOrientationPayload> STREAM_CODEC =
             StreamCodec.of(OrreryOrientationPayload::write, OrreryOrientationPayload::read);
 
     private static void write(RegistryFriendlyByteBuf buf, OrreryOrientationPayload payload) {
         buf.writeBlockPos(payload.pos);
-        buf.writeFloat(payload.x);
-        buf.writeFloat(payload.y);
-        buf.writeFloat(payload.z);
-        buf.writeFloat(payload.w);
-        buf.writeFloat(payload.wx);
-        buf.writeFloat(payload.wy);
-        buf.writeFloat(payload.wz);
-        buf.writeFloat(payload.coastTau);
+        OrientationFrame.write(buf, payload.frame);
     }
 
     private static OrreryOrientationPayload read(RegistryFriendlyByteBuf buf) {
-        return new OrreryOrientationPayload(buf.readBlockPos(),
-                buf.readFloat(), buf.readFloat(), buf.readFloat(), buf.readFloat(),
-                buf.readFloat(), buf.readFloat(), buf.readFloat(), buf.readFloat());
+        return new OrreryOrientationPayload(buf.readBlockPos(), OrientationFrame.read(buf));
     }
 
     @Override

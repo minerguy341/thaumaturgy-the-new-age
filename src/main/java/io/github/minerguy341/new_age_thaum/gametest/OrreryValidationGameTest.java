@@ -44,7 +44,7 @@ import java.util.Set;
 public class OrreryValidationGameTest {
 
     private static ResourceLocation aspect(String path) {
-        return ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, path);
+        return NewAgeThaum.id(path);
     }
 
     /** Endpoints far from the cells under test and mutually unconnectable (same aspect). */
@@ -260,22 +260,26 @@ public class OrreryValidationGameTest {
 
         // A flick coast: velocity must be finite, and the STORED pose is the analytic
         // rest pose (pose advanced by speed * tau radians about the flick axis).
-        helper.assertFalse(NewAgeThaumNetwork.applyOrreryRotation(orrery, 0, 0, 0, 1,
-                        Float.NaN, 0, 0, ArcaneOrreryBlockEntity.COAST_TAU_MS),
+        helper.assertFalse(NewAgeThaumNetwork.applyOrreryRotation(orrery,
+                        new io.github.minerguy341.new_age_thaum.network.OrientationFrame(
+                                0, 0, 0, 1, Float.NaN, 0, 0, ArcaneOrreryBlockEntity.COAST_TAU_MS)),
                 "A NaN coast velocity must be rejected");
         float speed = 0.01f; // radians/ms about +Y
-        helper.assertTrue(NewAgeThaumNetwork.applyOrreryRotation(orrery, 0, 0, 0, 1,
-                        0, speed, 0, ArcaneOrreryBlockEntity.COAST_TAU_MS),
+        helper.assertTrue(NewAgeThaumNetwork.applyOrreryRotation(orrery,
+                        new io.github.minerguy341.new_age_thaum.network.OrientationFrame(
+                                0, 0, 0, 1, 0, speed, 0, ArcaneOrreryBlockEntity.COAST_TAU_MS)),
                 "A finite flick is accepted");
         var expectedRest = new org.joml.Quaternionf()
                 .rotationAxis(speed * ArcaneOrreryBlockEntity.COAST_TAU_MS, 0, 1, 0);
         // The packet's friction is clamped, so a hostile tau can't buy extra rotation:
-        // a million-ms tau clamps to 5000ms of travel.
+        // a million-ms tau clamps to the maximum's worth of travel.
         var clampCheck = new ArcaneOrreryBlockEntity(BlockPos.ZERO, state);
-        helper.assertTrue(NewAgeThaumNetwork.applyOrreryRotation(clampCheck, 0, 0, 0, 1,
-                        0, speed, 0, 1.0e6f),
+        helper.assertTrue(NewAgeThaumNetwork.applyOrreryRotation(clampCheck,
+                        new io.github.minerguy341.new_age_thaum.network.OrientationFrame(
+                                0, 0, 0, 1, 0, speed, 0, 1.0e6f)),
                 "An oversized tau is clamped, not rejected");
-        var clampedRest = new org.joml.Quaternionf().rotationAxis(speed * 5000f, 0, 1, 0);
+        var clampedRest = new org.joml.Quaternionf()
+                .rotationAxis(speed * ArcaneOrreryBlockEntity.MAX_COAST_TAU_MS, 0, 1, 0);
         helper.assertTrue(clampCheck.orientation().equals(clampedRest, 1.0e-4f),
                 "Total coast travel must honor the tau clamp, got " + clampCheck.orientation());
         helper.assertTrue(orrery.orientation().equals(expectedRest, 1.0e-4f),

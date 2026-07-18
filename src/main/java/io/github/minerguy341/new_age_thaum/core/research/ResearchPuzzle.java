@@ -6,6 +6,7 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -76,7 +77,7 @@ public record ResearchPuzzle(int frequency, Map<Integer, ResourceLocation> endpo
         // Decode defensively: counts are capped before allocation and cell indices are
         // bounded to the sphere, so junk from a mismatched or hostile peer can neither
         // OOM the client nor persist out-of-range cells (grid.cell() would crash on them).
-        int frequency = Math.max(1, Math.min(buf.readVarInt(), 8)); // the NBT codec's intRange(1, 8)
+        int frequency = Mth.clamp(buf.readVarInt(), 1, 8); // the NBT codec's intRange(1, 8)
         int size = 10 * frequency * frequency + 2;
         int endpointCount = buf.readVarInt();
         Map<Integer, ResourceLocation> endpoints = new HashMap<>(

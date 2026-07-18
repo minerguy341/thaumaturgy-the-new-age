@@ -39,6 +39,14 @@ public record ResearchSphereData(Map<Integer, ResourceLocation> cells) {
             StreamCodec.of(ResearchSphereData::write, ResearchSphereData::read);
 
     public ResearchSphereData {
+        // Chokepoint bound: NBT decode, network decode, and every edit flow through
+        // this constructor, so globally-impossible cell indices can never persist.
+        // Consumers still apply the exact per-frequency bound where the grid is known.
+        if (cells.keySet().stream().anyMatch(cell -> cell < 0 || cell >= MAX_CELLS)) {
+            Map<Integer, ResourceLocation> bounded = new HashMap<>(cells);
+            bounded.keySet().removeIf(cell -> cell < 0 || cell >= MAX_CELLS);
+            cells = bounded;
+        }
         cells = Map.copyOf(cells);
     }
 

@@ -35,12 +35,17 @@ public class CodexScreen extends Screen {
         super(Component.translatable("screen.new_age_thaum.codex"));
     }
 
+    // byCategory scans and filters the whole registry — cache the list instead of
+    // rebuilding it every frame (and on every click).
+    private List<CodexEntry> shownEntries = List.of();
+
     @Override
     protected void init() {
         List<String> categories = CodexRegistry.categories();
         if (category.isEmpty() && !categories.isEmpty()) {
             category = categories.get(0);
         }
+        shownEntries = CodexRegistry.byCategory(category);
         panelLeft = (this.width - PANEL_WIDTH) / 2;
         panelTop = (this.height - PANEL_HEIGHT) / 2;
     }
@@ -69,7 +74,7 @@ public class CodexScreen extends Screen {
         }
 
         CodexEntry hovered = null;
-        for (CodexEntry entry : CodexRegistry.byCategory(category)) {
+        for (CodexEntry entry : shownEntries) {
             int x = iconX(entry);
             int y = iconY(entry);
             boolean isSelected = entry.equals(selected);
@@ -94,7 +99,7 @@ public class CodexScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        for (CodexEntry entry : CodexRegistry.byCategory(category)) {
+        for (CodexEntry entry : shownEntries) {
             int x = iconX(entry);
             int y = iconY(entry);
             if (mouseX >= x - 3 && mouseX <= x + 19 && mouseY >= y - 3 && mouseY <= y + 19) {

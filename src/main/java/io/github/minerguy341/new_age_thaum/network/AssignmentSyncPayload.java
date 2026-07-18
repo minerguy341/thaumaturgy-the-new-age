@@ -14,7 +14,7 @@ import java.util.Map;
 public record AssignmentSyncPayload(Map<ResourceLocation, AspectBag> byItem,
                                     Map<ResourceLocation, AspectBag> byTag) implements CustomPacketPayload {
     public static final CustomPacketPayload.Type<AssignmentSyncPayload> TYPE =
-            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, "assignment_sync"));
+            new CustomPacketPayload.Type<>(NewAgeThaum.id("assignment_sync"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, AssignmentSyncPayload> STREAM_CODEC =
             StreamCodec.of(AssignmentSyncPayload::write, AssignmentSyncPayload::read);

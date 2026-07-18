@@ -28,7 +28,7 @@ public class ProofOfForgeGameTest {
     /*@GameTest(template = "new_age_thaum:empty")
     *///?}
     public void proofItemIsRegistered(GameTestHelper helper) {
-        ResourceLocation id = ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, "proof_of_forge");
+        ResourceLocation id = NewAgeThaum.id("proof_of_forge");
         helper.assertTrue(BuiltInRegistries.ITEM.containsKey(id),
                 "Proof item " + id + " is missing from the item registry");
         helper.assertTrue(ModRegistries.PROOF_OF_FORGE.isPresent(),

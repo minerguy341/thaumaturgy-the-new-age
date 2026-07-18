@@ -36,10 +36,6 @@ public final class AspectRegistry {
         return aspects.containsKey(id);
     }
 
-    public static int count() {
-        return aspects.size();
-    }
-
     /** Replace contents from a reload or a server sync. Returns the accepted map size. */
     public static int reload(Map<ResourceLocation, Aspect> incoming) {
         aspects = Map.copyOf(filterValid(incoming));

@@ -3,9 +3,9 @@ package io.github.minerguy341.new_age_thaum.client;
 import dev.architectury.registry.client.rendering.ColorHandlerRegistry;
 import io.github.minerguy341.new_age_thaum.core.ModComponents;
 import io.github.minerguy341.new_age_thaum.core.ModRegistries;
+import io.github.minerguy341.new_age_thaum.content.ResearchPaperItem;
 import io.github.minerguy341.new_age_thaum.content.WandPartItem;
 import io.github.minerguy341.new_age_thaum.core.casting.WandComponent;
-import io.github.minerguy341.new_age_thaum.core.casting.WandMaterial;
 import io.github.minerguy341.new_age_thaum.core.casting.WandMaterialRegistry;
 import net.minecraft.resources.ResourceLocation;
 
@@ -56,7 +56,7 @@ public final class WandColors {
         // until each gets real art. Grandmaster gold matches the endpoint rim.
         ColorHandlerRegistry.registerItemColors((stack, tintIndex) -> {
             if (tintIndex != 0 || !(stack.getItem()
-                    instanceof io.github.minerguy341.new_age_thaum.content.ResearchPaperItem paper)) {
+                    instanceof ResearchPaperItem paper)) {
                 return UNTINTED;
             }
             return 0xFF000000 | switch (paper.tier()) {
@@ -64,7 +64,7 @@ public final class WandColors {
                 case APPRENTICE -> 0x9FD8A0;
                 case SCHOLAR -> 0x8FB8E8;
                 case MASTER -> 0xC49AE8;
-                case GRANDMASTER -> 0xE8C86A;
+                case GRANDMASTER -> SphereColors.GOLD;
             };
         }, ModRegistries.PAPER_FLEDGLING, ModRegistries.PAPER_APPRENTICE, ModRegistries.PAPER_SCHOLAR,
                 ModRegistries.PAPER_MASTER, ModRegistries.PAPER_GRANDMASTER);

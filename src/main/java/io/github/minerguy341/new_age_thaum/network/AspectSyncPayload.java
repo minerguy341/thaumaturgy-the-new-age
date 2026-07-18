@@ -13,7 +13,7 @@ import java.util.List;
 /** Full aspect-set sync, sent on player join and after datapack reloads. */
 public record AspectSyncPayload(List<Aspect> aspects) implements CustomPacketPayload {
     public static final CustomPacketPayload.Type<AspectSyncPayload> TYPE =
-            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, "aspect_sync"));
+            new CustomPacketPayload.Type<>(NewAgeThaum.id("aspect_sync"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, AspectSyncPayload> STREAM_CODEC =
             StreamCodec.of(AspectSyncPayload::write, AspectSyncPayload::read);

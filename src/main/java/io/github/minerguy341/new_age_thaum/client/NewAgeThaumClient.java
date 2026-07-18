@@ -1,15 +1,22 @@
 package io.github.minerguy341.new_age_thaum.client;
 
 import dev.architectury.event.events.client.ClientPlayerEvent;
+import dev.architectury.registry.client.rendering.BlockEntityRendererRegistry;
 import dev.architectury.event.events.client.ClientTooltipEvent;
 import dev.architectury.registry.menu.MenuRegistry;
+import io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity;
+import io.github.minerguy341.new_age_thaum.core.ModBlockEntities;
 import io.github.minerguy341.new_age_thaum.core.ModMenus;
+import io.github.minerguy341.new_age_thaum.core.casting.WandMaterialRegistry;
+import io.github.minerguy341.new_age_thaum.core.codex.CodexRegistry;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectAssignments;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectBag;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectNames;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectRegistry;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectResolver;
 import io.github.minerguy341.new_age_thaum.core.player.PlayerProgress;
+import io.github.minerguy341.new_age_thaum.network.NewAgeThaumNetwork;
+import io.github.minerguy341.new_age_thaum.network.OrreryOrientationPayload;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -26,15 +33,13 @@ public final class NewAgeThaumClient {
     }
 
     /** S2C orientation mirror: another player rotated an orrery's sphere. Main thread. */
-    public static void applyOrreryOrientation(io.github.minerguy341.new_age_thaum.network.OrreryOrientationPayload payload) {
+    public static void applyOrreryOrientation(OrreryOrientationPayload payload) {
         var level = Minecraft.getInstance().level;
         if (level != null && level.getBlockEntity(payload.pos())
-                instanceof io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity orrery) {
+                instanceof ArcaneOrreryBlockEntity orrery) {
             // Reuses the server-path validation and rest-pose/coast math, so this client
             // lands on the identical settled orientation.
-            io.github.minerguy341.new_age_thaum.network.NewAgeThaumNetwork.applyOrreryRotation(
-                    orrery, payload.x(), payload.y(), payload.z(), payload.w(),
-                    payload.wx(), payload.wy(), payload.wz(), payload.coastTau());
+            NewAgeThaumNetwork.applyOrreryRotation(orrery, payload.frame());
         }
     }
 
@@ -46,8 +51,8 @@ public final class NewAgeThaumClient {
         ModMenus.ARCANE_ORRERY.listen(type ->
                 MenuRegistry.registerScreenFactory(type, ResearchSphereScreen::new));
         // Same listen() timing rule as the screen factory: no eager .get() in client init.
-        io.github.minerguy341.new_age_thaum.core.ModBlockEntities.ARCANE_ORRERY.listen(type ->
-                dev.architectury.registry.client.rendering.BlockEntityRendererRegistry
+        ModBlockEntities.ARCANE_ORRERY.listen(type ->
+                BlockEntityRendererRegistry
                         .register(type, OrreryHologramRenderer::new));
         // Synced state is per-server. Without this reset, a vanilla server joined next
         // (which never syncs) would render the previous server's aspects in tooltips and
@@ -57,8 +62,8 @@ public final class NewAgeThaumClient {
             ClientPlayerProgress.set(PlayerProgress.EMPTY);
             AspectRegistry.reload(Map.of());
             AspectAssignments.accept(Map.of(), Map.of());
-            io.github.minerguy341.new_age_thaum.core.codex.CodexRegistry.reload(Map.of());
-            io.github.minerguy341.new_age_thaum.core.casting.WandMaterialRegistry.reload(Map.of());
+            CodexRegistry.reload(Map.of());
+            WandMaterialRegistry.reload(Map.of());
             AspectResolver.invalidate();
         });
         ClientTooltipEvent.ITEM.register((stack, lines, context, flag) -> {

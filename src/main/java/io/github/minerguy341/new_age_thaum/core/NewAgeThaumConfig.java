@@ -40,13 +40,15 @@ public final class NewAgeThaumConfig {
     public static int currentPulseFrom = 0x7FE8D8;
     public static int currentPulseTo = 0xFFFFFF;
 
+    private static boolean customColors;
+
     private static long loadedModified = -1;
 
     private NewAgeThaumConfig() {
     }
 
     public static boolean customCurrentColors() {
-        return "custom".equalsIgnoreCase(currentColorMode);
+        return customColors; // cached in apply(): read per ribbon segment per frame
     }
 
     private static Path file() {
@@ -95,6 +97,7 @@ public final class NewAgeThaumConfig {
         if (values.containsKey("currentColorMode")) {
             currentColorMode = values.get("currentColorMode");
         }
+        customColors = "custom".equalsIgnoreCase(currentColorMode);
         currentBaseColor = parseHex(values.get("currentBaseColor"), currentBaseColor);
         currentPulseFrom = parseHex(values.get("currentPulseFrom"), currentPulseFrom);
         currentPulseTo = parseHex(values.get("currentPulseTo"), currentPulseTo);
@@ -214,7 +217,7 @@ public final class NewAgeThaumConfig {
                 return fallback;
             }
             double parsed = Double.parseDouble(value);
-            return Double.isFinite(parsed) ? Math.max(min, Math.min(max, parsed)) : fallback;
+            return Double.isFinite(parsed) ? net.minecraft.util.Mth.clamp(parsed, min, max) : fallback;
         } catch (NumberFormatException e) {
             return fallback;
         }

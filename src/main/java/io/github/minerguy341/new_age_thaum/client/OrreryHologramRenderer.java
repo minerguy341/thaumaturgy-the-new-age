@@ -3,8 +3,6 @@ package io.github.minerguy341.new_age_thaum.client;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity;
-import io.github.minerguy341.new_age_thaum.core.aspect.Aspect;
-import io.github.minerguy341.new_age_thaum.core.aspect.AspectRegistry;
 import io.github.minerguy341.new_age_thaum.core.research.PuzzleGenerator;
 import io.github.minerguy341.new_age_thaum.core.research.ResearchPuzzle;
 import io.github.minerguy341.new_age_thaum.core.research.grid.GoldbergGrid;
@@ -36,8 +34,6 @@ import java.util.Map;
 public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryBlockEntity> {
     private static final float HEIGHT = 1.55f;
     private static final float SCALE = 0.45f;
-    private static final int GOLD = 0xE8C86A;
-    private static final int EMPTY_CELL = 0x2A2438;
 
     public OrreryHologramRenderer(BlockEntityRendererProvider.Context context) {
     }
@@ -55,7 +51,7 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
         long now = Util.getMillis();
         boolean solved = puzzle != null && puzzle.solved();
         // Same breathing pulse the screen uses once the circuit has closed.
-        double breath = solved ? 0.30 + 0.20 * Math.sin(now / 1000.0 * 2.4) : 0;
+        double breath = SphereColors.solvedBreath(solved, now);
         // The screen's drag orientation streamed to the BE, including any in-flight
         // flick coast (displayOrientation converges on the stored rest pose). If
         // in-game testing shows the world rotation vertically mirrored versus the
@@ -103,17 +99,17 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
         int rgb;
         int alpha;
         if (endpoint) {
-            rgb = blend(colorOf(aspect), GOLD, 0.5);
+            rgb = SphereColors.blend(SphereColors.colorOf(aspect), SphereColors.GOLD, 0.5);
             alpha = 0xC0;
         } else if (aspect != null) {
-            rgb = colorOf(aspect);
+            rgb = SphereColors.colorOf(aspect);
             alpha = 0x90;
         } else {
-            rgb = EMPTY_CELL;
+            rgb = SphereColors.EMPTY_CELL;
             alpha = 0x30;
         }
         if (breath > 0) {
-            rgb = blend(rgb, GOLD, breath);
+            rgb = SphereColors.blend(rgb, SphereColors.GOLD, breath);
         }
         int r = (rgb >> 16) & 0xFF;
         int g = (rgb >> 8) & 0xFF;
@@ -135,15 +131,4 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
         }
     }
 
-    private static int colorOf(ResourceLocation aspectId) {
-        return aspectId == null ? 0x888888
-                : AspectRegistry.get(aspectId).map(Aspect::color).orElse(0x888888);
-    }
-
-    private static int blend(int from, int to, double factor) {
-        int r = (int) (((from >> 16) & 0xFF) * (1 - factor) + ((to >> 16) & 0xFF) * factor);
-        int g = (int) (((from >> 8) & 0xFF) * (1 - factor) + ((to >> 8) & 0xFF) * factor);
-        int b = (int) ((from & 0xFF) * (1 - factor) + (to & 0xFF) * factor);
-        return (r << 16) | (g << 8) | b;
-    }
 }

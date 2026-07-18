@@ -15,7 +15,7 @@ import java.util.List;
 /** Full Codex-entry sync, sent on player join and after datapack reloads. */
 public record CodexSyncPayload(List<CodexEntry> entries) implements CustomPacketPayload {
     public static final CustomPacketPayload.Type<CodexSyncPayload> TYPE =
-            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, "codex_sync"));
+            new CustomPacketPayload.Type<>(NewAgeThaum.id("codex_sync"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, CodexSyncPayload> STREAM_CODEC =
             StreamCodec.of(CodexSyncPayload::write, CodexSyncPayload::read);

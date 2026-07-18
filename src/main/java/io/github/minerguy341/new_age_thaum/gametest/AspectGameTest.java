@@ -30,7 +30,7 @@ public class AspectGameTest {
     public void allCanonicalAspectsLoad(GameTestHelper helper) {
         helper.assertTrue(CANONICAL.length == 41, "Test data drifted: expected 41 canonical ids");
         for (String name : CANONICAL) {
-            ResourceLocation id = ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, name);
+            ResourceLocation id = NewAgeThaum.id(name);
             helper.assertTrue(AspectRegistry.exists(id), "Aspect " + id + " did not load");
         }
         int primals = 0;

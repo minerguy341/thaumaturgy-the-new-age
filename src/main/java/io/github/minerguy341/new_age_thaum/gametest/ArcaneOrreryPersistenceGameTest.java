@@ -35,7 +35,7 @@ public class ArcaneOrreryPersistenceGameTest {
     public void researchTravelsWithThePaper(GameTestHelper helper) {
         var registries = helper.getLevel().registryAccess();
         BlockState state = ModRegistries.ARCANE_ORRERY.get().defaultBlockState();
-        ResourceLocation flamma = ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, "flamma");
+        ResourceLocation flamma = NewAgeThaum.id("flamma");
 
         ArcaneOrreryBlockEntity orrery = new ArcaneOrreryBlockEntity(BlockPos.ZERO, state);
         orrery.setPaper(new ItemStack(ModRegistries.PAPER_FLEDGLING.get()));

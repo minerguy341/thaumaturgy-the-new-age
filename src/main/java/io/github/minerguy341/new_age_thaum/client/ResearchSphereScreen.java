@@ -7,7 +7,12 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.MeshData;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
+import io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity;
 import io.github.minerguy341.new_age_thaum.content.ArcaneOrreryMenu;
+import io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig;
+import io.github.minerguy341.new_age_thaum.core.aspect.AspectRelations;
+import io.github.minerguy341.new_age_thaum.core.research.LinkingPuzzle;
+import io.github.minerguy341.new_age_thaum.network.OrientationFrame;
 import io.github.minerguy341.new_age_thaum.core.ModComponents;
 import io.github.minerguy341.new_age_thaum.core.research.PuzzleGenerator;
 import io.github.minerguy341.new_age_thaum.core.research.ResearchPuzzle;
@@ -18,6 +23,9 @@ import io.github.minerguy341.new_age_thaum.core.aspect.AspectRegistry;
 import io.github.minerguy341.new_age_thaum.core.research.grid.GoldbergGrid;
 import io.github.minerguy341.new_age_thaum.network.NewAgeThaumNetwork;
 import net.minecraft.ChatFormatting;
+import net.minecraft.Util;
+import net.minecraft.util.Mth;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -35,12 +43,14 @@ import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * The research linking-puzzle surface (M2, prototype), now a container screen: the paper
@@ -54,22 +64,19 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     private static final int ROW_HEIGHT = 18;
     private static final int SWATCH = 12;
     private static final int SCROLLBAR_W = 5;
-    private static final int EMPTY_CELL = 0x2A2438;
 
     /** Fill shrink derived from the configurable border width (1.0 config = classic 0.86). */
     private static double cellShrink() {
-        double width = io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.cellBorderWidth;
-        return Math.max(0.5, Math.min(1.0, 1.0 - 0.14 * width));
+        double width = NewAgeThaumConfig.cellBorderWidth;
+        return Mth.clamp(1.0 - 0.14 * width, 0.5, 1.0);
     }
     private static final double ROTATE_SPEED = 0.008;
-    private static final Quaternionf DEFAULT_ORIENTATION =
-            io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity.DEFAULT_ORIENTATION;
     /** Drag rotations stream to the server at most this often; release always sends. */
     private static final long ROTATION_SEND_INTERVAL_MS = 50;
 
     private GoldbergGrid grid = PuzzleGenerator.gridFor(FREQUENCY);
     private int gridFrequency = FREQUENCY;
-    private final Quaternionf orientation = new Quaternionf(DEFAULT_ORIENTATION);
+    private final Quaternionf orientation = new Quaternionf(ArcaneOrreryBlockEntity.DEFAULT_ORIENTATION);
     private List<ResourceLocation> aspects = new ArrayList<>();
 
     private int listLeft;
@@ -83,17 +90,13 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
 
     private double scroll;
     private long lastRotationSent;
-    // Flick momentum: drag velocity in pixels/ms while dragging; on release it becomes
-    // a fixed-axis coast (spinAxis + decaying spinSpeed) that the server and every
-    // other client reproduce from one pose+velocity packet.
+    // Flick momentum: drag velocity in pixels/ms feeds the release flick. The COAST
+    // itself is owned by the block entity's model (one pose+velocity packet starts it
+    // everywhere); tickSpin just mirrors the BE's display pose back into the screen.
     private double spinVelX;
     private double spinVelY;
     private long lastDragMillis;
-    private long lastSpinTick;
     private boolean spinning;
-    private final org.joml.Vector3f spinAxis = new org.joml.Vector3f();
-    private double spinSpeed; // radians per millisecond
-    private float spinTau;    // friction time constant of the CURRENT coast, ms
     private boolean freeRotation;
     private float pitchAccum;
     private boolean rotating;
@@ -110,7 +113,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     @Override
     protected void init() {
         super.init();
-        io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.maybeReload();
+        NewAgeThaumConfig.maybeReload();
         // Continue from the orrery's current DISPLAY pose (mid-coast included) so the
         // screen and the world hologram agree across reopen/resize.
         var orrery = clientOrrery();
@@ -151,7 +154,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     }
 
     /** The paper in slot 0 — vanilla slot sync keeps this current, components included. */
-    private net.minecraft.world.item.ItemStack paperStack() {
+    private ItemStack paperStack() {
         return this.menu.getSlot(0).getItem();
     }
 
@@ -160,26 +163,41 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     }
 
     private Map<Integer, ResourceLocation> placedMap() {
-        net.minecraft.world.item.ItemStack paper = paperStack();
+        ItemStack paper = paperStack();
         return paper.isEmpty() ? Map.of()
                 : paper.getOrDefault(ModComponents.RESEARCH_SPHERE.get(), ResearchSphereData.EMPTY).cells();
     }
 
     /** The held paper's generated puzzle (endpoints, gaps, sphere size), or null. */
     private ResearchPuzzle puzzle() {
-        net.minecraft.world.item.ItemStack paper = paperStack();
+        ItemStack paper = paperStack();
         return paper.isEmpty() ? null : paper.get(ModComponents.RESEARCH_PUZZLE.get());
     }
 
+    // Identity-keyed cache: the sphere/puzzle components are immutable, and slot sync
+    // swaps in NEW instances on change — so reference equality of the pair tells us the
+    // combined map (and everything derived from it) is still current, without building
+    // a HashMap or running a map-equals every frame.
+    private ResearchSphereData lastSphereData;
+    private ResearchPuzzle lastPuzzleForMap;
+    private Map<Integer, ResourceLocation> cachedEffective = Map.of();
+
     /** Player placements plus the puzzle's fixed endpoint aspects — what the rules see. */
     private Map<Integer, ResourceLocation> effectiveMap() {
-        ResearchPuzzle puzzle = puzzle();
-        Map<Integer, ResourceLocation> placed = placedMap();
-        if (puzzle == null || puzzle.endpoints().isEmpty()) {
-            return placed;
+        ItemStack paper = paperStack();
+        ResearchSphereData data = paper.isEmpty() ? ResearchSphereData.EMPTY
+                : paper.getOrDefault(ModComponents.RESEARCH_SPHERE.get(), ResearchSphereData.EMPTY);
+        ResearchPuzzle puzzle = paper.isEmpty() ? null : paper.get(ModComponents.RESEARCH_PUZZLE.get());
+        if (data == lastSphereData && puzzle == lastPuzzleForMap) {
+            return cachedEffective;
         }
-        Map<Integer, ResourceLocation> combined = new HashMap<>(placed);
-        combined.putAll(puzzle.endpoints());
+        lastSphereData = data;
+        lastPuzzleForMap = puzzle;
+        Map<Integer, ResourceLocation> combined = new HashMap<>(data.cells());
+        if (puzzle != null) {
+            combined.putAll(puzzle.endpoints());
+        }
+        cachedEffective = combined;
         return combined;
     }
 
@@ -227,10 +245,10 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         pushOrientation(true);
     }
 
-    private io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity clientOrrery() {
+    private ArcaneOrreryBlockEntity clientOrrery() {
         var level = Minecraft.getInstance().level;
         return level != null && level.getBlockEntity(this.menu.pos())
-                instanceof io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity orrery
+                instanceof ArcaneOrreryBlockEntity orrery
                 ? orrery : null;
     }
 
@@ -244,7 +262,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         if (orrery != null) {
             orrery.setOrientation(new Quaternionf(orientation));
         }
-        long now = net.minecraft.Util.getMillis();
+        long now = Util.getMillis();
         if (!force && now - lastRotationSent < ROTATION_SEND_INTERVAL_MS) {
             return;
         }
@@ -291,12 +309,12 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         } else if (isSolved()) {
             Component done = Component.translatable("screen.new_age_thaum.research_complete");
             graphics.drawCenteredString(this.font, done, (int) sphereCx,
-                    (int) (sphereCy + sphereR + 2), 0xE8C86A);
+                    (int) (sphereCy + sphereR + 2), SphereColors.GOLD);
         }
         this.renderTooltip(graphics, mouseX, mouseY);
 
         if (dragging != null) {
-            int color = 0xFF000000 | colorOf(dragging);
+            int color = 0xFF000000 | SphereColors.colorOf(dragging);
             graphics.fill(mouseX - SWATCH / 2, mouseY - SWATCH / 2, mouseX + SWATCH / 2, mouseY + SWATCH / 2, color);
             graphics.renderOutline(mouseX - SWATCH / 2, mouseY - SWATCH / 2, SWATCH, SWATCH, 0xFFFFFFFF);
         } else {
@@ -319,7 +337,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
                 if (hover) {
                     graphics.fill(listLeft, y, listLeft + rowW, y + ROW_HEIGHT, 0x40FFFFFF);
                 }
-                int swatch = broke ? blend(colorOf(id), 0x1A1524, 0.6) : colorOf(id);
+                int swatch = broke ? SphereColors.blend(SphereColors.colorOf(id), 0x1A1524, 0.6) : SphereColors.colorOf(id);
                 graphics.fill(listLeft + 4, y + 3, listLeft + 4 + SWATCH, y + 3 + SWATCH, 0xFF000000 | swatch);
                 graphics.renderOutline(listLeft + 4, y + 3, SWATCH, SWATCH, 0xFF000000);
                 graphics.drawString(this.font, AspectNames.displayName(id), listLeft + 22, y + 5,
@@ -345,10 +363,10 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     private void renderSphere(GuiGraphics graphics, int mouseX, int mouseY) {
         ResearchPuzzle puzzle = puzzle();
         Map<Integer, ResourceLocation> placed = effectiveMap();
-        java.util.Set<Integer> unlinked = unlinkedFor(placed);
+        Set<Integer> unlinked = unlinkedFor(placed);
         // -1 while unsolved; 0..1 breathing wave once the circuit has closed.
         double solvedBreath = puzzle != null && puzzle.solved()
-                ? 0.5 + 0.5 * Math.sin(net.minecraft.Util.getMillis() / 1000.0 * 2.4) : -1;
+                ? 0.5 + 0.5 * Math.sin(Util.getMillis() / 1000.0 * 2.4) : -1;
 
         // Drop preview: while dragging, the target cell gets a rim — white when the drop
         // would immediately link to a related neighbor, dim grey when it would sit unlinked.
@@ -361,7 +379,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
                 previewCell = -1;
             }
             if (previewCell >= 0) {
-                previewLinks = io.github.minerguy341.new_age_thaum.core.research.LinkingPuzzle
+                previewLinks = LinkingPuzzle
                         .wouldLink(grid, placed, previewCell, dragging);
             }
         }
@@ -384,6 +402,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             }
         }
         front.sort(Comparator.comparingDouble(cell -> rotated[cell.index()].z));
+        double shrink = cellShrink(); // config-derived; constant across the frame
 
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
@@ -396,11 +415,11 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
 
         for (GoldbergGrid.Cell cell : front) {
             boolean endpoint = puzzle != null && puzzle.isEndpoint(cell.index());
-            int rgb = placed.containsKey(cell.index()) ? colorOf(placed.get(cell.index())) : EMPTY_CELL;
+            int rgb = placed.containsKey(cell.index()) ? SphereColors.colorOf(placed.get(cell.index())) : SphereColors.EMPTY_CELL;
             // No valid connection -> greyed out (unrelated neighbors are ignored, not
             // errors). Endpoints keep their true color — the player plans around them.
             if (!endpoint && unlinked.contains(cell.index())) {
-                rgb = blend(rgb, 0x45434E, 0.65);
+                rgb = SphereColors.blend(rgb, 0x45434E, 0.65);
             }
 
             double[][] full = visiblePolygon(cell);
@@ -413,7 +432,6 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             float fade = Math.min(1.0f, rotated[cell.index()].z / 0.12f);
             double[] pc = polygonCenter(full);
             int n = full.length;
-            double shrink = cellShrink();
             double[][] pts = new double[n][];
             for (int i = 0; i < n; i++) {
                 pts[i] = new double[]{pc[0] + (full[i][0] - pc[0]) * shrink,
@@ -428,7 +446,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
                 int rimAlpha = solvedBreath >= 0
                         ? (int) ((190 + 60 * solvedBreath) * fade)
                         : (int) (235 * fade);
-                addPolygon(buffer, matrix, pc, full, 0xE8C86A, rimAlpha);
+                addPolygon(buffer, matrix, pc, full, SphereColors.GOLD, rimAlpha);
             }
             addPolygon(buffer, matrix, pc, pts, rgb, (int) (255 * fade));
         }
@@ -453,10 +471,11 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         if (pairs.isEmpty()) {
             return;
         }
-        double time = net.minecraft.Util.getMillis() / 1000.0;
+        long nowMillis = Util.getMillis();
+        double time = nowMillis / 1000.0;
         boolean solved = isSolved();
         // Closed circuit: once solved, the whole web breathes gold in unison.
-        double breath = solved ? 0.30 + 0.20 * Math.sin(time * 2.4) : 0;
+        double breath = SphereColors.solvedBreath(solved, nowMillis);
         BufferBuilder buffer = Tesselator.getInstance().begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
         for (int[] pair : pairs) {
@@ -476,21 +495,21 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             }
             double[] p1 = project(ra);
             double[] p2 = project(rb);
-            boolean custom = io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.customCurrentColors();
-            int c1 = custom ? io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.currentBaseColor
-                    : colorOf(placed.get(from));
-            int c2 = custom ? io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.currentBaseColor
-                    : colorOf(placed.get(to));
+            boolean custom = NewAgeThaumConfig.customCurrentColors();
+            int c1 = custom ? NewAgeThaumConfig.currentBaseColor
+                    : SphereColors.colorOf(placed.get(from));
+            int c2 = custom ? NewAgeThaumConfig.currentBaseColor
+                    : SphereColors.colorOf(placed.get(to));
             if (solved) {
-                c1 = blend(c1, 0xE8C86A, breath);
-                c2 = blend(c2, 0xE8C86A, breath);
+                c1 = SphereColors.blend(c1, SphereColors.GOLD, breath);
+                c2 = SphereColors.blend(c2, SphereColors.GOLD, breath);
             }
             // Chain phase makes crests continue cell-to-cell along the web; the hash
             // jitter keeps parallel links from moving in lockstep.
             int depth = lastFlowDepth.getOrDefault(from, 0);
             double chainPhase = depth * 2.2;
             double jitter = (pair[0] * 31 + pair[1] * 17) % 97 / 97.0 * 0.9;
-            float widthScale = (float) io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.currentWidth;
+            float widthScale = (float) NewAgeThaumConfig.currentWidth;
             ribbon(buffer, matrix, p1, p2, c1, c2, 3.8f * widthScale, (int) ((solved ? 110 : 70) * edgeFade), time, chainPhase + jitter, depth);   // soft glow
             ribbon(buffer, matrix, p1, p2, c1, c2, 1.6f * widthScale, (int) ((solved ? 255 : 235) * edgeFade), time, chainPhase + jitter, depth);  // bright core
         }
@@ -515,8 +534,8 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
 
         double[][] left = new double[segments + 1][2];
         double[][] right = new double[segments + 1][2];
-        double amp = io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.currentAmplitude;
-        double speed = io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.currentSpeed;
+        double amp = NewAgeThaumConfig.currentAmplitude;
+        double speed = NewAgeThaumConfig.currentSpeed;
         for (int i = 0; i <= segments; i++) {
             double t = (double) i / segments;
             // Envelope anchors the current at both cell centres; both waves travel in
@@ -531,8 +550,8 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             right[i] = new double[]{cx - nx * half, cy - ny * half};
         }
         for (int i = 0; i < segments; i++) {
-            int colA = glinted(blend(rgb1, rgb2, (double) i / segments), (double) i / segments, time, speed, chainDepth);
-            int colB = glinted(blend(rgb1, rgb2, (double) (i + 1) / segments), (double) (i + 1) / segments, time, speed, chainDepth);
+            int colA = glinted(SphereColors.blend(rgb1, rgb2, (double) i / segments), (double) i / segments, time, speed, chainDepth);
+            int colB = glinted(SphereColors.blend(rgb1, rgb2, (double) (i + 1) / segments), (double) (i + 1) / segments, time, speed, chainDepth);
             quad(buffer, matrix, left[i], right[i], right[i + 1], left[i + 1], colA, colB, alpha);
         }
     }
@@ -554,13 +573,13 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             return rgb;
         }
         int pulseColor;
-        if (io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.customCurrentColors()) {
-            pulseColor = blend(io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.currentPulseFrom,
-                    io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.currentPulseTo, strength);
+        if (NewAgeThaumConfig.customCurrentColors()) {
+            pulseColor = SphereColors.blend(NewAgeThaumConfig.currentPulseFrom,
+                    NewAgeThaumConfig.currentPulseTo, strength);
         } else {
             pulseColor = 0xFFFFFF;
         }
-        return blend(rgb, pulseColor, strength * 0.55);
+        return SphereColors.blend(rgb, pulseColor, strength * 0.55);
     }
 
     private void quad(BufferBuilder buffer, Matrix4f matrix, double[] l0, double[] r0, double[] r1, double[] l1,
@@ -594,24 +613,19 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         }
     }
 
-    private static int blend(int from, int to, double factor) {
-        int r = (int) (((from >> 16) & 0xFF) * (1 - factor) + ((to >> 16) & 0xFF) * factor);
-        int g = (int) (((from >> 8) & 0xFF) * (1 - factor) + ((to >> 8) & 0xFF) * factor);
-        int b = (int) ((from & 0xFF) * (1 - factor) + (to & 0xFF) * factor);
-        return (r << 16) | (g << 8) | b;
-    }
-
     // Link caches recomputed only when the paper's sphere data actually changes.
     private Map<Integer, ResourceLocation> lastLinkInput;
-    private java.util.Set<Integer> lastUnlinked = java.util.Set.of();
+    private Set<Integer> lastUnlinked = Set.of();
     private List<int[]> lastPairs = List.of();
     private Map<Integer, Integer> lastFlowDepth = Map.of();
 
     private void refreshLinkCaches(Map<Integer, ResourceLocation> placed) {
-        if (placed.equals(lastLinkInput)) {
+        // Reference compare: effectiveMap() returns the same cached instance until the
+        // paper's immutable components actually change.
+        if (placed == lastLinkInput) {
             return;
         }
-        lastLinkInput = Map.copyOf(placed);
+        lastLinkInput = placed;
         // A crafted/corrupt component can carry out-of-range cell indices; every filled
         // key goes through grid.cell() below (and inside LinkingPuzzle), so drop them
         // here or one bad paper crashes the render loop of every viewer.
@@ -621,16 +635,16 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
                 sane.put(entry.getKey(), entry.getValue());
             }
         }
-        lastUnlinked = io.github.minerguy341.new_age_thaum.core.research.LinkingPuzzle.unlinked(grid, sane);
+        lastUnlinked = LinkingPuzzle.unlinked(grid, sane);
         List<int[]> pairs = new ArrayList<>();
-        Map<Integer, List<Integer>> linkAdjacency = new java.util.HashMap<>();
+        Map<Integer, List<Integer>> linkAdjacency = new HashMap<>();
         for (Map.Entry<Integer, ResourceLocation> entry : sane.entrySet()) {
             for (int neighbor : grid.cell(entry.getKey()).neighbors()) {
                 if (neighbor <= entry.getKey()) {
                     continue; // each edge once
                 }
                 ResourceLocation there = sane.get(neighbor);
-                if (there != null && io.github.minerguy341.new_age_thaum.core.aspect.AspectRelations
+                if (there != null && AspectRelations
                         .related(entry.getValue(), there)) {
                     pairs.add(new int[]{entry.getKey(), neighbor});
                     linkAdjacency.computeIfAbsent(entry.getKey(), k -> new ArrayList<>()).add(neighbor);
@@ -643,8 +657,8 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         // Flow depths: the puzzle's endpoints are the springs — multi-source BFS from
         // every endpoint in the web, so the current visibly flows outward from the fixed
         // cells. Components touching no endpoint fall back to their lowest cell index.
-        Map<Integer, Integer> depth = new java.util.HashMap<>();
-        java.util.ArrayDeque<Integer> queue = new java.util.ArrayDeque<>();
+        Map<Integer, Integer> depth = new HashMap<>();
+        ArrayDeque<Integer> queue = new ArrayDeque<>();
         ResearchPuzzle puzzle = puzzle();
         if (puzzle != null) {
             for (Integer endpoint : puzzle.endpoints().keySet()) {
@@ -665,7 +679,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         lastFlowDepth = depth;
     }
 
-    private static void drainDepths(java.util.ArrayDeque<Integer> queue, Map<Integer, Integer> depth,
+    private static void drainDepths(ArrayDeque<Integer> queue, Map<Integer, Integer> depth,
             Map<Integer, List<Integer>> adjacency) {
         while (!queue.isEmpty()) {
             int current = queue.poll();
@@ -678,7 +692,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         }
     }
 
-    private java.util.Set<Integer> unlinkedFor(Map<Integer, ResourceLocation> placed) {
+    private Set<Integer> unlinkedFor(Map<Integer, ResourceLocation> placed) {
         refreshLinkCaches(placed);
         return lastUnlinked;
     }
@@ -688,7 +702,15 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         return lastPairs;
     }
 
+    // Memoized per aspect: tooltipFor scans the whole registry (combinesInto) and this
+    // runs every frame a list row is hovered. Screens are short-lived; no invalidation.
+    private final Map<ResourceLocation, List<Component>> tooltipCache = new HashMap<>();
+
     private List<Component> tooltipFor(ResourceLocation id) {
+        return tooltipCache.computeIfAbsent(id, this::buildTooltip);
+    }
+
+    private List<Component> buildTooltip(ResourceLocation id) {
         List<Component> lines = new ArrayList<>();
         lines.add(AspectNames.colored(id));
         lines.add(Component.translatable(descKey(id)).withStyle(ChatFormatting.GRAY));
@@ -769,12 +791,11 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
                 rotating = true;
                 if (spinning) {
                     spinning = false;
-                    spinSpeed = 0;
                     pushOrientation(true);
                 }
                 spinVelX = 0;
                 spinVelY = 0;
-                lastDragMillis = net.minecraft.Util.getMillis();
+                lastDragMillis = Util.getMillis();
                 return true;
             }
         }
@@ -789,7 +810,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         }
         if (rotating) {
             // Smoothed velocity estimate feeding the flick momentum on release.
-            long now = net.minecraft.Util.getMillis();
+            long now = Util.getMillis();
             double dt = Math.max(1, now - lastDragMillis);
             lastDragMillis = now;
             spinVelX = spinVelX * 0.75 + (dragX / dt) * 0.25;
@@ -815,11 +836,11 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         }
         if (rotating) {
             rotating = false;
-            long now = net.minecraft.Util.getMillis();
+            long now = Util.getMillis();
             // A flick (release while still moving) keeps the sphere spinning; a release
             // after holding still (no drag events for 100ms) parks it where it is.
             if (now - lastDragMillis <= 100 && Math.hypot(spinVelX, spinVelY) > 0.04) {
-                startCoast(now);
+                startCoast();
             } else {
                 spinning = false;
                 pushOrientation(true); // final pose always reaches the server
@@ -833,7 +854,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     public boolean mouseScrolled(double mouseX, double mouseY, double dx, double dy) {
         if (mouseX >= listLeft && mouseX <= listLeft + listW && mouseY >= listTop && mouseY <= listTop + listH) {
             int contentH = aspects.size() * ROW_HEIGHT;
-            scroll = clamp(scroll - dy * ROW_HEIGHT, 0, Math.max(0, contentH - listH));
+            scroll = Mth.clamp(scroll - dy * ROW_HEIGHT, 0, Math.max(0, contentH - listH));
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, dx, dy);
@@ -854,7 +875,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
             playUi(SoundEvents.VILLAGER_NO, 1.0f);
             return;
         }
-        net.minecraft.world.item.ItemStack paper = paperStack();
+        ItemStack paper = paperStack();
         paper.set(ModComponents.RESEARCH_SPHERE.get(),
                 paper.getOrDefault(ModComponents.RESEARCH_SPHERE.get(), ResearchSphereData.EMPTY).with(cell, aspect));
         NewAgeThaumNetwork.sendOrreryEdit(this.menu.pos(), cell, Optional.of(aspect));
@@ -873,7 +894,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         if (!placedMap().containsKey(cell)) {
             return; // nothing painted here — no packet for a no-op clear
         }
-        net.minecraft.world.item.ItemStack paper = paperStack();
+        ItemStack paper = paperStack();
         paper.set(ModComponents.RESEARCH_SPHERE.get(),
                 paper.getOrDefault(ModComponents.RESEARCH_SPHERE.get(), ResearchSphereData.EMPTY).without(cell));
         NewAgeThaumNetwork.sendOrreryEdit(this.menu.pos(), cell, Optional.empty());
@@ -884,58 +905,43 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     /**
      * Converts the drag velocity into a fixed-axis angular velocity (view frame:
      * horizontal drag spins about Y, vertical about X; locked camera coasts yaw-only so
-     * the pitch clamp stays honest), sends ONE pose+velocity packet — the server stores
-     * the analytic rest pose and mirrors the coast to everyone — and starts the local
-     * sim. No further packets: friction is deterministic, so all parties converge on
-     * the identical rest pose, and the coast keeps playing in-world even if this screen
-     * closes mid-spin.
+     * the pitch clamp stays honest) and sends ONE pose+velocity packet — the server
+     * stores the analytic rest pose and mirrors the coast to everyone. The client block
+     * entity owns the ONLY coast integration (displayOrientation); tickSpin mirrors it,
+     * so the coast keeps playing in-world even if this screen closes mid-spin.
      */
-    private void startCoast(long now) {
+    private void startCoast() {
         float wx = freeRotation ? (float) (spinVelY * ROTATE_SPEED) : 0f;
         float wy = (float) (spinVelX * ROTATE_SPEED);
-        double speed = Math.sqrt(wx * wx + wy * wy);
-        if (speed < 1.0e-5) {
+        var orrery = clientOrrery();
+        if (orrery == null || wx * wx + wy * wy < 1.0e-10) {
             spinning = false;
             pushOrientation(true);
             return;
         }
-        spinAxis.set((float) (wx / speed), (float) (wy / speed), 0f);
-        spinSpeed = speed;
-        // The player's configured friction, fixed for this coast (and clamped to the
-        // config's documented range); it rides in the packet so everyone matches.
-        spinTau = (float) Math.max(50.0, Math.min(5000.0,
-                io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig.coastFriction * 1000.0));
-        spinning = true;
-        lastSpinTick = now;
-        NewAgeThaumNetwork.sendOrreryRotation(this.menu.pos(), orientation, wx, wy, 0f, spinTau);
-        // Write through so this client's own hologram plays the same coast.
-        var orrery = clientOrrery();
-        if (orrery != null) {
-            NewAgeThaumNetwork.applyOrreryRotation(orrery,
-                    orientation.x, orientation.y, orientation.z, orientation.w, wx, wy, 0f, spinTau);
-        }
+        // The player's configured friction, clamped to the documented range; it rides
+        // in the packet so every party integrates with the same tau.
+        float tau = Mth.clamp((float) (NewAgeThaumConfig.coastFriction * 1000.0),
+                ArcaneOrreryBlockEntity.MIN_COAST_TAU_MS, ArcaneOrreryBlockEntity.MAX_COAST_TAU_MS);
+        NewAgeThaumNetwork.sendOrreryRotation(this.menu.pos(), orientation, wx, wy, 0f, tau);
+        spinning = NewAgeThaumNetwork.applyOrreryRotation(orrery,
+                OrientationFrame.flick(orientation, wx, wy, 0f, tau));
     }
 
-    /** Friction integration for the in-screen view of the coast; one call per frame. */
+    /** Mirrors the block entity's coast back into the screen; one call per frame. */
     private void tickSpin() {
         if (!spinning || rotating) {
             return;
         }
-        long now = net.minecraft.Util.getMillis();
-        double dt = Math.min(100, now - lastSpinTick); // clamp frame hitches
-        lastSpinTick = now;
-        if (dt <= 0) {
+        var orrery = clientOrrery();
+        if (orrery == null) {
+            spinning = false;
             return;
         }
-        orientation.premul(new Quaternionf().rotationAxis((float) (spinSpeed * dt), spinAxis));
-        spinSpeed *= Math.exp(-dt / (double) spinTau);
-        double remaining = spinSpeed * spinTau;
-        if (remaining < 0.01) {
-            // Land exactly on the analytic rest pose the server stored at flick time —
-            // no end-of-coast packet needed.
-            orientation.premul(new Quaternionf().rotationAxis((float) remaining, spinAxis));
+        orientation.set(orrery.displayOrientation());
+        if (orientation.equals(orrery.orientation(), 1.0e-4f)) {
+            orientation.set(orrery.orientation()); // land exactly on the rest pose
             spinning = false;
-            spinSpeed = 0;
         }
     }
 
@@ -946,7 +952,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
                     .rotateX((float) (dragY * ROTATE_SPEED)));
         } else {
             orientation.rotateLocalY((float) (dragX * ROTATE_SPEED));
-            float target = clampf(pitchAccum + (float) (dragY * ROTATE_SPEED), -1.4f, 1.4f);
+            float target = Mth.clamp(pitchAccum + (float) (dragY * ROTATE_SPEED), -1.4f, 1.4f);
             orientation.premul(new Quaternionf().rotateX(target - pitchAccum));
             pitchAccum = target;
         }
@@ -956,7 +962,7 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     private void setScrollFromMouse(double mouseY) {
         int contentH = aspects.size() * ROW_HEIGHT;
         double frac = (mouseY - listTop) / (double) listH;
-        scroll = clamp(frac * contentH - listH / 2.0, 0, Math.max(0, contentH - listH));
+        scroll = Mth.clamp(frac * contentH - listH / 2.0, 0, Math.max(0, contentH - listH));
     }
 
     private boolean inSphere(double x, double y) {
@@ -1087,15 +1093,4 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         Minecraft.getInstance().getSoundManager().play(SimpleSoundInstance.forUI(sound, pitch));
     }
 
-    private static int colorOf(ResourceLocation aspectId) {
-        return AspectRegistry.get(aspectId).map(Aspect::color).orElse(0x888888);
-    }
-
-    private static double clamp(double v, double lo, double hi) {
-        return Math.max(lo, Math.min(hi, v));
-    }
-
-    private static float clampf(float v, float lo, float hi) {
-        return Math.max(lo, Math.min(hi, v));
-    }
 }

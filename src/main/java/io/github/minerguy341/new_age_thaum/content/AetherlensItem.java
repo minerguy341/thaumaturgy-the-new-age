@@ -1,5 +1,6 @@
 package io.github.minerguy341.new_age_thaum.content;
 
+import io.github.minerguy341.new_age_thaum.NewAgeThaum;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectBag;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectNames;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectResolver;
@@ -103,6 +104,6 @@ public class AetherlensItem extends Item {
     }
 
     private static ResourceLocation aspect(String path) {
-        return ResourceLocation.fromNamespaceAndPath("new_age_thaum", path);
+        return NewAgeThaum.id(path);
     }
 }

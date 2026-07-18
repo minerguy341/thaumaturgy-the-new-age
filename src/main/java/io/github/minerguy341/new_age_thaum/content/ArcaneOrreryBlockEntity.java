@@ -32,6 +32,11 @@ public class ArcaneOrreryBlockEntity extends BlockEntity implements Container {
             new org.joml.Quaternionf().rotateY(0.6f).rotateX(-0.35f);
     /** Default flick-coast friction time constant (configurable: coastFriction). */
     public static final float COAST_TAU_MS = 700f;
+    /** Friction time-constant bounds — the coastFriction config's 0.05–5.0s, in ms. */
+    public static final float MIN_COAST_TAU_MS = 50f;
+    public static final float MAX_COAST_TAU_MS = 5000f;
+    /** Hard cap on flick speed a peer may claim, radians/ms. */
+    public static final float MAX_COAST_SPEED = 0.1f;
 
     private ItemStack paper = ItemStack.EMPTY;
     // The puzzle's world orientation, mirrored by the hologram. Driven by the screen's
