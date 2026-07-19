@@ -3,10 +3,13 @@ package io.github.minerguy341.new_age_thaum.client;
 import dev.architectury.event.events.client.ClientPlayerEvent;
 import dev.architectury.registry.client.rendering.BlockEntityRendererRegistry;
 import dev.architectury.event.events.client.ClientTooltipEvent;
+import dev.architectury.registry.client.rendering.RenderTypeRegistry;
 import dev.architectury.registry.menu.MenuRegistry;
+import dev.architectury.registry.registries.RegistrySupplier;
 import io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity;
 import io.github.minerguy341.new_age_thaum.core.ModBlockEntities;
 import io.github.minerguy341.new_age_thaum.core.ModMenus;
+import io.github.minerguy341.new_age_thaum.core.ModRegistries;
 import io.github.minerguy341.new_age_thaum.core.casting.WandMaterialRegistry;
 import io.github.minerguy341.new_age_thaum.core.codex.CodexRegistry;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectAssignments;
@@ -19,6 +22,7 @@ import io.github.minerguy341.new_age_thaum.network.NewAgeThaumNetwork;
 import io.github.minerguy341.new_age_thaum.network.OrreryOrientationPayload;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
@@ -60,6 +64,9 @@ public final class NewAgeThaumClient {
                 BlockEntityRendererRegistry.register(type, AuraNodeRenderer::new));
         ModBlockEntities.THAUMIC_DIOPTRA.listen(type ->
                 BlockEntityRendererRegistry.register(type, ThaumicDioptraRenderer::new));
+        // Saplings are cross models with transparency; same listen() timing rule.
+        cutout(ModRegistries.GREATWOOD_SAPLING);
+        cutout(ModRegistries.SILVERWOOD_SAPLING);
         // Synced state is per-server. Without this reset, a vanilla server joined next
         // (which never syncs) would render the previous server's aspects in tooltips and
         // report its point balances. Singleplayer repopulates on world load (reload
@@ -97,5 +104,9 @@ public final class NewAgeThaumClient {
                         .append(Component.literal(" ×" + entry.getValue()).withStyle(ChatFormatting.DARK_GRAY)));
             }
         });
+    }
+
+    private static void cutout(RegistrySupplier<net.minecraft.world.level.block.Block> block) {
+        block.listen(b -> RenderTypeRegistry.register(RenderType.cutout(), b));
     }
 }

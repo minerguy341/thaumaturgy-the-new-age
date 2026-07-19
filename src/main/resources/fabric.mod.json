@@ -38,7 +38,8 @@
       "${group}.gametest.OrreryValidationGameTest",
       "${group}.gametest.AuraGameTest",
       "${group}.gametest.DioptraGameTest",
-      "${group}.gametest.WandRechargeGameTest"
+      "${group}.gametest.WandRechargeGameTest",
+      "${group}.gametest.TreeGenGameTest"
     ]
   },
   "depends": {
