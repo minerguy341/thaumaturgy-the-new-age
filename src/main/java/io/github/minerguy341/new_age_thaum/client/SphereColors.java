@@ -17,6 +17,18 @@ final class SphereColors {
     static final int GOLD = 0xE8C86A;
     /** Fallback for unknown aspect ids. */
     static final int UNKNOWN = 0x888888;
+    /** The dark divider between cells (the screen's sphere backdrop color). */
+    static final int CELL_BORDER = 0x0B0713;
+
+    /**
+     * Fill shrink derived from the configurable border width (1.0 config = classic
+     * 0.86) — both renderers shrink cell fills by this toward the cell center so the
+     * border shows between them.
+     */
+    static double cellShrink() {
+        double width = NewAgeThaumConfig.cellBorderWidth;
+        return Math.max(0.5, Math.min(1.0, 1.0 - 0.14 * width));
+    }
 
     private SphereColors() {
     }
