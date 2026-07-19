@@ -109,11 +109,15 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
         }
         // Each current sorts at its lifted arc midpoint — marginally nearer than the
         // cells it connects, so it draws after them and rides on top. Not an occluder:
-        // its glow-under-core layering depends on blending. Rather than letting the
-        // shell's stamped depth clip a ribbon at ragged pixel boundaries (fragments at
-        // the limb, scraps through gap holes), each ribbon clips ITSELF in geometry at
-        // the silhouette — camLocal is the camera in the sphere's local frame, where
-        // "visible cap" is exactly dot(pointDir, camLocal) > 1.
+        // its glow-under-core layering depends on blending.
+        //
+        // Visibility is ALL-OR-NOTHING per current: a partial ribbon always reads as
+        // broken (a tail amputated at the limb, or a floating scrap where an arc
+        // between two hidden cells crests back over the horizon). A current draws iff
+        // BOTH its cells are on the visible cap — dot(cellDir, camLocal) > 1 in the
+        // sphere's local frame — and since a sub-hemisphere cap is geodesically
+        // convex, the whole arc between two visible cells is provably visible: nothing
+        // can clip it. A short fade below the threshold turns the pop into a dissolve.
         Quaternionf inverse = new Quaternionf(orientation).conjugate();
         Vector3f camLocal = new Vector3f(
                 (float) ((camera.x - center.x) / SCALE),
@@ -123,6 +127,13 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
         for (int[] pair : links.pairs()) {
             GoldbergGrid.Cell a = grid.cell(pair[0]);
             GoldbergGrid.Cell b = grid.cell(pair[1]);
+            float dotA = (float) (a.x() * camLocal.x + a.y() * camLocal.y + a.z() * camLocal.z);
+            float dotB = (float) (b.x() * camLocal.x + b.y() * camLocal.y + b.z() * camLocal.z);
+            float minDot = Math.min(dotA, dotB);
+            if (minDot <= 1.0f) {
+                continue; // a cell at or past the horizon: the whole current is gone
+            }
+            float fade = Math.min(1.0f, (minDot - 1.0f) / 0.35f);
             rotated.set((float) (a.x() + b.x()), (float) (a.y() + b.y()), (float) (a.z() + b.z()))
                     .normalize(LIFT * SCALE);
             orientation.transform(rotated);
@@ -130,7 +141,7 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
             double dy = center.y + rotated.y - camera.y;
             double dz = center.z + rotated.z - camera.z;
             LateHolograms.enqueue(dx * dx + dy * dy + dz * dz,
-                    buffer -> drawCurrent(buffer, pose, grid, links, pair, solved, breath, time, camLocal));
+                    buffer -> drawCurrent(buffer, pose, grid, links, pair, solved, breath, time, fade));
         }
         poseStack.popPose();
     }
@@ -150,7 +161,7 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
      */
     private static void drawCurrent(VertexConsumer buffer, Matrix4f pose, GoldbergGrid grid,
             SphereLinks links, int[] pair, boolean solved, double breath, double time,
-            Vector3f camLocal) {
+            float fade) {
         // Orient the link downstream: the current flows from lower chain depth to higher.
         int from = pair[0];
         int to = pair[1];
@@ -174,9 +185,9 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
         // emission order and doesn't care.
         float lift = LIFT + (float) jitter * 0.006f;
         ribbon(buffer, pose, grid.cell(from), grid.cell(to), c1, c2, 3.8f * widthScale,
-                solved ? 110 : 70, time, phase, depth, lift, camLocal);            // soft glow
+                Math.round((solved ? 110 : 70) * fade), time, phase, depth, lift);            // soft glow
         ribbon(buffer, pose, grid.cell(from), grid.cell(to), c1, c2, 1.6f * widthScale,
-                solved ? 255 : 235, time, phase, depth, lift + 0.004f, camLocal);  // bright core
+                Math.round((solved ? 255 : 235) * fade), time, phase, depth, lift + 0.004f);  // bright core
     }
 
     /**
@@ -188,7 +199,7 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
     private static void ribbon(VertexConsumer buffer, Matrix4f pose,
             GoldbergGrid.Cell fromCell, GoldbergGrid.Cell toCell,
             int rgb1, int rgb2, float width, int alpha, double time, double phase, int chainDepth,
-            float lift, Vector3f camLocal) {
+            float lift) {
         final int segments = 10;
         Vector3f a = new Vector3f((float) fromCell.x(), (float) fromCell.y(), (float) fromCell.z());
         Vector3f b = new Vector3f((float) toCell.x(), (float) toCell.y(), (float) toCell.z());
@@ -197,20 +208,12 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
         Vector3f side = new Vector3f();
         Vector3f[] left = new Vector3f[segments + 1];
         Vector3f[] right = new Vector3f[segments + 1];
-        boolean[] visible = new boolean[segments + 1];
         double amp = NewAgeThaumConfig.currentAmplitude * PX;
         double speed = NewAgeThaumConfig.currentSpeed;
         for (int i = 0; i <= segments; i++) {
             float t = (float) i / segments;
             // Adjacent cells subtend a small angle, so normalized lerp ≈ the arc.
             point.set(a).lerp(b, t).normalize();
-            // Silhouette clip: a unit-sphere surface point is on the visible cap iff
-            // dot(pointDir, camLocal) > 1 — distance-independent, so keep the margin
-            // tiny: a larger one retreats the ribbon further from the limb the closer
-            // the camera gets. At the silhouette the lifted ribbon floats OUTSIDE the
-            // shell sphere, where the prepass stamps nothing, so grazing z-fights
-            // aren't a real risk.
-            visible[i] = point.dot(camLocal) > 1.01f;
             side.set(point).cross(chord).normalize();
             double envelope = Math.sin(Math.PI * t);
             double disp = envelope * amp * (1.9 * Math.sin(2 * Math.PI * 1.3 * t - time * speed * 2.4 + phase)
@@ -224,9 +227,6 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
             right[i] = new Vector3f(cx - side.x * half, cy - side.y * half, cz - side.z * half);
         }
         for (int i = 0; i < segments; i++) {
-            if (!visible[i] || !visible[i + 1]) {
-                continue; // past the sphere's silhouette — geometry-clipped, not depth-bitten
-            }
             int colA = SphereColors.glinted(SphereColors.blend(rgb1, rgb2, (double) i / segments),
                     (double) i / segments, time, speed, chainDepth);
             int colB = SphereColors.glinted(SphereColors.blend(rgb1, rgb2, (double) (i + 1) / segments),
