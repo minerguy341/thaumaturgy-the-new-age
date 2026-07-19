@@ -1,8 +1,8 @@
 {
   "textures": {
-    "particle": "minecraft:block/obsidian",
-    "dark": "minecraft:block/obsidian",
-    "band": "minecraft:block/crying_obsidian"
+    "particle": "new_age_thaum:block/thaumic_dioptra",
+    "dark": "new_age_thaum:block/thaumic_dioptra",
+    "band": "new_age_thaum:block/thaumic_dioptra_band"
   },
   "elements": [
     {
