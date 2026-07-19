@@ -113,13 +113,23 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
         }
 
         double time = now / 1000.0;
-        LateHolograms.enqueue(toCamera.lengthSqr(), buffer -> {
+        // The sphere spans a real depth range (~SCALE either side of its center), so it
+        // sorts as TWO units at center±radius: another hologram floating just past the
+        // sphere is nearer than the far hemisphere but farther than the near one, and a
+        // single whole-sphere entry would paint far-side cells over it. With the split,
+        // anything between the hemispheres interleaves correctly.
+        double len = Math.sqrt(toCamera.lengthSqr());
+        double backDist = len + SCALE;
+        double frontDist = Math.max(0.0, len - SCALE);
+        LateHolograms.enqueue(backDist * backDist, buffer -> {
             for (GoldbergGrid.Cell cell : back) {
                 drawCell(buffer, pose, cell, puzzle, placed, breath);
             }
             for (int[] pair : backPairs) {
                 drawCurrent(buffer, pose, grid, links, pair, solved, breath, time);
             }
+        });
+        LateHolograms.enqueue(frontDist * frontDist, buffer -> {
             for (GoldbergGrid.Cell cell : front) {
                 drawCell(buffer, pose, cell, puzzle, placed, breath);
             }

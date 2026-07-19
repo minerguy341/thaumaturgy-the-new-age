@@ -74,6 +74,8 @@ public class AuraNodeRenderer implements BlockEntityRenderer<AuraNodeBlockEntity
         double seconds = now / 1000.0;
         float pulse = 1.0f + 0.08f * (float) Math.sin(seconds * 2.1);
         float base = 0.28f * (0.7f + 0.3f * node.size());
+        // The orb is one sort unit: the billboarded discs are paper-thin along the view
+        // axis, so a single camera distance orders it correctly against other holograms.
         LateHolograms.enqueue(distSqr, buffer -> {
             // Outer halo breathes, the mid swirl and bright core counter-rotate. Each
             // layer sits at its own depth along the local view axis (+Z points away
@@ -85,10 +87,10 @@ public class AuraNodeRenderer implements BlockEntityRenderer<AuraNodeBlockEntity
                     (float) (seconds * 0.9), 0f);
             disc(buffer, discPose, base * 0.55f * (2.0f - pulse), SphereColors.blend(color, 0xFFFFFF, 0.65), 0xE6,
                     (float) (-seconds * 1.6), -0.04f);
-            if (gridPose != null) {
-                renderAuraGrid(node, gridPose, buffer);
-            }
         });
+        if (gridPose != null) {
+            enqueueAuraGrid(node, gridPose, toCamX + 0.5f, toCamY + 0.5f, toCamZ + 0.5f);
+        }
     }
 
     private static boolean holdingAetherlens() {
@@ -97,8 +99,14 @@ public class AuraNodeRenderer implements BlockEntityRenderer<AuraNodeBlockEntity
                 || player.getOffhandItem().is(ModRegistries.AETHERLENS.get()));
     }
 
-    /** Crossed translucent columns over each surrounding chunk's center, height = vis. */
-    private static void renderAuraGrid(AuraNodeBlockEntity node, Matrix4f pose, VertexConsumer buffer) {
+    /**
+     * Crossed translucent columns over each surrounding chunk's center, height = vis.
+     * Each column is enqueued as its OWN sort unit at its own camera distance: the grid
+     * spans two chunks in every direction, so a single distance for the whole grid
+     * would blend columns wrongly against other holograms (and each other).
+     */
+    private static void enqueueAuraGrid(AuraNodeBlockEntity node, Matrix4f pose,
+            float camX, float camY, float camZ) {
         float[] snapshot = node.auraSnapshot();
         BlockPos origin = node.getBlockPos();
         ChunkPos center = new ChunkPos(origin);
@@ -115,7 +123,11 @@ public class AuraNodeRenderer implements BlockEntityRenderer<AuraNodeBlockEntity
                 float height = 0.25f + COLUMN_MAX_HEIGHT * frac;
                 int rgb = SphereColors.blend(LOW_COLOR, HIGH_COLOR, frac);
                 int alpha = 0x30 + (int) (0x70 * frac);
-                column(buffer, pose, x, y, z, height, rgb, alpha);
+                float ddx = x - camX;
+                float ddy = y + height * 0.5f - camY;
+                float ddz = z - camZ;
+                LateHolograms.enqueue(ddx * ddx + ddy * ddy + ddz * ddz,
+                        buffer -> column(buffer, pose, x, y, z, height, rgb, alpha));
             }
         }
     }
