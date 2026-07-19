@@ -13,14 +13,13 @@ import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -75,69 +74,82 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
         // COPY — the emission below is deferred past this BER call (LateHolograms).
         Matrix4f pose = new Matrix4f(poseStack.last().pose());
 
-        // Translucency blends in emission order, so draw the camera-facing-away
-        // hemisphere first — facing computed against each cell's rotated normal.
+        // Every cell (and every current) is its OWN sort unit at its own true camera
+        // distance. Coarser groupings all have a wrong region: hemisphere-by-facing
+        // breaks at the LIMB, where silhouette cells are nearer than the sphere's
+        // center (sqrt(d²−R²)) yet a facing split labels half of them "far" — so
+        // another hologram behind the sphere blended over its own edge. Cells tile
+        // the sphere without overlapping each other, so per-cell order only has to be
+        // right relative to OTHER holograms, which exact distances guarantee.
         Vec3 camera = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
         Vec3 center = Vec3.atLowerCornerOf(orrery.getBlockPos()).add(0.5, HEIGHT, 0.5);
-        Vec3 toCamera = camera.subtract(center);
         Vector3f rotated = new Vector3f();
 
-        List<GoldbergGrid.Cell> back = new ArrayList<>();
-        List<GoldbergGrid.Cell> front = new ArrayList<>();
-        for (GoldbergGrid.Cell cell : grid.cells()) {
-            if (puzzle != null && puzzle.isGap(cell.index())) {
-                continue; // gaps are holes in the sphere
-            }
-            orientation.transform((float) cell.x(), (float) cell.y(), (float) cell.z(), rotated);
-            (rotated.x * toCamera.x + rotated.y * toCamera.y + rotated.z * toCamera.z > 0 ? front : back).add(cell);
-        }
-
-        // The energy currents between linked cells, same link web as the screen's
-        // (endpoints count as painted cells). Split by hemisphere like the fills and
-        // interleaved so a far-side current never blends over a near-side cell.
         Map<Integer, ResourceLocation> effective = placed;
         if (puzzle != null) {
             effective = new HashMap<>(placed);
             effective.putAll(puzzle.endpoints());
         }
         SphereLinks links = SphereLinks.compute(grid, effective, puzzle);
-        List<int[]> backPairs = new ArrayList<>();
-        List<int[]> frontPairs = new ArrayList<>();
+        double time = now / 1000.0;
+
+        for (GoldbergGrid.Cell cell : grid.cells()) {
+            if (puzzle != null && puzzle.isGap(cell.index())) {
+                continue; // gaps are holes in the sphere
+            }
+            orientation.transform((float) cell.x(), (float) cell.y(), (float) cell.z(), rotated);
+            double dx = center.x + rotated.x * SCALE - camera.x;
+            double dy = center.y + rotated.y * SCALE - camera.y;
+            double dz = center.z + rotated.z * SCALE - camera.z;
+            double distSqr = dx * dx + dy * dy + dz * dz;
+            // Facing fade: a cell's rotated direction IS its outward normal, so its dot
+            // with the direction to the camera says how squarely it faces the viewer.
+            // Cells angled away dissolve instead of drawing — the far side never bleeds
+            // through the veil, and the limb fades out smoothly instead of popping.
+            float alphaScale = facingFade(dx, dy, dz, distSqr, rotated, SCALE);
+            if (alphaScale < 0.05f) {
+                continue; // fully faded — un-rendered, exactly
+            }
+            LateHolograms.enqueue(distSqr,
+                    buffer -> drawCell(buffer, pose, cell, puzzle, placed, breath, alphaScale));
+        }
+        // Each current sorts at its lifted arc midpoint — marginally nearer than the
+        // cells it connects, so it draws after them and rides on top. Same facing fade
+        // as the cells so a current never outlives the faces it links.
         for (int[] pair : links.pairs()) {
             GoldbergGrid.Cell a = grid.cell(pair[0]);
             GoldbergGrid.Cell b = grid.cell(pair[1]);
-            orientation.transform((float) (a.x() + b.x()), (float) (a.y() + b.y()),
-                    (float) (a.z() + b.z()), rotated);
-            (rotated.x * toCamera.x + rotated.y * toCamera.y + rotated.z * toCamera.z > 0
-                    ? frontPairs : backPairs).add(pair);
+            rotated.set((float) (a.x() + b.x()), (float) (a.y() + b.y()), (float) (a.z() + b.z()))
+                    .normalize(LIFT * SCALE);
+            orientation.transform(rotated);
+            double dx = center.x + rotated.x - camera.x;
+            double dy = center.y + rotated.y - camera.y;
+            double dz = center.z + rotated.z - camera.z;
+            double distSqr = dx * dx + dy * dy + dz * dz;
+            float alphaScale = facingFade(dx, dy, dz, distSqr, rotated, LIFT * SCALE);
+            if (alphaScale < 0.05f) {
+                continue;
+            }
+            LateHolograms.enqueue(distSqr,
+                    buffer -> drawCurrent(buffer, pose, grid, links, pair, solved, breath, time, alphaScale));
         }
-
-        double time = now / 1000.0;
-        // The sphere spans a real depth range (~SCALE either side of its center), so it
-        // sorts as TWO units at center±radius: another hologram floating just past the
-        // sphere is nearer than the far hemisphere but farther than the near one, and a
-        // single whole-sphere entry would paint far-side cells over it. With the split,
-        // anything between the hemispheres interleaves correctly.
-        double len = Math.sqrt(toCamera.lengthSqr());
-        double backDist = len + SCALE;
-        double frontDist = Math.max(0.0, len - SCALE);
-        LateHolograms.enqueue(backDist * backDist, buffer -> {
-            for (GoldbergGrid.Cell cell : back) {
-                drawCell(buffer, pose, cell, puzzle, placed, breath);
-            }
-            for (int[] pair : backPairs) {
-                drawCurrent(buffer, pose, grid, links, pair, solved, breath, time);
-            }
-        });
-        LateHolograms.enqueue(frontDist * frontDist, buffer -> {
-            for (GoldbergGrid.Cell cell : front) {
-                drawCell(buffer, pose, cell, puzzle, placed, breath);
-            }
-            for (int[] pair : frontPairs) {
-                drawCurrent(buffer, pose, grid, links, pair, solved, breath, time);
-            }
-        });
         poseStack.popPose();
+    }
+
+    /**
+     * Alpha multiplier from how squarely a surface point faces the camera: 1 when seen
+     * head-on, ~0.15 edge-on at the limb, 0 once it turns away. {@code (dx,dy,dz)} is
+     * point-minus-camera and {@code normal} the outward normal scaled by
+     * {@code normalLength}.
+     */
+    private static float facingFade(double dx, double dy, double dz, double distSqr,
+            Vector3f normal, float normalLength) {
+        double dist = Math.sqrt(distSqr);
+        if (dist < 1.0e-4) {
+            return 1.0f; // camera inside the surface point — show it
+        }
+        double facing = -(dx * normal.x + dy * normal.y + dz * normal.z) / (dist * normalLength);
+        return (float) Mth.clamp(0.15 + 1.3 * facing, 0.0, 1.0);
     }
 
     @Override
@@ -154,7 +166,8 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
      * chain phase, jitter, and pulse all mirror {@link ResearchSphereScreen}.
      */
     private static void drawCurrent(VertexConsumer buffer, Matrix4f pose, GoldbergGrid grid,
-            SphereLinks links, int[] pair, boolean solved, double breath, double time) {
+            SphereLinks links, int[] pair, boolean solved, double breath, double time,
+            float alphaScale) {
         // Orient the link downstream: the current flows from lower chain depth to higher.
         int from = pair[0];
         int to = pair[1];
@@ -177,10 +190,10 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
         // being exactly coplanar where ribbons overlap; the color pass blends purely in
         // emission order and doesn't care.
         float lift = LIFT + (float) jitter * 0.006f;
-        ribbon(buffer, pose, grid.cell(from), grid.cell(to), c1, c2,
-                3.8f * widthScale, solved ? 110 : 70, time, phase, depth, lift);            // soft glow
-        ribbon(buffer, pose, grid.cell(from), grid.cell(to), c1, c2,
-                1.6f * widthScale, solved ? 255 : 235, time, phase, depth, lift + 0.004f);  // bright core
+        ribbon(buffer, pose, grid.cell(from), grid.cell(to), c1, c2, 3.8f * widthScale,
+                Math.round((solved ? 110 : 70) * alphaScale), time, phase, depth, lift);            // soft glow
+        ribbon(buffer, pose, grid.cell(from), grid.cell(to), c1, c2, 1.6f * widthScale,
+                Math.round((solved ? 255 : 235) * alphaScale), time, phase, depth, lift + 0.004f);  // bright core
     }
 
     /**
@@ -238,16 +251,16 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
     }
 
     private static void drawCell(VertexConsumer buffer, Matrix4f pose, GoldbergGrid.Cell cell,
-            ResearchPuzzle puzzle, Map<Integer, ResourceLocation> placed, double breath) {
+            ResearchPuzzle puzzle, Map<Integer, ResourceLocation> placed, double breath,
+            float alphaScale) {
         boolean endpoint = puzzle != null && puzzle.isEndpoint(cell.index());
         ResourceLocation aspect = endpoint ? puzzle.endpoints().get(cell.index()) : placed.get(cell.index());
 
         int rgb;
         int alpha;
-        // Filled cells are OPAQUE: with no depth writes in the color pass, anything
-        // translucent lets the back hemisphere bleed through as misaligned grey patches.
-        // Only the empty-cell veil stays see-through — that's the "hologram" read, and
-        // the far side showing faintly through unpainted glass is intentional.
+        // Filled cells are opaque when face-on (alphaScale fades them toward the limb);
+        // the empty-cell veil stays see-through for the hologram read. The far side
+        // never draws at all — the facing fade dissolves it before emission.
         if (endpoint) {
             rgb = SphereColors.blend(SphereColors.colorOf(aspect), SphereColors.GOLD, 0.5);
             alpha = 0xFF;
@@ -261,6 +274,7 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
         if (breath > 0) {
             rgb = SphereColors.blend(rgb, SphereColors.GOLD, breath);
         }
+        alpha = Math.round(alpha * alphaScale);
         int r = (rgb >> 16) & 0xFF;
         int g = (rgb >> 8) & 0xFF;
         int b = rgb & 0xFF;
