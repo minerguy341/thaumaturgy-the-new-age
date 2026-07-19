@@ -26,7 +26,7 @@ import net.minecraft.world.phys.Vec3;
 public class AetherlensGameTest {
 
     private static ResourceLocation aspect(String path) {
-        return ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, path);
+        return NewAgeThaum.id(path);
     }
 
     //? if neoforge {

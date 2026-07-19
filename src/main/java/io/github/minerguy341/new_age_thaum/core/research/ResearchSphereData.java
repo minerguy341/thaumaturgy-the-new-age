@@ -1,6 +1,7 @@
 package io.github.minerguy341.new_age_thaum.core.research;
 
 import com.mojang.serialization.Codec;
+import com.mojang.serialization.DataResult;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.ResourceLocation;
@@ -17,15 +18,35 @@ import java.util.Map;
 public record ResearchSphereData(Map<Integer, ResourceLocation> cells) {
     public static final ResearchSphereData EMPTY = new ResearchSphereData(Map.of());
 
-    /** NBT/JSON map keys must be strings, so cell indices round-trip through String. */
+    /**
+     * NBT/JSON map keys must be strings, so cell indices round-trip through String.
+     * comapFlatMap, not xmap: a thrown NumberFormatException would escape the codec and
+     * crash item/block-entity deserialization (a chunk-load crash loop) on corrupt data.
+     */
+    public static final Codec<Integer> CELL_INDEX = Codec.STRING.comapFlatMap(s -> {
+        try {
+            return DataResult.success(Integer.parseInt(s));
+        } catch (NumberFormatException e) {
+            return DataResult.error(() -> "Cell index is not an integer: '" + s + "'");
+        }
+    }, String::valueOf);
+
     public static final Codec<ResearchSphereData> CODEC = Codec
-            .unboundedMap(Codec.STRING.xmap(Integer::parseInt, String::valueOf), ResourceLocation.CODEC)
+            .unboundedMap(CELL_INDEX, ResourceLocation.CODEC)
             .xmap(ResearchSphereData::new, ResearchSphereData::cells);
 
     public static final StreamCodec<RegistryFriendlyByteBuf, ResearchSphereData> STREAM_CODEC =
             StreamCodec.of(ResearchSphereData::write, ResearchSphereData::read);
 
     public ResearchSphereData {
+        // Chokepoint bound: NBT decode, network decode, and every edit flow through
+        // this constructor, so globally-impossible cell indices can never persist.
+        // Consumers still apply the exact per-frequency bound where the grid is known.
+        if (cells.keySet().stream().anyMatch(cell -> cell < 0 || cell >= MAX_CELLS)) {
+            Map<Integer, ResourceLocation> bounded = new HashMap<>(cells);
+            bounded.keySet().removeIf(cell -> cell < 0 || cell >= MAX_CELLS);
+            cells = bounded;
+        }
         cells = Map.copyOf(cells);
     }
 
@@ -52,12 +73,20 @@ public record ResearchSphereData(Map<Integer, ResourceLocation> cells) {
         });
     }
 
+    /** Largest sphere: 10 * 8² + 2 cells at the puzzle codec's maximum frequency of 8. */
+    private static final int MAX_CELLS = 10 * 8 * 8 + 2;
+
     private static ResearchSphereData read(RegistryFriendlyByteBuf buf) {
+        // Capped allocation + bounded cell indices: see ResearchPuzzle.read.
         int count = buf.readVarInt();
-        Map<Integer, ResourceLocation> cells = new HashMap<>(count);
+        Map<Integer, ResourceLocation> cells = new HashMap<>(
+                io.github.minerguy341.new_age_thaum.network.NetworkLimits.safeCapacity(count));
         for (int i = 0; i < count; i++) {
             int cell = buf.readVarInt();
-            cells.put(cell, buf.readResourceLocation());
+            ResourceLocation aspect = buf.readResourceLocation();
+            if (cell >= 0 && cell < MAX_CELLS) {
+                cells.put(cell, aspect);
+            }
         }
         return new ResearchSphereData(cells);
     }

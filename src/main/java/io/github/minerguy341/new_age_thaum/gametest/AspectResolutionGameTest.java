@@ -17,7 +17,7 @@ import net.minecraft.world.item.Items;
 public class AspectResolutionGameTest {
 
     private static ResourceLocation aspect(String path) {
-        return ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, path);
+        return NewAgeThaum.id(path);
     }
 
     private AspectBag resolve(GameTestHelper helper, Item item) {

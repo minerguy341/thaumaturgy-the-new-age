@@ -6,6 +6,7 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -24,8 +25,10 @@ import java.util.Set;
 public record ResearchPuzzle(int frequency, Map<Integer, ResourceLocation> endpoints, Set<Integer> gaps,
         boolean solved) {
 
+    // ResearchSphereData.CELL_INDEX fails soft on non-numeric keys instead of throwing
+    // NumberFormatException through item deserialization.
     private static final Codec<Map<Integer, ResourceLocation>> ENDPOINT_CODEC = Codec
-            .unboundedMap(Codec.STRING.xmap(Integer::parseInt, String::valueOf), ResourceLocation.CODEC);
+            .unboundedMap(ResearchSphereData.CELL_INDEX, ResourceLocation.CODEC);
 
     public static final Codec<ResearchPuzzle> CODEC = RecordCodecBuilder.create(instance -> instance.group(
             Codec.intRange(1, 8).fieldOf("frequency").forGetter(ResearchPuzzle::frequency),
@@ -71,14 +74,30 @@ public record ResearchPuzzle(int frequency, Map<Integer, ResourceLocation> endpo
     }
 
     private static ResearchPuzzle read(RegistryFriendlyByteBuf buf) {
-        int frequency = buf.readVarInt();
+        // Decode defensively: counts are capped before allocation and cell indices are
+        // bounded to the sphere, so junk from a mismatched or hostile peer can neither
+        // OOM the client nor persist out-of-range cells (grid.cell() would crash on them).
+        int frequency = Mth.clamp(buf.readVarInt(), 1, 8); // the NBT codec's intRange(1, 8)
+        int size = 10 * frequency * frequency + 2;
         int endpointCount = buf.readVarInt();
-        Map<Integer, ResourceLocation> endpoints = new HashMap<>(endpointCount);
+        Map<Integer, ResourceLocation> endpoints = new HashMap<>(
+                io.github.minerguy341.new_age_thaum.network.NetworkLimits.safeCapacity(endpointCount));
         for (int i = 0; i < endpointCount; i++) {
             int cell = buf.readVarInt();
-            endpoints.put(cell, buf.readResourceLocation());
+            ResourceLocation aspect = buf.readResourceLocation();
+            if (cell >= 0 && cell < size) {
+                endpoints.put(cell, aspect);
+            }
         }
-        Set<Integer> gaps = buf.readCollection(HashSet::new, FriendlyByteBuf::readVarInt);
+        int gapCount = buf.readVarInt();
+        Set<Integer> gaps = new HashSet<>(
+                io.github.minerguy341.new_age_thaum.network.NetworkLimits.safeCapacity(gapCount));
+        for (int i = 0; i < gapCount; i++) {
+            int gap = buf.readVarInt();
+            if (gap >= 0 && gap < size) {
+                gaps.add(gap);
+            }
+        }
         boolean solved = buf.readBoolean();
         return new ResearchPuzzle(frequency, endpoints, gaps, solved);
     }

@@ -31,11 +31,16 @@ public final class NewAgeThaumConfig {
     /** Cell border thickness on the research sphere (1.0 = default, 0 = none). */
     public static double cellBorderWidth = 1.0;
 
+    /** Friction time constant of a flicked sphere's coast, in seconds. */
+    public static double coastFriction = 0.7;
+
     /** "aspects" = ribbon blends the linked aspects; "custom" = fixed base + pulse gradient. */
     public static String currentColorMode = "aspects";
     public static int currentBaseColor = 0x8A6BB5;
     public static int currentPulseFrom = 0x7FE8D8;
     public static int currentPulseTo = 0xFFFFFF;
+
+    private static boolean customColors;
 
     private static long loadedModified = -1;
 
@@ -43,7 +48,7 @@ public final class NewAgeThaumConfig {
     }
 
     public static boolean customCurrentColors() {
-        return "custom".equalsIgnoreCase(currentColorMode);
+        return customColors; // cached in apply(): read per ribbon segment per frame
     }
 
     private static Path file() {
@@ -60,8 +65,8 @@ public final class NewAgeThaumConfig {
             write(path);
             loadedModified = Files.getLastModifiedTime(path).toMillis();
             NewAgeThaum.LOGGER.info(
-                    "Config loaded: tierScaledSpheres={}, currentAmplitude={}, currentSpeed={}, currentWidth={}, cellBorderWidth={}, currentColorMode={}",
-                    tierScaledSpheres, currentAmplitude, currentSpeed, currentWidth, cellBorderWidth, currentColorMode);
+                    "Config loaded: tierScaledSpheres={}, currentAmplitude={}, currentSpeed={}, currentWidth={}, cellBorderWidth={}, coastFriction={}, currentColorMode={}",
+                    tierScaledSpheres, currentAmplitude, currentSpeed, currentWidth, cellBorderWidth, coastFriction, currentColorMode);
         } catch (Exception e) {
             NewAgeThaum.LOGGER.warn("Could not read config {}; using defaults", path, e);
         }
@@ -80,13 +85,19 @@ public final class NewAgeThaumConfig {
 
     private static void apply(Map<String, String> values) {
         tierScaledSpheres = parseBool(values.get("tierScaledSpheres"), tierScaledSpheres);
-        currentAmplitude = parseDouble(values.get("currentAmplitude"), currentAmplitude);
-        currentSpeed = parseDouble(values.get("currentSpeed"), currentSpeed);
-        currentWidth = parseDouble(values.get("currentWidth"), currentWidth);
-        cellBorderWidth = parseDouble(values.get("cellBorderWidth"), cellBorderWidth);
+        // Clamps match the ranges documented in the written file; parseDouble also
+        // rejects NaN/Infinity, which the render math would otherwise propagate into
+        // invisible geometry — and the rewrite-on-load would then canonicalize the
+        // bad value back into the file.
+        currentAmplitude = parseDouble(values.get("currentAmplitude"), currentAmplitude, 0.0, 100.0);
+        currentSpeed = parseDouble(values.get("currentSpeed"), currentSpeed, 0.0, 100.0);
+        currentWidth = parseDouble(values.get("currentWidth"), currentWidth, 0.0, 10.0);
+        cellBorderWidth = parseDouble(values.get("cellBorderWidth"), cellBorderWidth, 0.0, 3.5);
+        coastFriction = parseDouble(values.get("coastFriction"), coastFriction, 0.05, 5.0);
         if (values.containsKey("currentColorMode")) {
             currentColorMode = values.get("currentColorMode");
         }
+        customColors = "custom".equalsIgnoreCase(currentColorMode);
         currentBaseColor = parseHex(values.get("currentBaseColor"), currentBaseColor);
         currentPulseFrom = parseHex(values.get("currentPulseFrom"), currentPulseFrom);
         currentPulseTo = parseHex(values.get("currentPulseTo"), currentPulseTo);
@@ -147,6 +158,13 @@ public final class NewAgeThaumConfig {
         out.append("# Default: 1.0. Accepted: 0.0 to about 3.5 (clamped).\n");
         out.append("cellBorderWidth = ").append(cellBorderWidth).append("\n\n");
 
+        out.append("# How long a flicked research sphere keeps spinning: the friction time\n");
+        out.append("# constant, in seconds. A flick travels flickSpeed x this in total, so\n");
+        out.append("# 0.05 = almost no coast, 5.0 = long lazy spins. Applies to YOUR flicks\n");
+        out.append("# (the value travels with the flick, so other players see the same coast).\n");
+        out.append("# Default: 0.7. Accepted: 0.05 to 5.0 (clamped).\n");
+        out.append("coastFriction = ").append(coastFriction).append("\n\n");
+
         out.append("# \"aspects\" = each current blends the colors of its two linked aspects.\n");
         out.append("# \"custom\"  = currents use currentBaseColor and the pulse grades\n");
         out.append("#             currentPulseFrom -> currentPulseTo. Default: \"aspects\".\n");
@@ -193,9 +211,13 @@ public final class NewAgeThaumConfig {
         return value == null ? fallback : Boolean.parseBoolean(value);
     }
 
-    private static double parseDouble(String value, double fallback) {
+    private static double parseDouble(String value, double fallback, double min, double max) {
         try {
-            return value == null ? fallback : Double.parseDouble(value);
+            if (value == null) {
+                return fallback;
+            }
+            double parsed = Double.parseDouble(value);
+            return Double.isFinite(parsed) ? net.minecraft.util.Mth.clamp(parsed, min, max) : fallback;
         } catch (NumberFormatException e) {
             return fallback;
         }
@@ -203,7 +225,9 @@ public final class NewAgeThaumConfig {
 
     private static int parseHex(String value, int fallback) {
         try {
-            return value == null ? fallback : Integer.parseInt(value.replace("#", ""), 16);
+            // Unsigned parse masked to 24 bits, so "-FF" or 8-digit values can't smuggle
+            // a negative/out-of-range color into the render path.
+            return value == null ? fallback : (int) (Long.parseLong(value.replace("#", ""), 16) & 0xFFFFFF);
         } catch (NumberFormatException e) {
             return fallback;
         }

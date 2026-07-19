@@ -87,7 +87,7 @@ public final class PuzzleGenerator {
             endpoints.put(grid.cell(0).neighbors()[0], partner);
         } else {
             endpoints.put(0, pool.isEmpty()
-                    ? ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, "flamma") : pool.get(0));
+                    ? NewAgeThaum.id("flamma") : pool.get(0));
         }
         return new Generated(new ResearchPuzzle(frequency, endpoints, Set.of()), Map.copyOf(endpoints));
     }
@@ -118,8 +118,11 @@ public final class PuzzleGenerator {
         }
 
         // 3. Aspect chains: walk the aspect graph for exactly each path's length.
+        // The walk is restricted to the tier pool so no intermediate cell demands an
+        // aspect deeper than the paper's tier — the player couldn't place it.
         Map<Integer, ResourceLocation> solution = new HashMap<>();
         Map<Integer, ResourceLocation> endpoints = new HashMap<>();
+        Set<ResourceLocation> poolSet = new HashSet<>(pool);
         ResourceLocation first = pool.get(random.nextInt(pool.size()));
         endpoints.put(endpointCells.get(0), first);
         solution.put(endpointCells.get(0), first);
@@ -127,7 +130,8 @@ public final class PuzzleGenerator {
             List<Integer> path = cellPaths.get(i);
             int steps = path.size() - 1;
             ResourceLocation from = endpoints.get(path.get(0));
-            Set<ResourceLocation> reachable = aspects.reachableByStep(from, steps).get(steps);
+            List<Set<ResourceLocation>> layers = aspects.reachableByStep(from, steps, poolSet);
+            Set<ResourceLocation> reachable = layers.get(steps);
             List<ResourceLocation> targets = new ArrayList<>();
             for (ResourceLocation candidate : pool) {
                 if (reachable.contains(candidate)) {
@@ -138,7 +142,7 @@ public final class PuzzleGenerator {
                 return null;
             }
             ResourceLocation to = targets.get(random.nextInt(targets.size()));
-            List<ResourceLocation> walk = aspects.walk(from, to, steps, random);
+            List<ResourceLocation> walk = aspects.walk(layers, to, random);
             if (walk == null) {
                 return null;
             }
@@ -187,6 +191,12 @@ public final class PuzzleGenerator {
         return null;
     }
 
+    /**
+     * BFS capped at {@link #MIN_ENDPOINT_DISTANCE}: callers only ask "closer than the
+     * minimum?", and the common answer is "no" — an uncapped BFS would flood the whole
+     * sphere for every far-apart candidate pair. Returns the exact distance when below
+     * the cap, {@code Integer.MAX_VALUE} ("far enough") otherwise.
+     */
     private static int sphereDistance(GoldbergGrid grid, int from, int to) {
         if (from == to) {
             return 0;
@@ -197,11 +207,15 @@ public final class PuzzleGenerator {
         queue.add(from);
         while (!queue.isEmpty()) {
             int current = queue.poll();
+            int depth = distance.get(current);
+            if (depth + 1 >= MIN_ENDPOINT_DISTANCE) {
+                continue;
+            }
             for (int next : grid.cell(current).neighbors()) {
                 if (!distance.containsKey(next)) {
-                    distance.put(next, distance.get(current) + 1);
+                    distance.put(next, depth + 1);
                     if (next == to) {
-                        return distance.get(next);
+                        return depth + 1;
                     }
                     queue.add(next);
                 }

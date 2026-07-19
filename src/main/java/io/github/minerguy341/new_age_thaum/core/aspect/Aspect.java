@@ -17,11 +17,13 @@ public record Aspect(ResourceLocation id, int color, List<ResourceLocation> comp
     public static final Codec<Integer> HEX_COLOR = Codec.STRING.comapFlatMap(s -> {
         String hex = s.startsWith("#") ? s.substring(1) : s;
         try {
-            return DataResult.success(Integer.parseInt(hex, 16));
+            // Unsigned parse masked to 24 bits: plain parseInt accepts "-1" (a negative
+            // color that re-encodes as 8 digits and then fails its own round-trip).
+            return DataResult.success((int) (Long.parseLong(hex, 16) & 0xFFFFFF));
         } catch (NumberFormatException e) {
             return DataResult.error(() -> "Invalid hex color '" + s + "'");
         }
-    }, c -> String.format("#%06X", c));
+    }, c -> String.format("#%06X", c & 0xFFFFFF));
 
     /** The file body: {@code {"color": "#RRGGBB", "components": ["ns:a", "ns:b"]}}. */
     public record Data(int color, List<ResourceLocation> components) {

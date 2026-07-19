@@ -23,7 +23,7 @@ import java.util.Set;
 public class LinkingPuzzleGameTest {
 
     private static ResourceLocation aspect(String path) {
-        return ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, path);
+        return NewAgeThaum.id(path);
     }
 
     //? if neoforge {
@@ -135,27 +135,15 @@ public class LinkingPuzzleGameTest {
         helper.assertFalse(LinkingPuzzle.wouldLink(grid, Map.of(b, aspect("flamma")), a, aspect("flamma")),
                 "wouldLink must be false next to the same aspect");
 
-        LinkingPuzzle puzzle = new LinkingPuzzle(grid, Map.of());
-        helper.assertFalse(puzzle.isComplete(), "An empty board is not complete");
+        // A board of one repeated aspect has no derivation links anywhere — every cell
+        // stays unlinked. (Endpoint-lock enforcement lives in the server edit path and
+        // is covered by OrreryValidationGameTest/PuzzleGeneratorGameTest.)
+        Map<Integer, ResourceLocation> board = new java.util.HashMap<>();
         for (GoldbergGrid.Cell cell : grid.cells()) {
-            puzzle.place(cell.index(), aspect("flamma"));
+            board.put(cell.index(), aspect("flamma"));
         }
-        helper.assertFalse(puzzle.isComplete(),
-                "A board of one repeated aspect has no derivation links and is not complete");
-        helper.succeed();
-    }
-
-    //? if neoforge {
-    @GameTest(template = "empty")
-    //?} else {
-    /*@GameTest(template = "new_age_thaum:empty")
-    *///?}
-    public void fixedEndpointsCannotBeOverwritten(GameTestHelper helper) {
-        GoldbergGrid grid = GoldbergGrid.generate(1);
-        LinkingPuzzle puzzle = new LinkingPuzzle(grid, Map.of(0, aspect("flamma")));
-
-        helper.assertFalse(puzzle.place(0, aspect("ventus")), "Placing on a fixed endpoint must be rejected");
-        helper.assertTrue(puzzle.aspectAt(0).equals(aspect("flamma")), "The endpoint aspect is unchanged");
+        helper.assertTrue(LinkingPuzzle.unlinked(grid, board).size() == grid.size(),
+                "A board of one repeated aspect must be entirely unlinked");
         helper.succeed();
     }
 }

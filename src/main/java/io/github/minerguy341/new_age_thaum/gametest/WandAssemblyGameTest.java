@@ -24,7 +24,7 @@ import java.util.List;
 public class WandAssemblyGameTest {
 
     private static ResourceLocation material(String path) {
-        return ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, path);
+        return NewAgeThaum.id(path);
     }
 
     private final WandAssemblyRecipe recipe = new WandAssemblyRecipe(CraftingBookCategory.EQUIPMENT);

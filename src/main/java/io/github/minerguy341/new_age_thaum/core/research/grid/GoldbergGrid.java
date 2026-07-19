@@ -22,6 +22,10 @@ public final class GoldbergGrid {
      * One face of the polyhedron. A pentagon has 5 neighbors/corners, a hexagon 6.
      * {@code corners} are the ordered polygon vertices on the unit sphere (for rendering
      * and hit-testing); {@code x,y,z} is the face centre.
+     *
+     * <p>The {@code neighbors}/{@code corners} arrays are the grid's own storage, shared
+     * by every puzzle on both sides through the global grid cache — treat them as
+     * immutable; never sort or write into them.
      */
     public record Cell(int index, boolean pentagon, double x, double y, double z,
                        int[] neighbors, double[][] corners) {
@@ -48,7 +52,9 @@ public final class GoldbergGrid {
 
     private GoldbergGrid(int frequency, List<Cell> cells) {
         this.frequency = frequency;
-        this.cells = cells;
+        // Immutable view: grids are cached globally and shared across every puzzle on
+        // both logical sides, so no caller may restructure the list.
+        this.cells = List.copyOf(cells);
     }
 
     public int frequency() {

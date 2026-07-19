@@ -23,7 +23,7 @@ import java.util.Map;
 public class PlayerProgressGameTest {
 
     private static ResourceLocation aspect(String path) {
-        return ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, path);
+        return NewAgeThaum.id(path);
     }
 
     //? if neoforge {

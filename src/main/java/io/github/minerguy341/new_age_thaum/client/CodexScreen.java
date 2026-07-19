@@ -6,9 +6,12 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * The Codex shell (M1): renders one category's entries as a node grid with hover
@@ -24,10 +27,17 @@ public class CodexScreen extends Screen {
     private CodexEntry selected;
     private int panelLeft;
     private int panelTop;
+    // renderFakeItem needs an ItemStack; cache per item so render() doesn't allocate
+    // one per entry per frame.
+    private final Map<Item, ItemStack> iconStacks = new HashMap<>();
 
     public CodexScreen() {
         super(Component.translatable("screen.new_age_thaum.codex"));
     }
+
+    // byCategory scans and filters the whole registry — cache the list instead of
+    // rebuilding it every frame (and on every click).
+    private List<CodexEntry> shownEntries = List.of();
 
     @Override
     protected void init() {
@@ -35,6 +45,7 @@ public class CodexScreen extends Screen {
         if (category.isEmpty() && !categories.isEmpty()) {
             category = categories.get(0);
         }
+        shownEntries = CodexRegistry.byCategory(category);
         panelLeft = (this.width - PANEL_WIDTH) / 2;
         panelTop = (this.height - PANEL_HEIGHT) / 2;
     }
@@ -63,12 +74,12 @@ public class CodexScreen extends Screen {
         }
 
         CodexEntry hovered = null;
-        for (CodexEntry entry : CodexRegistry.byCategory(category)) {
+        for (CodexEntry entry : shownEntries) {
             int x = iconX(entry);
             int y = iconY(entry);
             boolean isSelected = entry.equals(selected);
             graphics.fill(x - 3, y - 3, x + 19, y + 19, isSelected ? 0xFF6A4FB0 : 0xFF2C2140);
-            graphics.renderFakeItem(new ItemStack(entry.icon()), x, y);
+            graphics.renderFakeItem(iconStacks.computeIfAbsent(entry.icon(), ItemStack::new), x, y);
             if (mouseX >= x - 3 && mouseX <= x + 19 && mouseY >= y - 3 && mouseY <= y + 19) {
                 hovered = entry;
             }
@@ -88,7 +99,7 @@ public class CodexScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
-        for (CodexEntry entry : CodexRegistry.byCategory(category)) {
+        for (CodexEntry entry : shownEntries) {
             int x = iconX(entry);
             int y = iconY(entry);
             if (mouseX >= x - 3 && mouseX <= x + 19 && mouseY >= y - 3 && mouseY <= y + 19) {

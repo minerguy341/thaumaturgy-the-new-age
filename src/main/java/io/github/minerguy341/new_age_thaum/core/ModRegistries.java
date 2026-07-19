@@ -43,6 +43,14 @@ public final class ModRegistries {
     public static final RegistrySupplier<Item> ARCANE_ORRERY_ITEM = ITEMS.register("arcane_orrery",
             () -> new BlockItem(ARCANE_ORRERY.get(), new Item.Properties()));
 
+    /** Floating aura wellspring (PLAN §4.3): worldgen-scattered, feeds the chunk aura. */
+    public static final RegistrySupplier<Block> AURA_NODE = BLOCKS.register("aura_node",
+            () -> new io.github.minerguy341.new_age_thaum.content.AuraNodeBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.DIAMOND).strength(0.5f).noOcclusion().lightLevel(s -> 9)
+                    .sound(net.minecraft.world.level.block.SoundType.AMETHYST)));
+    public static final RegistrySupplier<Item> AURA_NODE_ITEM = ITEMS.register("aura_node",
+            () -> new BlockItem(AURA_NODE.get(), new Item.Properties()));
+
     /** Throwaway walking-skeleton item; proves DeferredRegister works on both loaders. */
     public static final RegistrySupplier<Item> PROOF_OF_FORGE = ITEMS.register("proof_of_forge",
             () -> new Item(new Item.Properties()));
@@ -92,6 +100,7 @@ public final class ModRegistries {
                     .icon(() -> new ItemStack(WAND.get()))
                     .displayItems((parameters, output) -> {
                         output.accept(ARCANE_ORRERY_ITEM.get());
+                        output.accept(AURA_NODE_ITEM.get());
                         output.accept(PAPER_FLEDGLING.get());
                         output.accept(PAPER_APPRENTICE.get());
                         output.accept(PAPER_SCHOLAR.get());
@@ -113,12 +122,12 @@ public final class ModRegistries {
 
     private static RegistrySupplier<Item> rod(String name, String material) {
         return ITEMS.register(name, () -> new WandPartItem(new Item.Properties(),
-                ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, material), WandMaterial.Kind.CORE));
+                NewAgeThaum.id(material), WandMaterial.Kind.CORE));
     }
 
     private static RegistrySupplier<Item> cap(String name, String material) {
         return ITEMS.register(name, () -> new WandPartItem(new Item.Properties(),
-                ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, material), WandMaterial.Kind.CAP));
+                NewAgeThaum.id(material), WandMaterial.Kind.CAP));
     }
 
     public static void init() {

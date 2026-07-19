@@ -36,10 +36,6 @@ public final class AspectRegistry {
         return aspects.containsKey(id);
     }
 
-    public static int count() {
-        return aspects.size();
-    }
-
     /** Replace contents from a reload or a server sync. Returns the accepted map size. */
     public static int reload(Map<ResourceLocation, Aspect> incoming) {
         aspects = Map.copyOf(filterValid(incoming));
@@ -74,6 +70,11 @@ public final class AspectRegistry {
         int size = aspect.components().size();
         if (size != 0 && size != 2) {
             return "components must be absent or exactly 2, found " + size;
+        }
+        if (size == 2 && aspect.components().get(0).equals(aspect.components().get(1))) {
+            // [X, X] would double the graph edge (skewing walk randomness) and is the
+            // cheapest fuel for depth-computation blowups.
+            return "components must be two different aspects";
         }
         for (ResourceLocation component : aspect.components()) {
             if (!pool.containsKey(component)) {

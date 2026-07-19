@@ -13,7 +13,7 @@ import java.util.Optional;
 /** C2S: paint (aspect present) or clear (aspect empty) a cell on the orrery's sphere. */
 public record OrreryEditPayload(BlockPos pos, int cell, Optional<ResourceLocation> aspect) implements CustomPacketPayload {
     public static final CustomPacketPayload.Type<OrreryEditPayload> TYPE =
-            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, "orrery_edit"));
+            new CustomPacketPayload.Type<>(NewAgeThaum.id("orrery_edit"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, OrreryEditPayload> STREAM_CODEC =
             StreamCodec.of(OrreryEditPayload::write, OrreryEditPayload::read);

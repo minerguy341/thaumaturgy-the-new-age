@@ -15,7 +15,7 @@ import java.util.Optional;
 /** Full wand-material sync, sent on player join and after datapack reloads. */
 public record WandMaterialSyncPayload(List<WandMaterial> materials) implements CustomPacketPayload {
     public static final CustomPacketPayload.Type<WandMaterialSyncPayload> TYPE =
-            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, "wand_material_sync"));
+            new CustomPacketPayload.Type<>(NewAgeThaum.id("wand_material_sync"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, WandMaterialSyncPayload> STREAM_CODEC =
             StreamCodec.of(WandMaterialSyncPayload::write, WandMaterialSyncPayload::read);
@@ -35,7 +35,7 @@ public record WandMaterialSyncPayload(List<WandMaterial> materials) implements C
 
     private static WandMaterialSyncPayload read(RegistryFriendlyByteBuf buf) {
         int count = buf.readVarInt();
-        List<WandMaterial> materials = new ArrayList<>(count);
+        List<WandMaterial> materials = new ArrayList<>(NetworkLimits.safeCapacity(count));
         for (int i = 0; i < count; i++) {
             ResourceLocation id = buf.readResourceLocation();
             WandMaterial.Kind kind = buf.readEnum(WandMaterial.Kind.class);

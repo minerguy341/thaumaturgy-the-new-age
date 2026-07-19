@@ -52,6 +52,11 @@ An agent session may declare a task done only when:
 2. Any GameTests touched or added pass on both loaders.
 3. `git status` is clean on the VCS version and the diff contains only intended changes.
 
+**Remote/cloud sessions:** the sandbox egress policy blocks Gradle and the modding
+mavens, so `chiseledBuild`/`chiseledGameTest` cannot run there at all — see the
+"Remote/cloud sessions" section of the `stonecutter-multiloader` skill for the
+degraded-verification protocol (syntax-check only, explicit handoff, never claim green).
+
 **What agents cannot verify:** anything visual or in-game (`runClient` behavior, rendering, GUIs, particles, creative-tab contents). Do not claim these work. Instead, end the session with a **human smoke-test list**: exact steps for Jacob to verify in-game, per loader. Compile-time success + a smoke-test list is the correct handoff; a claim of visual correctness is not.
 
 ## Git conventions

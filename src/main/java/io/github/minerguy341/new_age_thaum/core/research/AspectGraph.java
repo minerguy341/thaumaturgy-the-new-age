@@ -35,15 +35,30 @@ public final class AspectGraph {
             }
             graph.neighbors.computeIfAbsent(aspect.id(), k -> new ArrayList<>());
         }
+        Set<ResourceLocation> visiting = new HashSet<>();
         for (Aspect aspect : AspectRegistry.all()) {
-            graph.depth.put(aspect.id(), computeDepth(aspect.id(), new HashSet<>()));
+            graph.computeDepth(aspect.id(), visiting);
         }
         return graph;
     }
 
-    private static int computeDepth(ResourceLocation id, Set<ResourceLocation> visiting) {
+    /**
+     * Memoized into {@link #depth}: without the memo a diamond-shaped derivation ladder
+     * (each layer's compounds built from the previous layer's) is re-explored once per
+     * path — O(2^depth) — which a datapack can weaponize into a server hang.
+     */
+    private int computeDepth(ResourceLocation id, Set<ResourceLocation> visiting) {
+        Integer known = depth.get(id);
+        if (known != null) {
+            return known;
+        }
         Aspect aspect = AspectRegistry.get(id).orElse(null);
         if (aspect == null || aspect.isPrimal() || !visiting.add(id)) {
+            // Missing/primal/cycle-backedge: depth 0, but only settled results are
+            // memoized (a backedge return is not this aspect's true depth).
+            if (aspect != null && aspect.isPrimal()) {
+                depth.put(id, 0);
+            }
             return 0;
         }
         int max = 0;
@@ -51,6 +66,7 @@ public final class AspectGraph {
             max = Math.max(max, computeDepth(component, visiting));
         }
         visiting.remove(id);
+        depth.put(id, max + 1);
         return max + 1;
     }
 
@@ -75,31 +91,31 @@ public final class AspectGraph {
     }
 
     /**
-     * Dynamic programming over walk length: {@code reachable[k]} is the set of aspects
-     * reachable from {@code start} in exactly {@code k} derivation steps (walks may
-     * revisit aspects — only consecutive equality is impossible by construction).
+     * As above, but every step lands inside {@code allowed} (null = the whole graph).
+     * The generator passes the tier pool so a hidden solution never routes through an
+     * aspect deeper than the paper's tier permits — the player must be able to place
+     * every intermediate, or "provably solvable" is void for their progression.
      */
-    public List<Set<ResourceLocation>> reachableByStep(ResourceLocation start, int steps) {
+    public List<Set<ResourceLocation>> reachableByStep(ResourceLocation start, int steps, Set<ResourceLocation> allowed) {
         List<Set<ResourceLocation>> layers = new ArrayList<>(steps + 1);
         layers.add(Set.of(start));
         for (int k = 1; k <= steps; k++) {
             Set<ResourceLocation> next = new HashSet<>();
             for (ResourceLocation aspect : layers.get(k - 1)) {
-                next.addAll(neighborsOf(aspect));
+                for (ResourceLocation neighbor : neighborsOf(aspect)) {
+                    if (allowed == null || allowed.contains(neighbor)) {
+                        next.add(neighbor);
+                    }
+                }
             }
             layers.add(next);
         }
         return layers;
     }
 
-    /**
-     * A uniformly random walk of exactly {@code steps} edges from {@code start} to
-     * {@code end}, reconstructed backwards through the DP layers; null if none exists.
-     * The walk is the hidden solution chain of a generated path — the guarantee that
-     * the puzzle can be completed, discarded after generation.
-     */
-    public List<ResourceLocation> walk(ResourceLocation start, ResourceLocation end, int steps, RandomSource random) {
-        List<Set<ResourceLocation>> layers = reachableByStep(start, steps);
+    /** Walk reconstruction over precomputed layers, so callers don't pay the DP twice. */
+    public List<ResourceLocation> walk(List<Set<ResourceLocation>> layers, ResourceLocation end, RandomSource random) {
+        int steps = layers.size() - 1;
         if (!layers.get(steps).contains(end)) {
             return null;
         }

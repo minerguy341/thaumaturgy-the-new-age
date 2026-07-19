@@ -3,23 +3,46 @@ package io.github.minerguy341.new_age_thaum.network;
 import dev.architectury.networking.NetworkManager;
 import dev.architectury.platform.Platform;
 import dev.architectury.utils.Env;
+import io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity;
+import io.github.minerguy341.new_age_thaum.content.ArcaneOrreryMenu;
 import io.github.minerguy341.new_age_thaum.core.aspect.Aspect;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectAssignments;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectRegistry;
+import io.github.minerguy341.new_age_thaum.core.casting.WandMaterial;
+import io.github.minerguy341.new_age_thaum.core.casting.WandMaterialRegistry;
+import io.github.minerguy341.new_age_thaum.core.codex.CodexEntry;
 import io.github.minerguy341.new_age_thaum.core.codex.CodexRegistry;
 import io.github.minerguy341.new_age_thaum.core.player.PlayerProgress;
+import io.github.minerguy341.new_age_thaum.core.player.PlayerProgressService;
+import io.github.minerguy341.new_age_thaum.core.research.LinkingPuzzle;
+import io.github.minerguy341.new_age_thaum.core.research.PuzzleGenerator;
+import io.github.minerguy341.new_age_thaum.core.research.ResearchPuzzle;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.Mth;
+import net.minecraft.world.phys.Vec3;
+import org.joml.Quaternionf;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.function.Consumer;
 
 /**
- * All payload registration. S2C payloads: the physical client registers a
- * receiver; a dedicated server only registers the payload type so it can send.
+ * All payload registration plus the server-authoritative orrery handlers. S2C payloads:
+ * the physical client registers a receiver; a dedicated server only registers the
+ * payload type so it can send.
+ *
+ * <p>Import policy: {@code client.*} classes are referenced fully qualified, and ONLY
+ * inside the {@code Env.CLIENT} registration branch — this common class must never load
+ * them on a dedicated server. Everything else is imported normally.
  */
 public final class NewAgeThaumNetwork {
     private NewAgeThaumNetwork() {
@@ -29,7 +52,7 @@ public final class NewAgeThaumNetwork {
         if (Platform.getEnvironment() == Env.CLIENT) {
             NetworkManager.registerReceiver(NetworkManager.s2c(), AspectSyncPayload.TYPE, AspectSyncPayload.STREAM_CODEC,
                     (payload, context) -> {
-                        Map<net.minecraft.resources.ResourceLocation, Aspect> incoming = new HashMap<>();
+                        Map<ResourceLocation, Aspect> incoming = new HashMap<>();
                         for (Aspect aspect : payload.aspects()) {
                             incoming.put(aspect.id(), aspect);
                         }
@@ -41,19 +64,24 @@ public final class NewAgeThaumNetwork {
                     (payload, context) -> io.github.minerguy341.new_age_thaum.client.ClientPlayerProgress.set(payload.progress()));
             NetworkManager.registerReceiver(NetworkManager.s2c(), CodexSyncPayload.TYPE, CodexSyncPayload.STREAM_CODEC,
                     (payload, context) -> {
-                        Map<ResourceLocation, io.github.minerguy341.new_age_thaum.core.codex.CodexEntry> incoming = new HashMap<>();
+                        // LinkedHashMap: the payload list carries the server's category/entry
+                        // order, and byCategory/categories() promise stable insertion order.
+                        Map<ResourceLocation, CodexEntry> incoming = new LinkedHashMap<>();
                         for (var entry : payload.entries()) {
                             incoming.put(entry.id(), entry);
                         }
-                        io.github.minerguy341.new_age_thaum.core.codex.CodexRegistry.reload(incoming);
+                        CodexRegistry.reload(incoming);
                     });
+            NetworkManager.registerReceiver(NetworkManager.s2c(), OrreryOrientationPayload.TYPE, OrreryOrientationPayload.STREAM_CODEC,
+                    (payload, context) -> context.queue(() ->
+                            io.github.minerguy341.new_age_thaum.client.NewAgeThaumClient.applyOrreryOrientation(payload)));
             NetworkManager.registerReceiver(NetworkManager.s2c(), WandMaterialSyncPayload.TYPE, WandMaterialSyncPayload.STREAM_CODEC,
                     (payload, context) -> {
-                        Map<ResourceLocation, io.github.minerguy341.new_age_thaum.core.casting.WandMaterial> incoming = new HashMap<>();
+                        Map<ResourceLocation, WandMaterial> incoming = new HashMap<>();
                         for (var material : payload.materials()) {
                             incoming.put(material.id(), material);
                         }
-                        io.github.minerguy341.new_age_thaum.core.casting.WandMaterialRegistry.reload(incoming);
+                        WandMaterialRegistry.reload(incoming);
                     });
         } else {
             NetworkManager.registerS2CPayloadType(AspectSyncPayload.TYPE, AspectSyncPayload.STREAM_CODEC);
@@ -61,6 +89,7 @@ public final class NewAgeThaumNetwork {
             NetworkManager.registerS2CPayloadType(PlayerProgressSyncPayload.TYPE, PlayerProgressSyncPayload.STREAM_CODEC);
             NetworkManager.registerS2CPayloadType(CodexSyncPayload.TYPE, CodexSyncPayload.STREAM_CODEC);
             NetworkManager.registerS2CPayloadType(WandMaterialSyncPayload.TYPE, WandMaterialSyncPayload.STREAM_CODEC);
+            NetworkManager.registerS2CPayloadType(OrreryOrientationPayload.TYPE, OrreryOrientationPayload.STREAM_CODEC);
         }
 
         // C2S: registered on both sides (client needs the type to send; the handler only
@@ -68,22 +97,30 @@ public final class NewAgeThaumNetwork {
         // The paper slot needs no custom packet: it is a real menu slot now.
         NetworkManager.registerReceiver(NetworkManager.c2s(), OrreryEditPayload.TYPE, OrreryEditPayload.STREAM_CODEC,
                 (payload, context) -> context.queue(() -> handleOrreryEdit(payload, context)));
+        NetworkManager.registerReceiver(NetworkManager.c2s(), OrreryRotatePayload.TYPE, OrreryRotatePayload.STREAM_CODEC,
+                (payload, context) -> context.queue(() -> handleOrreryRotate(payload, context)));
     }
 
-    private static io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity orreryInReach(
-            NetworkManager.PacketContext context, net.minecraft.core.BlockPos pos) {
+    /**
+     * The shared C2S authorization for orrery packets: the sender must be a real player,
+     * within reach, AND have this orrery's menu open — without the open-menu check,
+     * anyone nearby could wipe another player's sphere. Null when not authorized.
+     */
+    private static ArcaneOrreryBlockEntity authorizedOrrery(NetworkManager.PacketContext context, BlockPos pos) {
         if (!(context.getPlayer() instanceof ServerPlayer player)) {
             return null;
         }
-        if (player.distanceToSqr(net.minecraft.world.phys.Vec3.atCenterOf(pos)) > 64.0) {
+        if (player.distanceToSqr(Vec3.atCenterOf(pos)) > 64.0) {
             return null;
         }
-        return player.level().getBlockEntity(pos)
-                instanceof io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity orrery ? orrery : null;
+        if (!(player.containerMenu instanceof ArcaneOrreryMenu menu) || !menu.pos().equals(pos)) {
+            return null;
+        }
+        return player.level().getBlockEntity(pos) instanceof ArcaneOrreryBlockEntity orrery ? orrery : null;
     }
 
     private static void handleOrreryEdit(OrreryEditPayload payload, NetworkManager.PacketContext context) {
-        var orrery = orreryInReach(context, payload.pos());
+        var orrery = authorizedOrrery(context, payload.pos());
         if (orrery == null || !(context.getPlayer() instanceof ServerPlayer player)) {
             return;
         }
@@ -100,27 +137,34 @@ public final class NewAgeThaumNetwork {
      * clearing refunds only via the future research seam ({@code refundChance}, 0 now).
      * Public so gametests can drive the exact server path.
      */
-    public static boolean applyOrreryEdit(ServerPlayer player,
-            io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity orrery,
-            int cell, java.util.Optional<ResourceLocation> aspect) {
+    public static boolean applyOrreryEdit(ServerPlayer player, ArcaneOrreryBlockEntity orrery,
+            int cell, Optional<ResourceLocation> aspect) {
         if (!orrery.canEditSphere()) {
             return false;
         }
+        // Unstamped papers are never editable: every paper is stamped on insertion or on
+        // chunk load, so a missing puzzle means broken data — and skipping the checks
+        // below would let arbitrary cell indices persist into the item component.
         var puzzle = orrery.puzzle().orElse(null);
-        if (puzzle != null) {
-            // A solved paper is sealed; endpoints are locked pre-placed cells; gaps are
-            // holes in the sphere.
-            if (puzzle.solved() || puzzle.isEndpoint(cell) || puzzle.isGap(cell)
-                    || cell < 0 || cell >= io.github.minerguy341.new_age_thaum.core.research.PuzzleGenerator
-                            .gridFor(puzzle.frequency()).size()) {
-                return false;
-            }
+        if (puzzle == null) {
+            return false;
+        }
+        // A solved paper is sealed; endpoints are locked pre-placed cells; gaps are
+        // holes in the sphere.
+        if (puzzle.solved() || puzzle.isEndpoint(cell) || puzzle.isGap(cell)
+                || cell < 0 || cell >= PuzzleGenerator.gridFor(puzzle.frequency()).size()) {
+            return false;
         }
         if (aspect.isPresent()) {
+            if (aspect.get().equals(orrery.aspectAt(cell))) {
+                // Repainting a cell with the aspect it already holds changes nothing —
+                // succeed without charging the point or rebroadcasting.
+                return true;
+            }
             if (!AspectRegistry.exists(aspect.get())) {
                 return false;
             }
-            if (!io.github.minerguy341.new_age_thaum.core.player.PlayerProgressService.trySpend(player, aspect.get(), 1)) {
+            if (!PlayerProgressService.trySpend(player, aspect.get(), 1)) {
                 return false;
             }
             orrery.editSphere(cell, aspect);
@@ -128,10 +172,12 @@ public final class NewAgeThaumNetwork {
             return true;
         }
         ResourceLocation cleared = orrery.aspectAt(cell);
+        if (cleared == null) {
+            return true;
+        }
         orrery.editSphere(cell, aspect);
-        if (cleared != null && player.getRandom().nextDouble()
-                < io.github.minerguy341.new_age_thaum.core.player.PlayerProgressService.refundChance(player)) {
-            io.github.minerguy341.new_age_thaum.core.player.PlayerProgressService.scanlessGrant(player, cleared, 1);
+        if (player.getRandom().nextDouble() < PlayerProgressService.refundChance(player)) {
+            PlayerProgressService.scanlessGrant(player, cleared, 1);
         }
         return true;
     }
@@ -140,26 +186,94 @@ public final class NewAgeThaumNetwork {
      * After a successful placement: if every endpoint now shares one linked web, the
      * puzzle is complete — seal the paper and let the orrery hum (m2-gameplay-spec §D).
      */
-    private static void maybeCompletePuzzle(ServerPlayer player,
-            io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity orrery,
-            io.github.minerguy341.new_age_thaum.core.research.ResearchPuzzle puzzle) {
+    private static void maybeCompletePuzzle(ServerPlayer player, ArcaneOrreryBlockEntity orrery,
+            ResearchPuzzle puzzle) {
         if (puzzle == null || puzzle.solved()) {
             return;
         }
-        var grid = io.github.minerguy341.new_age_thaum.core.research.PuzzleGenerator.gridFor(puzzle.frequency());
+        var grid = PuzzleGenerator.gridFor(puzzle.frequency());
         Map<Integer, ResourceLocation> cells = new HashMap<>(orrery.sphereCells());
         cells.putAll(puzzle.endpoints());
-        if (io.github.minerguy341.new_age_thaum.core.research.LinkingPuzzle.allEndpointsLinked(
-                grid, cells, puzzle.endpoints().keySet())) {
+        // Papers written before edit validation existed can carry out-of-range cells;
+        // LinkingPuzzle calls grid.cell() on every key, so drop them or the BFS crashes.
+        cells.keySet().removeIf(index -> index < 0 || index >= grid.size());
+        if (LinkingPuzzle.allEndpointsLinked(grid, cells, puzzle.endpoints().keySet())) {
             orrery.markSolved();
             player.serverLevel().playSound(null, orrery.getBlockPos(),
-                    net.minecraft.sounds.SoundEvents.BEACON_ACTIVATE,
-                    net.minecraft.sounds.SoundSource.BLOCKS, 0.8f, 1.2f);
+                    SoundEvents.BEACON_ACTIVATE, SoundSource.BLOCKS, 0.8f, 1.2f);
         }
     }
 
-    public static void sendOrreryEdit(net.minecraft.core.BlockPos pos, int cell, java.util.Optional<ResourceLocation> aspect) {
+    public static void sendOrreryEdit(BlockPos pos, int cell, Optional<ResourceLocation> aspect) {
         NetworkManager.sendToServer(new OrreryEditPayload(pos, cell, aspect));
+    }
+
+    private static void handleOrreryRotate(OrreryRotatePayload payload, NetworkManager.PacketContext context) {
+        var orrery = authorizedOrrery(context, payload.pos());
+        if (orrery == null || !(context.getPlayer() instanceof ServerPlayer player)) {
+            return;
+        }
+        if (!applyOrreryRotation(orrery, payload.frame())) {
+            return;
+        }
+        // Mirror the frame to other nearby players so they play the same deterministic
+        // coast; the sender's client already wrote through.
+        OrreryOrientationPayload out = new OrreryOrientationPayload(payload.pos(), payload.frame());
+        for (ServerPlayer other : player.serverLevel().players()) {
+            if (other != player && other.distanceToSqr(Vec3.atCenterOf(payload.pos())) < 64.0 * 64.0) {
+                sendIfPossible(other, out, OrreryOrientationPayload.TYPE);
+            }
+        }
+    }
+
+    public static boolean applyOrreryRotation(ArcaneOrreryBlockEntity orrery, float x, float y, float z, float w) {
+        return applyOrreryRotation(orrery, new OrientationFrame(x, y, z, w, 0, 0, 0,
+                ArcaneOrreryBlockEntity.COAST_TAU_MS));
+    }
+
+    /**
+     * The authoritative rotation: rejects non-finite or degenerate quaternions (a hacked
+     * client must not park NaN in world save data) and normalizes. A non-zero angular
+     * velocity is a flick: friction decays it as {@code e^(-t/tau)}, so the total
+     * remaining travel is exactly {@code speed * tau} radians about a fixed axis — the
+     * rest pose is computed analytically and stored, and the coast itself is layered on
+     * as display-only state every client derives identically. Public so gametests drive
+     * the exact server path.
+     */
+    public static boolean applyOrreryRotation(ArcaneOrreryBlockEntity orrery, OrientationFrame frame) {
+        if (!Float.isFinite(frame.x()) || !Float.isFinite(frame.y()) || !Float.isFinite(frame.z())
+                || !Float.isFinite(frame.w()) || !Float.isFinite(frame.wx()) || !Float.isFinite(frame.wy())
+                || !Float.isFinite(frame.wz()) || !Float.isFinite(frame.coastTau())) {
+            return false;
+        }
+        float lengthSq = frame.x() * frame.x() + frame.y() * frame.y()
+                + frame.z() * frame.z() + frame.w() * frame.w();
+        if (lengthSq < 1.0e-6f) {
+            return false;
+        }
+        Quaternionf pose = new Quaternionf(frame.x(), frame.y(), frame.z(), frame.w()).normalize();
+        float speed = (float) Math.sqrt(frame.wx() * frame.wx() + frame.wy() * frame.wy()
+                + frame.wz() * frame.wz());
+        // The flicking player's configured friction rides in the packet (clamped), so
+        // every party integrates with the SAME tau and converges on the same rest pose.
+        float tau = Mth.clamp(frame.coastTau(),
+                ArcaneOrreryBlockEntity.MIN_COAST_TAU_MS, ArcaneOrreryBlockEntity.MAX_COAST_TAU_MS);
+        float totalAngle = Math.min(speed, ArcaneOrreryBlockEntity.MAX_COAST_SPEED) * tau;
+        if (speed <= 0 || totalAngle < 0.005f) {
+            orrery.setOrientation(pose);
+            return true;
+        }
+        Quaternionf rest = new Quaternionf()
+                .rotationAxis(totalAngle, frame.wx() / speed, frame.wy() / speed, frame.wz() / speed).mul(pose);
+        orrery.setOrientation(rest);
+        orrery.startCoast(frame.wx() / speed, frame.wy() / speed, frame.wz() / speed, totalAngle, tau);
+        return true;
+    }
+
+    public static void sendOrreryRotation(BlockPos pos, Quaternionf orientation,
+            float wx, float wy, float wz, float tauMs) {
+        NetworkManager.sendToServer(new OrreryRotatePayload(pos,
+                OrientationFrame.flick(orientation, wx, wy, wz, tauMs)));
     }
 
     /**
@@ -174,6 +288,12 @@ public final class NewAgeThaumNetwork {
         }
     }
 
+    private static void syncToAll(MinecraftServer server, Consumer<ServerPlayer> sync) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            sync.accept(player);
+        }
+    }
+
     public static void syncProgressTo(ServerPlayer player, PlayerProgress progress) {
         sendIfPossible(player, new PlayerProgressSyncPayload(progress), PlayerProgressSyncPayload.TYPE);
     }
@@ -183,22 +303,16 @@ public final class NewAgeThaumNetwork {
     }
 
     public static void syncCodexToAll(MinecraftServer server) {
-        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            syncCodexTo(player);
-        }
+        syncToAll(server, NewAgeThaumNetwork::syncCodexTo);
     }
 
     public static void syncWandMaterialsTo(ServerPlayer player) {
-        sendIfPossible(player,
-                new WandMaterialSyncPayload(List.copyOf(
-                        io.github.minerguy341.new_age_thaum.core.casting.WandMaterialRegistry.all())),
+        sendIfPossible(player, new WandMaterialSyncPayload(List.copyOf(WandMaterialRegistry.all())),
                 WandMaterialSyncPayload.TYPE);
     }
 
     public static void syncWandMaterialsToAll(MinecraftServer server) {
-        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            syncWandMaterialsTo(player);
-        }
+        syncToAll(server, NewAgeThaumNetwork::syncWandMaterialsTo);
     }
 
     public static void syncAspectsTo(ServerPlayer player) {
@@ -206,9 +320,7 @@ public final class NewAgeThaumNetwork {
     }
 
     public static void syncAspectsToAll(MinecraftServer server) {
-        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            syncAspectsTo(player);
-        }
+        syncToAll(server, NewAgeThaumNetwork::syncAspectsTo);
     }
 
     public static void syncAssignmentsTo(ServerPlayer player) {
@@ -218,8 +330,6 @@ public final class NewAgeThaumNetwork {
     }
 
     public static void syncAssignmentsToAll(MinecraftServer server) {
-        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            syncAssignmentsTo(player);
-        }
+        syncToAll(server, NewAgeThaumNetwork::syncAssignmentsTo);
     }
 }

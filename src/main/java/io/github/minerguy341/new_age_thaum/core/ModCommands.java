@@ -12,10 +12,11 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
- * Dev/testing commands. {@code /thaum aspects [amount]} (long form
- * {@code /new_age_thaum aspects}) grants the executing player {@code amount}
+ * Dev/testing commands, all under the one {@code /thaum} root. Server side here:
+ * {@code /thaum aspects [amount]} grants the executing player {@code amount}
  * (default 100) observation points of EVERY registered aspect — compounds included,
  * which also discovers them all in the orrery list. Requires op level 2.
+ * (The client-side {@code /thaum debug} lives in the client's OrreryDebugCommand.)
  */
 public final class ModCommands {
     private static final int DEFAULT_AMOUNT = 100;
@@ -24,10 +25,8 @@ public final class ModCommands {
     }
 
     public static void init() {
-        CommandRegistrationEvent.EVENT.register((dispatcher, context, selection) -> {
-            dispatcher.register(root("thaum"));
-            dispatcher.register(root("new_age_thaum"));
-        });
+        CommandRegistrationEvent.EVENT.register((dispatcher, context, selection) ->
+                dispatcher.register(root("thaum")));
     }
 
     private static com.mojang.brigadier.builder.LiteralArgumentBuilder<CommandSourceStack> root(String literal) {

@@ -17,6 +17,9 @@
     "main": [
       "${group}.platform.fabric.NewAgeThaumFabric"
     ],
+    "client": [
+      "${group}.platform.fabric.NewAgeThaumFabricClient"
+    ],
     "fabric-gametest": [
       "${group}.gametest.ProofOfForgeGameTest",
       "${group}.gametest.AspectGameTest",
@@ -32,7 +35,9 @@
       "${group}.gametest.ArcaneOrreryPersistenceGameTest",
       "${group}.gametest.AspectEconomyGameTest",
       "${group}.gametest.PuzzleGeneratorGameTest",
-      "${group}.gametest.OrrerySolveGameTest"
+      "${group}.gametest.OrrerySolveGameTest",
+      "${group}.gametest.OrreryValidationGameTest",
+      "${group}.gametest.AuraGameTest"
     ]
   },
   "depends": {

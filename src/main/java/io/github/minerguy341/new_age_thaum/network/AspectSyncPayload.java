@@ -13,7 +13,7 @@ import java.util.List;
 /** Full aspect-set sync, sent on player join and after datapack reloads. */
 public record AspectSyncPayload(List<Aspect> aspects) implements CustomPacketPayload {
     public static final CustomPacketPayload.Type<AspectSyncPayload> TYPE =
-            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, "aspect_sync"));
+            new CustomPacketPayload.Type<>(NewAgeThaum.id("aspect_sync"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, AspectSyncPayload> STREAM_CODEC =
             StreamCodec.of(AspectSyncPayload::write, AspectSyncPayload::read);
@@ -32,12 +32,12 @@ public record AspectSyncPayload(List<Aspect> aspects) implements CustomPacketPay
 
     private static AspectSyncPayload read(RegistryFriendlyByteBuf buf) {
         int count = buf.readVarInt();
-        List<Aspect> aspects = new ArrayList<>(count);
+        List<Aspect> aspects = new ArrayList<>(NetworkLimits.safeCapacity(count));
         for (int i = 0; i < count; i++) {
             ResourceLocation id = buf.readResourceLocation();
             int color = buf.readInt();
             int componentCount = buf.readVarInt();
-            List<ResourceLocation> components = new ArrayList<>(componentCount);
+            List<ResourceLocation> components = new ArrayList<>(NetworkLimits.safeCapacity(componentCount));
             for (int j = 0; j < componentCount; j++) {
                 components.add(buf.readResourceLocation());
             }

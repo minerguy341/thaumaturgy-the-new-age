@@ -15,7 +15,7 @@ import java.util.Set;
 /** Sends the owning player their own {@link PlayerProgress} on join and after each change. */
 public record PlayerProgressSyncPayload(PlayerProgress progress) implements CustomPacketPayload {
     public static final CustomPacketPayload.Type<PlayerProgressSyncPayload> TYPE =
-            new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, "player_progress_sync"));
+            new CustomPacketPayload.Type<>(NewAgeThaum.id("player_progress_sync"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, PlayerProgressSyncPayload> STREAM_CODEC =
             StreamCodec.of(PlayerProgressSyncPayload::write, PlayerProgressSyncPayload::read);
@@ -33,12 +33,12 @@ public record PlayerProgressSyncPayload(PlayerProgress progress) implements Cust
 
     private static PlayerProgressSyncPayload read(RegistryFriendlyByteBuf buf) {
         int scannedCount = buf.readVarInt();
-        Set<String> scanned = new HashSet<>(scannedCount);
+        Set<String> scanned = new HashSet<>(NetworkLimits.safeCapacity(scannedCount));
         for (int i = 0; i < scannedCount; i++) {
             scanned.add(buf.readUtf());
         }
         int pointCount = buf.readVarInt();
-        Map<ResourceLocation, Integer> points = new HashMap<>(pointCount);
+        Map<ResourceLocation, Integer> points = new HashMap<>(NetworkLimits.safeCapacity(pointCount));
         for (int i = 0; i < pointCount; i++) {
             ResourceLocation aspect = buf.readResourceLocation();
             points.put(aspect, buf.readVarInt());

@@ -21,10 +21,6 @@ public final class WandMaterialRegistry {
         return Optional.ofNullable(materials.get(id));
     }
 
-    public static int count() {
-        return materials.size();
-    }
-
     public static int reload(Map<ResourceLocation, WandMaterial> incoming) {
         materials = Map.copyOf(incoming);
         return materials.size();

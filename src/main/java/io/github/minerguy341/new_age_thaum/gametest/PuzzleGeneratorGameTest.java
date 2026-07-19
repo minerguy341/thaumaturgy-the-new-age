@@ -120,7 +120,7 @@ public class PuzzleGeneratorGameTest {
     *///?}
     public void serverRejectsEndpointGapAndOutOfRangeEdits(GameTestHelper helper) {
         ServerPlayer player = helper.makeMockServerPlayerInLevel();
-        ResourceLocation flamma = ResourceLocation.fromNamespaceAndPath(NewAgeThaum.MOD_ID, "flamma");
+        ResourceLocation flamma = NewAgeThaum.id("flamma");
         PlayerProgressService.scan(player, "test/puzzle_locks", new AspectBag(Map.of(flamma, 10)));
 
         // A hand-stamped puzzle so the locked cells are known: endpoint 0, gap 5.
