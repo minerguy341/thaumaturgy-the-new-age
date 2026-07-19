@@ -30,9 +30,17 @@ Massive, ancient, warm. The early-game magic wood (wand cores, worktable).
 | Element | Color |
 |---|---|
 | Bark | `#4E3D2E` with `#3A2D22` furrows |
-| Planks | `#7A5B3C` (between spruce and dark oak, leaning spruce) |
-| Plank shadow / highlight | `#5E4530` / `#8F6E4B` |
+| Planks | `#4F3B25` (TC-era dark; revised 2026-07-19, Jacob's call — see note) |
+| Plank shadow / highlight | `#3E2C1F` / `#60492C`, seam `#30201C` |
 | Leaves | `#3E6B2F` (deep green, vanilla-biome-tint friendly) |
+
+> **Greatwood darkness note (2026-07-19).** The plank ramp was darkened from
+> `#5E4530/#7A5B3C/#8F6E4B` to the values above after the first texture pass:
+> Jacob picked the TC-era darkness over the mid-value-compliant candidates.
+> Greatwood planks (luminance ~14-30%) are a **sanctioned exception** to
+> principle 2's 25-80% band; the mid-value rule still applies to everything
+> else. Ramp source of record: `styles/thaumaturgy.md` in the Pixel-Art-Aide
+> repo mirrors these values.
 
 ### Silverwood
 Pale, shimmering, node-bearing. The late/pure magic wood.
