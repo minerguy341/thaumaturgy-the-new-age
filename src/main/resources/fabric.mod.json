@@ -21,7 +21,6 @@
       "${group}.platform.fabric.NewAgeThaumFabricClient"
     ],
     "fabric-gametest": [
-      "${group}.gametest.ProofOfForgeGameTest",
       "${group}.gametest.AspectGameTest",
       "${group}.gametest.AspectResolutionGameTest",
       "${group}.gametest.PlayerProgressGameTest",

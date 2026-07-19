@@ -51,10 +51,6 @@ public final class ModRegistries {
     public static final RegistrySupplier<Item> AURA_NODE_ITEM = ITEMS.register("aura_node",
             () -> new BlockItem(AURA_NODE.get(), new Item.Properties()));
 
-    /** Throwaway walking-skeleton item; proves DeferredRegister works on both loaders. */
-    public static final RegistrySupplier<Item> PROOF_OF_FORGE = ITEMS.register("proof_of_forge",
-            () -> new Item(new Item.Properties()));
-
     /** The scanning tool: turns blocks and entities into observation points. */
     public static final RegistrySupplier<Item> AETHERLENS = ITEMS.register("aetherlens",
             () -> new AetherlensItem(new Item.Properties().stacksTo(1)));
@@ -114,7 +110,6 @@ public final class ModRegistries {
                         output.accept(AETHERIUM_CAP.get());
                         output.accept(CODEX.get());
                         output.accept(AETHERLENS.get());
-                        output.accept(PROOF_OF_FORGE.get());
                     })));
 
     private ModRegistries() {
