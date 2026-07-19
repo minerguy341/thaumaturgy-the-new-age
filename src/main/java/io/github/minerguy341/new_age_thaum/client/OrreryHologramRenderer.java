@@ -109,8 +109,17 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
         }
         // Each current sorts at its lifted arc midpoint — marginally nearer than the
         // cells it connects, so it draws after them and rides on top. Not an occluder:
-        // its glow-under-core layering depends on blending, and a rear current behind
-        // the stamped shell depth-fails on its own.
+        // its glow-under-core layering depends on blending. Rather than letting the
+        // shell's stamped depth clip a ribbon at ragged pixel boundaries (fragments at
+        // the limb, scraps through gap holes), each ribbon clips ITSELF in geometry at
+        // the silhouette — camLocal is the camera in the sphere's local frame, where
+        // "visible cap" is exactly dot(pointDir, camLocal) > 1.
+        Quaternionf inverse = new Quaternionf(orientation).conjugate();
+        Vector3f camLocal = new Vector3f(
+                (float) ((camera.x - center.x) / SCALE),
+                (float) ((camera.y - center.y) / SCALE),
+                (float) ((camera.z - center.z) / SCALE));
+        inverse.transform(camLocal);
         for (int[] pair : links.pairs()) {
             GoldbergGrid.Cell a = grid.cell(pair[0]);
             GoldbergGrid.Cell b = grid.cell(pair[1]);
@@ -121,7 +130,7 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
             double dy = center.y + rotated.y - camera.y;
             double dz = center.z + rotated.z - camera.z;
             LateHolograms.enqueue(dx * dx + dy * dy + dz * dz,
-                    buffer -> drawCurrent(buffer, pose, grid, links, pair, solved, breath, time));
+                    buffer -> drawCurrent(buffer, pose, grid, links, pair, solved, breath, time, camLocal));
         }
         poseStack.popPose();
     }
@@ -140,7 +149,8 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
      * chain phase, jitter, and pulse all mirror {@link ResearchSphereScreen}.
      */
     private static void drawCurrent(VertexConsumer buffer, Matrix4f pose, GoldbergGrid grid,
-            SphereLinks links, int[] pair, boolean solved, double breath, double time) {
+            SphereLinks links, int[] pair, boolean solved, double breath, double time,
+            Vector3f camLocal) {
         // Orient the link downstream: the current flows from lower chain depth to higher.
         int from = pair[0];
         int to = pair[1];
@@ -163,10 +173,10 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
         // being exactly coplanar where ribbons overlap; the color pass blends purely in
         // emission order and doesn't care.
         float lift = LIFT + (float) jitter * 0.006f;
-        ribbon(buffer, pose, grid.cell(from), grid.cell(to), c1, c2,
-                3.8f * widthScale, solved ? 110 : 70, time, phase, depth, lift);            // soft glow
-        ribbon(buffer, pose, grid.cell(from), grid.cell(to), c1, c2,
-                1.6f * widthScale, solved ? 255 : 235, time, phase, depth, lift + 0.004f);  // bright core
+        ribbon(buffer, pose, grid.cell(from), grid.cell(to), c1, c2, 3.8f * widthScale,
+                solved ? 110 : 70, time, phase, depth, lift, camLocal);            // soft glow
+        ribbon(buffer, pose, grid.cell(from), grid.cell(to), c1, c2, 1.6f * widthScale,
+                solved ? 255 : 235, time, phase, depth, lift + 0.004f, camLocal);  // bright core
     }
 
     /**
@@ -178,7 +188,7 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
     private static void ribbon(VertexConsumer buffer, Matrix4f pose,
             GoldbergGrid.Cell fromCell, GoldbergGrid.Cell toCell,
             int rgb1, int rgb2, float width, int alpha, double time, double phase, int chainDepth,
-            float lift) {
+            float lift, Vector3f camLocal) {
         final int segments = 10;
         Vector3f a = new Vector3f((float) fromCell.x(), (float) fromCell.y(), (float) fromCell.z());
         Vector3f b = new Vector3f((float) toCell.x(), (float) toCell.y(), (float) toCell.z());
@@ -187,12 +197,17 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
         Vector3f side = new Vector3f();
         Vector3f[] left = new Vector3f[segments + 1];
         Vector3f[] right = new Vector3f[segments + 1];
+        boolean[] visible = new boolean[segments + 1];
         double amp = NewAgeThaumConfig.currentAmplitude * PX;
         double speed = NewAgeThaumConfig.currentSpeed;
         for (int i = 0; i <= segments; i++) {
             float t = (float) i / segments;
             // Adjacent cells subtend a small angle, so normalized lerp ≈ the arc.
             point.set(a).lerp(b, t).normalize();
+            // Silhouette clip: a unit-sphere surface point is on the visible cap iff
+            // dot(pointDir, camLocal) > 1. The small margin retreats the ribbon a hair
+            // before the limb so it never z-fights the shell edge-on.
+            visible[i] = point.dot(camLocal) > 1.05f;
             side.set(point).cross(chord).normalize();
             double envelope = Math.sin(Math.PI * t);
             double disp = envelope * amp * (1.9 * Math.sin(2 * Math.PI * 1.3 * t - time * speed * 2.4 + phase)
@@ -206,6 +221,9 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
             right[i] = new Vector3f(cx - side.x * half, cy - side.y * half, cz - side.z * half);
         }
         for (int i = 0; i < segments; i++) {
+            if (!visible[i] || !visible[i + 1]) {
+                continue; // past the sphere's silhouette — geometry-clipped, not depth-bitten
+            }
             int colA = SphereColors.glinted(SphereColors.blend(rgb1, rgb2, (double) i / segments),
                     (double) i / segments, time, speed, chainDepth);
             int colB = SphereColors.glinted(SphereColors.blend(rgb1, rgb2, (double) (i + 1) / segments),
@@ -230,29 +248,50 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
 
         int rgb;
         int alpha;
+        int borderRgb;
+        int borderAlpha;
         // Filled cells are opaque, the empty-cell veil see-through — the hologram read.
         // The far side needs no alpha treatment at all: the depth prepass stamped the
         // shell's nearest surface, so back cells depth-fail per pixel (except through
-        // gap holes, where seeing the interior far wall is intentional).
+        // gap holes, where seeing the interior far wall is intentional). Borders match
+        // the screen: a full-size polygon in the divider color underneath, the fill
+        // shrunk by the config's border width on top (coplanar is fine — the color
+        // pass has no depth write, and the border layer keeps the occluder crack-free).
         if (endpoint) {
-            rgb = SphereColors.blend(SphereColors.colorOf(aspect), SphereColors.GOLD, 0.5);
+            rgb = SphereColors.colorOf(aspect);
             alpha = 0xFF;
+            borderRgb = SphereColors.GOLD; // endpoints wear gold, like the screen
+            borderAlpha = 0xEE;
         } else if (aspect != null) {
             rgb = SphereColors.colorOf(aspect);
             alpha = 0xFF;
+            borderRgb = SphereColors.CELL_BORDER;
+            borderAlpha = 0xFF;
         } else {
             rgb = SphereColors.EMPTY_CELL;
             alpha = 0x60;
+            borderRgb = SphereColors.CELL_BORDER;
+            borderAlpha = 0x78; // a shade stronger than the veil: a subtle lattice
         }
         if (breath > 0) {
             rgb = SphereColors.blend(rgb, SphereColors.GOLD, breath);
         }
+
+        fan(buffer, pose, cell, 1.0, borderRgb, borderAlpha);
+        fan(buffer, pose, cell, SphereColors.cellShrink(), rgb, alpha);
+    }
+
+    /**
+     * The cell polygon as a center-fan of degenerate quads (QUADS mode; repeating the
+     * last corner turns each fan triangle into a valid quad), with the corners pulled
+     * toward the cell center by {@code shrink} — 1.0 is the full cell (border layer),
+     * less leaves the layer beneath showing as the border.
+     */
+    private static void fan(VertexConsumer buffer, Matrix4f pose, GoldbergGrid.Cell cell,
+            double shrink, int rgb, int alpha) {
         int r = (rgb >> 16) & 0xFF;
         int g = (rgb >> 8) & 0xFF;
         int b = rgb & 0xFF;
-
-        // Center-fan as degenerate quads (debugQuads draws QUADS; repeating the last
-        // corner turns each fan triangle into a valid quad).
         double[][] corners = cell.corners();
         float cx = (float) cell.x();
         float cy = (float) cell.y();
@@ -261,10 +300,17 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
             double[] p1 = corners[i];
             double[] p2 = corners[(i + 1) % corners.length];
             buffer.addVertex(pose, cx, cy, cz).setColor(r, g, b, alpha);
-            buffer.addVertex(pose, (float) p1[0], (float) p1[1], (float) p1[2]).setColor(r, g, b, alpha);
-            buffer.addVertex(pose, (float) p2[0], (float) p2[1], (float) p2[2]).setColor(r, g, b, alpha);
-            buffer.addVertex(pose, (float) p2[0], (float) p2[1], (float) p2[2]).setColor(r, g, b, alpha);
+            buffer.addVertex(pose, shrunk(p1[0], cx, shrink), shrunk(p1[1], cy, shrink), shrunk(p1[2], cz, shrink))
+                    .setColor(r, g, b, alpha);
+            buffer.addVertex(pose, shrunk(p2[0], cx, shrink), shrunk(p2[1], cy, shrink), shrunk(p2[2], cz, shrink))
+                    .setColor(r, g, b, alpha);
+            buffer.addVertex(pose, shrunk(p2[0], cx, shrink), shrunk(p2[1], cy, shrink), shrunk(p2[2], cz, shrink))
+                    .setColor(r, g, b, alpha);
         }
+    }
+
+    private static float shrunk(double corner, float center, double shrink) {
+        return (float) (center + (corner - center) * shrink);
     }
 
 }

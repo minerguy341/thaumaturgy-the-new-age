@@ -63,10 +63,9 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     private static final int SWATCH = 12;
     private static final int SCROLLBAR_W = 5;
 
-    /** Fill shrink derived from the configurable border width (1.0 config = classic 0.86). */
+    /** Fill shrink from the configurable border width — shared with the hologram. */
     private static double cellShrink() {
-        double width = NewAgeThaumConfig.cellBorderWidth;
-        return Mth.clamp(1.0 - 0.14 * width, 0.5, 1.0);
+        return SphereColors.cellShrink();
     }
     private static final double ROTATE_SPEED = 0.008;
     /** Drag rotations stream to the server at most this often; release always sends. */
