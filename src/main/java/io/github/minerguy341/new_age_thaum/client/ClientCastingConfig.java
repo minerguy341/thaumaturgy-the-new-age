@@ -12,11 +12,15 @@ import io.github.minerguy341.new_age_thaum.network.CastingConfigSyncPayload;
  * reads its floor markers from here so they match the server the player is actually on.
  */
 public final class ClientCastingConfig {
-    private static boolean synced;
-    private static float ambientFloor;
-    private static float affinityFloor;
-    private static float rechargeRate;
-    private static float nodeChargePerUse;
+    // volatile: written on the network thread (the S2C receiver), read on the render
+    // thread — the same cross-thread discipline the other synced client mirrors use
+    // (AspectRegistry, WandMaterialRegistry). A one-frame tear on the floats is harmless
+    // (a HUD tick a pixel off for a frame); the synced flag gates the whole switch.
+    private static volatile boolean synced;
+    private static volatile float ambientFloor;
+    private static volatile float affinityFloor;
+    private static volatile float rechargeRate;
+    private static volatile float nodeChargePerUse;
 
     private ClientCastingConfig() {
     }
