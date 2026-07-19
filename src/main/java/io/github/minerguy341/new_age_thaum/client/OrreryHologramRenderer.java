@@ -159,18 +159,28 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
 
     /**
      * True line-of-sight visibility of a ribbon endpoint at {@code (qx,qy,qz)} in the
-     * sphere's local frame (unit-sphere radius = 1): 1 when the segment from the camera
-     * clears the sphere comfortably, fading to 0 as the sight line grazes it, 0 once it
-     * passes through. The measure is the segment's closest approach to the sphere's
-     * center, so the fade band is the same at every camera distance.
+     * sphere's local frame (unit-sphere radius = 1): 1 when nothing sits between the
+     * camera and the endpoint, fading to 0 as the sight line grazes INTO the sphere
+     * before reaching it. The dip must happen strictly BEFORE the endpoint: the segment
+     * always ENDS just above the surface (|q| = LIFT), so clamping the closest approach
+     * to the segment made every face-on current read as a graze (~1.04 < 1.15) and
+     * permanently faded ALL currents to ~27% — the /nat_debug "0 full, N faded" bug.
      */
     static float endpointVisibility(double qx, double qy, double qz, Vector3f cam) {
+        double camSq = (double) cam.x * cam.x + (double) cam.y * cam.y + (double) cam.z * cam.z;
+        if (camSq <= LIFT * LIFT) {
+            return 0f; // camera inside the shell: exterior currents sit behind its wall
+        }
         double dx = qx - cam.x;
         double dy = qy - cam.y;
         double dz = qz - cam.z;
         double lenSq = dx * dx + dy * dy + dz * dz;
-        double t = lenSq < 1.0e-9 ? 0.0 : -(cam.x * dx + cam.y * dy + cam.z * dz) / lenSq;
-        t = Math.max(0.0, Math.min(1.0, t));
+        double t = lenSq < 1.0e-9 ? 1.0 : -(cam.x * dx + cam.y * dy + cam.z * dz) / lenSq;
+        if (t <= 0.0 || t >= 1.0) {
+            // The sight line is closest to the sphere only beyond the endpoint (a
+            // face-on cell) or behind the camera — nothing in front can occlude.
+            return 1f;
+        }
         double px = cam.x + dx * t;
         double py = cam.y + dy * t;
         double pz = cam.z + dz * t;
