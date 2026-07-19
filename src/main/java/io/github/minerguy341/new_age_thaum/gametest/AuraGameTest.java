@@ -7,9 +7,11 @@ import io.github.minerguy341.new_age_thaum.core.aura.AuraField;
 import io.github.minerguy341.new_age_thaum.core.aura.NodePersonality;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.ChunkPos;
 
@@ -200,6 +202,45 @@ public class AuraGameTest {
         }
         helper.assertTrue(NodePersonality.byId("nonsense") == NodePersonality.PALE,
                 "An unknown personality id must fall back to PALE");
+        helper.succeed();
+    }
+
+    //? if neoforge {
+    @GameTest(template = "empty")
+    //?} else {
+    /*@GameTest(template = "new_age_thaum:empty")
+    *///?}
+    public void seededNodeKeepsItsIdentity(GameTestHelper helper) {
+        BlockPos pos = new BlockPos(1, 2, 1);
+        helper.setBlock(pos, ModRegistries.AURA_NODE.get());
+        if (!(helper.getBlockEntity(pos) instanceof AuraNodeBlockEntity node)) {
+            helper.fail("Placed aura node has no block entity");
+            return;
+        }
+        ResourceLocation forma = NewAgeThaum.id("forma");
+        node.seedIdentity(forma, NodePersonality.PURE, 1.3f);
+        node.serverTick(helper.getLevel()); // a seeded node must NOT re-roll on first tick
+        helper.assertTrue(forma.equals(node.aspect()),
+                "A worldgen-seeded aspect must survive the first tick, got " + node.aspect());
+        helper.assertTrue(node.personality() == NodePersonality.PURE,
+                "A seeded personality must survive the first tick, got " + node.personality());
+        helper.assertTrue(Math.abs(node.size() - 1.3f) < 1.0e-4f,
+                "A seeded size must survive the first tick, got " + node.size());
+        helper.succeed();
+    }
+
+    //? if neoforge {
+    @GameTest(template = "empty")
+    //?} else {
+    /*@GameTest(template = "new_age_thaum:empty")
+    *///?}
+    public void silverwoodNodeTreeFeatureLoads(GameTestHelper helper) {
+        helper.assertTrue(BuiltInRegistries.FEATURE.containsKey(NewAgeThaum.id("node_tree")),
+                "The custom node_tree feature must be registered before worldgen loads");
+        var registries = helper.getLevel().registryAccess();
+        helper.assertTrue(registries.registryOrThrow(Registries.CONFIGURED_FEATURE)
+                        .containsKey(NewAgeThaum.id("silverwood_node_tree")),
+                "Configured feature silverwood_node_tree failed to load from the datapack");
         helper.succeed();
     }
 }

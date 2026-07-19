@@ -59,6 +59,18 @@ public class AuraNodeBlockEntity extends BlockEntity {
         return personality;
     }
 
+    /**
+     * Pre-seeds this node's identity so its first tick won't roll a random one — used by
+     * worldgen to plant a specific node (e.g. a pure, aether-leaning node in a silverwood
+     * trunk). Sets aspect, personality, and size directly; the tick guards then skip.
+     */
+    public void seedIdentity(ResourceLocation aspect, NodePersonality personality, float size) {
+        this.aspect = aspect;
+        this.personality = personality;
+        this.size = Mth.clamp(size, 0.1f, 4f);
+        setChanged();
+    }
+
     /** Row-major 5x5 vis snapshot centered on this node's chunk; client display data. */
     public float[] auraSnapshot() {
         return auraSnapshot;

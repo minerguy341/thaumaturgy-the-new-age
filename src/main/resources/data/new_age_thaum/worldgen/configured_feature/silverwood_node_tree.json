@@ -1,0 +1,7 @@
+{
+  "type": "new_age_thaum:node_tree",
+  "config": {
+    "tree": "new_age_thaum:silverwood_tree",
+    "node_chance": 0.06
+  }
+}

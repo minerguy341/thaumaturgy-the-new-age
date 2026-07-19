@@ -49,6 +49,7 @@ public final class NewAgeThaum {
         NewAgeThaumConfig.load();
         ModRegistries.init();
         ModBlockEntities.init();
+        io.github.minerguy341.new_age_thaum.core.ModFeatures.init();
         ModMenus.init();
         ModRecipes.init();
         ModCommands.init();
