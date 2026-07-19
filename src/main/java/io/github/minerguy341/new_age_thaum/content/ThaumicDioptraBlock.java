@@ -14,7 +14,6 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.shapes.CollisionContext;
-import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.Nullable;
 
@@ -25,10 +24,8 @@ import org.jetbrains.annotations.Nullable;
  * {@link DioptraGroup}, and a comparator reads the block's own chunk vis as 0–15.
  */
 public class ThaumicDioptraBlock extends Block implements EntityBlock {
-    private static final VoxelShape SHAPE = Shapes.or(
-            Block.box(0, 0, 0, 16, 3, 16),
-            Block.box(4, 3, 4, 12, 13, 12),
-            Block.box(1, 13, 1, 15, 16, 15));
+    // Mostly a full block (TC6-style): solid body with a shallow basin rim on top.
+    private static final VoxelShape SHAPE = Block.box(0, 0, 0, 16, 15, 16);
 
     public ThaumicDioptraBlock(BlockBehaviour.Properties properties) {
         super(properties);

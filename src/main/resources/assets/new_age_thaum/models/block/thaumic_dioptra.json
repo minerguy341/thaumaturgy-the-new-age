@@ -6,11 +6,11 @@
   },
   "elements": [
     {
+      "__comment": "base accent band",
       "from": [0, 0, 0],
-      "to": [16, 3, 16],
+      "to": [16, 2, 16],
       "faces": {
         "down":  { "texture": "#band" },
-        "up":    { "texture": "#dark" },
         "north": { "texture": "#band" },
         "south": { "texture": "#band" },
         "west":  { "texture": "#band" },
@@ -18,9 +18,11 @@
       }
     },
     {
-      "from": [4, 3, 4],
-      "to": [12, 13, 12],
+      "__comment": "main body; its top is the basin floor",
+      "from": [0, 2, 0],
+      "to": [16, 14, 16],
       "faces": {
+        "up":    { "texture": "#dark" },
         "north": { "texture": "#dark" },
         "south": { "texture": "#dark" },
         "west":  { "texture": "#dark" },
@@ -28,15 +30,41 @@
       }
     },
     {
-      "from": [1, 13, 1],
-      "to": [15, 16, 15],
+      "__comment": "basin rim — north",
+      "from": [0, 14, 0],
+      "to": [16, 15, 1],
       "faces": {
-        "down":  { "texture": "#dark" },
-        "up":    { "texture": "#dark" },
-        "north": { "texture": "#dark" },
-        "south": { "texture": "#dark" },
-        "west":  { "texture": "#dark" },
-        "east":  { "texture": "#dark" }
+        "up": { "texture": "#band" }, "down": { "texture": "#dark" },
+        "north": { "texture": "#band" }, "south": { "texture": "#dark" },
+        "west": { "texture": "#band" }, "east": { "texture": "#band" }
+      }
+    },
+    {
+      "__comment": "basin rim — south",
+      "from": [0, 14, 15],
+      "to": [16, 15, 16],
+      "faces": {
+        "up": { "texture": "#band" }, "down": { "texture": "#dark" },
+        "north": { "texture": "#dark" }, "south": { "texture": "#band" },
+        "west": { "texture": "#band" }, "east": { "texture": "#band" }
+      }
+    },
+    {
+      "__comment": "basin rim — west",
+      "from": [0, 14, 1],
+      "to": [1, 15, 15],
+      "faces": {
+        "up": { "texture": "#band" }, "down": { "texture": "#dark" },
+        "west": { "texture": "#band" }, "east": { "texture": "#dark" }
+      }
+    },
+    {
+      "__comment": "basin rim — east",
+      "from": [15, 14, 1],
+      "to": [16, 15, 15],
+      "faces": {
+        "up": { "texture": "#band" }, "down": { "texture": "#dark" },
+        "west": { "texture": "#dark" }, "east": { "texture": "#band" }
       }
     }
   ]
