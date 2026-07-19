@@ -1,0 +1,43 @@
+{
+  "textures": {
+    "particle": "minecraft:block/obsidian",
+    "dark": "minecraft:block/obsidian",
+    "band": "minecraft:block/crying_obsidian"
+  },
+  "elements": [
+    {
+      "from": [0, 0, 0],
+      "to": [16, 3, 16],
+      "faces": {
+        "down":  { "texture": "#band" },
+        "up":    { "texture": "#dark" },
+        "north": { "texture": "#band" },
+        "south": { "texture": "#band" },
+        "west":  { "texture": "#band" },
+        "east":  { "texture": "#band" }
+      }
+    },
+    {
+      "from": [4, 3, 4],
+      "to": [12, 13, 12],
+      "faces": {
+        "north": { "texture": "#dark" },
+        "south": { "texture": "#dark" },
+        "west":  { "texture": "#dark" },
+        "east":  { "texture": "#dark" }
+      }
+    },
+    {
+      "from": [1, 13, 1],
+      "to": [15, 16, 15],
+      "faces": {
+        "down":  { "texture": "#dark" },
+        "up":    { "texture": "#dark" },
+        "north": { "texture": "#dark" },
+        "south": { "texture": "#dark" },
+        "west":  { "texture": "#dark" },
+        "east":  { "texture": "#dark" }
+      }
+    }
+  ]
+}

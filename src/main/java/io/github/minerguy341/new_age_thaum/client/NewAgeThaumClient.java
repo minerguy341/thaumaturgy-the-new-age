@@ -57,6 +57,8 @@ public final class NewAgeThaumClient {
                         .register(type, OrreryHologramRenderer::new));
         ModBlockEntities.AURA_NODE.listen(type ->
                 BlockEntityRendererRegistry.register(type, AuraNodeRenderer::new));
+        ModBlockEntities.THAUMIC_DIOPTRA.listen(type ->
+                BlockEntityRendererRegistry.register(type, ThaumicDioptraRenderer::new));
         // Synced state is per-server. Without this reset, a vanilla server joined next
         // (which never syncs) would render the previous server's aspects in tooltips and
         // report its point balances. Singleplayer repopulates on world load (reload

@@ -51,6 +51,14 @@ public final class ModRegistries {
     public static final RegistrySupplier<Item> AURA_NODE_ITEM = ITEMS.register("aura_node",
             () -> new BlockItem(AURA_NODE.get(), new Item.Properties()));
 
+    /** Pedestal that projects a holographic vis map of the surrounding chunks. */
+    public static final RegistrySupplier<Block> THAUMIC_DIOPTRA = BLOCKS.register("thaumic_dioptra",
+            () -> new io.github.minerguy341.new_age_thaum.content.ThaumicDioptraBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_BLACK).strength(2.0f).noOcclusion().lightLevel(s -> 3)
+                    .sound(net.minecraft.world.level.block.SoundType.DEEPSLATE)));
+    public static final RegistrySupplier<Item> THAUMIC_DIOPTRA_ITEM = ITEMS.register("thaumic_dioptra",
+            () -> new BlockItem(THAUMIC_DIOPTRA.get(), new Item.Properties()));
+
     /** The scanning tool: turns blocks and entities into observation points. */
     public static final RegistrySupplier<Item> AETHERLENS = ITEMS.register("aetherlens",
             () -> new AetherlensItem(new Item.Properties().stacksTo(1)));
@@ -97,6 +105,7 @@ public final class ModRegistries {
                     .displayItems((parameters, output) -> {
                         output.accept(ARCANE_ORRERY_ITEM.get());
                         output.accept(AURA_NODE_ITEM.get());
+                        output.accept(THAUMIC_DIOPTRA_ITEM.get());
                         output.accept(PAPER_FLEDGLING.get());
                         output.accept(PAPER_APPRENTICE.get());
                         output.accept(PAPER_SCHOLAR.get());

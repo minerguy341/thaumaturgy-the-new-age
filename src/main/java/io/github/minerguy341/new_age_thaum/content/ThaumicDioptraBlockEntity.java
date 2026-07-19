@@ -1,0 +1,179 @@
+package io.github.minerguy341.new_age_thaum.content;
+
+import io.github.minerguy341.new_age_thaum.core.ModBlockEntities;
+import io.github.minerguy341.new_age_thaum.core.aura.AuraField;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientGamePacketListener;
+import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.Mth;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+
+/**
+ * The Thaumic Dioptra's state: which chunk window this block displays (assigned by
+ * {@link DioptraGroup}) and a 13x13 vis snapshot of that window the server refreshes to
+ * nearby clients — 169 {@link AuraField} map lookups, so reading vis never touches or
+ * loads a chunk. Also caches its own chunk's vis as a 0–15 comparator signal.
+ * Sync is the vanilla block-entity update-tag path (the house idiom): the dioptra sits
+ * in a player-loaded chunk whenever anyone can see it, so no custom payload is needed.
+ */
+public class ThaumicDioptraBlockEntity extends BlockEntity {
+    /** Snapshot grid edge, one cell per chunk (13x13 centered on the window center). */
+    public static final int GRID = DioptraGroup.WINDOW;
+    private static final int HALF = DioptraGroup.HALF;
+    private static final int COMPARATOR_INTERVAL_TICKS = 20;
+    private static final int SYNC_INTERVAL_TICKS = 60;
+    private static final double SYNC_PLAYER_RANGE = 48.0;
+    /** Sanity bound on a loaded window center's offset from the block's own chunk. */
+    private static final int MAX_CENTER_OFFSET = 512;
+
+    private int windowCenterX;
+    private int windowCenterZ;
+    private final float[] visWindow = new float[GRID * GRID];
+    private int comparatorSignal;
+    // Fresh placement (no NBT load) triggers one group recompute on the first tick —
+    // onPlace fires before the block entity exists, so placement can't hook it directly.
+    private boolean pendingGroupRefresh = true;
+
+    public ThaumicDioptraBlockEntity(BlockPos pos, BlockState state) {
+        super(ModBlockEntities.THAUMIC_DIOPTRA.get(), pos, state);
+        ChunkPos own = new ChunkPos(pos);
+        windowCenterX = own.x;
+        windowCenterZ = own.z;
+    }
+
+    /** Center chunk of the displayed window. */
+    public ChunkPos windowCenter() {
+        return new ChunkPos(windowCenterX, windowCenterZ);
+    }
+
+    /** Row-major 13x13 vis snapshot of the window; client display data. */
+    public float[] visWindow() {
+        return visWindow;
+    }
+
+    /** Cached comparator signal, 0–15 proportional to the block's own chunk vis. */
+    public int comparatorSignal() {
+        return comparatorSignal;
+    }
+
+    public void serverTick(ServerLevel level) {
+        if (pendingGroupRefresh) {
+            pendingGroupRefresh = false;
+            DioptraGroup.refresh(level, worldPosition);
+        }
+        long time = level.getGameTime();
+        if (time % COMPARATOR_INTERVAL_TICKS == 0) {
+            refreshComparator(level);
+        }
+        // Refresh the map for nearby clients; skip when nobody is close enough to see it.
+        if (time % SYNC_INTERVAL_TICKS == 0 && level.getNearestPlayer(
+                worldPosition.getX(), worldPosition.getY(), worldPosition.getZ(), SYNC_PLAYER_RANGE, false) != null) {
+            refreshSnapshot(level);
+        }
+    }
+
+    /**
+     * Adopts a window center computed by {@link DioptraGroup}. On change the snapshot
+     * refills and syncs unconditionally, so the map is correct the moment a group grows
+     * or splits. Public so gametests drive the exact production path.
+     */
+    public void applyWindowCenter(ServerLevel level, int centerX, int centerZ) {
+        if (windowCenterX == centerX && windowCenterZ == centerZ) {
+            return;
+        }
+        windowCenterX = centerX;
+        windowCenterZ = centerZ;
+        fillSnapshot(level);
+        setChanged();
+        level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), Block.UPDATE_CLIENTS);
+    }
+
+    /** Refills the snapshot from the aura field; syncs only if a cell changed. */
+    public void refreshSnapshot(ServerLevel level) {
+        if (fillSnapshot(level)) {
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), Block.UPDATE_CLIENTS);
+        }
+    }
+
+    private boolean fillSnapshot(ServerLevel level) {
+        AuraField aura = AuraField.get(level);
+        boolean changed = false;
+        for (int dz = -HALF; dz <= HALF; dz++) {
+            for (int dx = -HALF; dx <= HALF; dx++) {
+                float value = aura.vis(new ChunkPos(windowCenterX + dx, windowCenterZ + dz).toLong());
+                int index = (dz + HALF) * GRID + (dx + HALF);
+                if (visWindow[index] != value) {
+                    visWindow[index] = value;
+                    changed = true;
+                }
+            }
+        }
+        return changed;
+    }
+
+    /** Recomputes the comparator cache from own-chunk vis. Public for gametests. */
+    public void refreshComparator(ServerLevel level) {
+        float vis = AuraField.get(level).vis(new ChunkPos(worldPosition).toLong());
+        int signal = vis <= 0f ? 0 : Mth.clamp(1 + Mth.floor(vis / AuraField.CHUNK_CAP * 14f), 1, 15);
+        if (signal != comparatorSignal) {
+            comparatorSignal = signal;
+            setChanged();
+            level.updateNeighbourForOutputSignal(worldPosition, getBlockState().getBlock());
+        }
+    }
+
+    @Override
+    protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
+        super.saveAdditional(tag, registries);
+        tag.putInt("WindowX", windowCenterX);
+        tag.putInt("WindowZ", windowCenterZ);
+        // The snapshot rides along so getUpdateTag carries it; stale values on world
+        // load are refreshed by the first sync interval.
+        int[] snapshot = new int[visWindow.length];
+        for (int i = 0; i < visWindow.length; i++) {
+            snapshot[i] = Float.floatToIntBits(visWindow[i]);
+        }
+        tag.putIntArray("Vis", snapshot);
+        tag.putInt("Signal", comparatorSignal);
+    }
+
+    @Override
+    protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
+        super.loadAdditional(tag, registries);
+        pendingGroupRefresh = false; // a saved dioptra's group is already computed
+        ChunkPos own = new ChunkPos(worldPosition);
+        int loadedX = tag.contains("WindowX") ? tag.getInt("WindowX") : own.x;
+        int loadedZ = tag.contains("WindowZ") ? tag.getInt("WindowZ") : own.z;
+        // Defensive: a hand-edited/corrupt center far from the block falls back home.
+        boolean sane = Math.abs(loadedX - own.x) <= MAX_CENTER_OFFSET
+                && Math.abs(loadedZ - own.z) <= MAX_CENTER_OFFSET;
+        windowCenterX = sane ? loadedX : own.x;
+        windowCenterZ = sane ? loadedZ : own.z;
+        int[] snapshot = tag.getIntArray("Vis");
+        for (int i = 0; i < visWindow.length; i++) {
+            float value = i < snapshot.length ? Float.intBitsToFloat(snapshot[i]) : 0f;
+            visWindow[i] = Float.isFinite(value) ? Mth.clamp(value, 0f, AuraField.CHUNK_CAP) : 0f;
+        }
+        comparatorSignal = Mth.clamp(tag.getInt("Signal"), 0, 15);
+    }
+
+    @Override
+    public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
+        CompoundTag tag = new CompoundTag();
+        saveAdditional(tag, registries);
+        return tag;
+    }
+
+    @Override
+    public Packet<ClientGamePacketListener> getUpdatePacket() {
+        return ClientboundBlockEntityDataPacket.create(this);
+    }
+}
