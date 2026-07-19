@@ -40,6 +40,21 @@ public final class NewAgeThaumConfig {
     /** Ticks between budgeted aura diffusion passes per dimension. */
     public static int auraDiffusionInterval = 40;
 
+    /** Show the per-primal vis bars while holding an assembled wand/stave. */
+    public static boolean wandHudEnabled = true;
+
+    /** Ambient recharge floor: fraction of capacity each primal fills to away from nodes. */
+    public static double wandAmbientFloor = 0.10;
+
+    /** Ambient floor for primals in the core's recharge-affinity decomposition. */
+    public static double wandAffinityFloor = 0.25;
+
+    /** Ambient recharge rate, vis per second per primal, drawn from the chunk aura. */
+    public static double wandRechargeRate = 0.5;
+
+    /** Recharge rate multiplier while within range of an aura node (which lifts the floor to full). */
+    public static double wandNodeRechargeMultiplier = 4.0;
+
     /** "aspects" = ribbon blends the linked aspects; "custom" = fixed base + pulse gradient. */
     public static String currentColorMode = "aspects";
     public static int currentBaseColor = 0x8A6BB5;
@@ -105,6 +120,11 @@ public final class NewAgeThaumConfig {
             auraDiffusionScope = "all".equalsIgnoreCase(values.get("auraDiffusionScope")) ? "all" : "loaded";
         }
         auraDiffusionInterval = parseInt(values.get("auraDiffusionInterval"), auraDiffusionInterval, 1, 1200);
+        wandHudEnabled = parseBool(values.get("wandHudEnabled"), wandHudEnabled);
+        wandAmbientFloor = parseDouble(values.get("wandAmbientFloor"), wandAmbientFloor, 0.0, 1.0);
+        wandAffinityFloor = parseDouble(values.get("wandAffinityFloor"), wandAffinityFloor, 0.0, 1.0);
+        wandRechargeRate = parseDouble(values.get("wandRechargeRate"), wandRechargeRate, 0.0, 100.0);
+        wandNodeRechargeMultiplier = parseDouble(values.get("wandNodeRechargeMultiplier"), wandNodeRechargeMultiplier, 1.0, 100.0);
         if (values.containsKey("currentColorMode")) {
             currentColorMode = values.get("currentColorMode");
         }
@@ -186,6 +206,30 @@ public final class NewAgeThaumConfig {
         out.append("# Ticks between budgeted aura diffusion passes per dimension (20 = 1 second).\n");
         out.append("# Default: 40. Accepted: 1 to 1200 (clamped).\n");
         out.append("auraDiffusionInterval = ").append(auraDiffusionInterval).append("\n\n");
+
+        out.append("# Show the six per-primal vis bars while holding an assembled wand or stave.\n");
+        out.append("# Default: true. Accepted: true, false.\n");
+        out.append("wandHudEnabled = ").append(wandHudEnabled).append("\n\n");
+
+        out.append("# Away from aura nodes, each primal recharges from the chunk aura only up to\n");
+        out.append("# this fraction of the wand's capacity. Near a node the floor is lifted to\n");
+        out.append("# full capacity (\"nodes provide the rest\").\n");
+        out.append("# Default: 0.1. Accepted: 0.0 to 1.0 (clamped).\n");
+        out.append("wandAmbientFloor = ").append(wandAmbientFloor).append("\n\n");
+
+        out.append("# The ambient floor for primals matching the core's recharge affinity (the\n");
+        out.append("# affinity aspect decomposed to its primals; greatwood's silva = tellus+unda).\n");
+        out.append("# Default: 0.25. Accepted: 0.0 to 1.0 (clamped).\n");
+        out.append("wandAffinityFloor = ").append(wandAffinityFloor).append("\n\n");
+
+        out.append("# Ambient recharge rate in vis per second per primal, drawn (conserved) from\n");
+        out.append("# the chunk the holder stands in. Default: 0.5. Accepted: 0.0 to 100.0.\n");
+        out.append("wandRechargeRate = ").append(wandRechargeRate).append("\n\n");
+
+        out.append("# Recharge rate multiplier while within 10 blocks of an aura node; the node's\n");
+        out.append("# own primal charges at double this again.\n");
+        out.append("# Default: 4.0. Accepted: 1.0 to 100.0 (clamped).\n");
+        out.append("wandNodeRechargeMultiplier = ").append(wandNodeRechargeMultiplier).append("\n\n");
 
         out.append("# \"aspects\" = each current blends the colors of its two linked aspects.\n");
         out.append("# \"custom\"  = currents use currentBaseColor and the pulse grades\n");

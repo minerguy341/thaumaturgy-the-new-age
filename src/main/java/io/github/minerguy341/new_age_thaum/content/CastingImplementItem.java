@@ -39,6 +39,17 @@ public class CastingImplementItem extends Item {
     }
 
     @Override
+    public void inventoryTick(ItemStack stack, Level level, net.minecraft.world.entity.Entity entity,
+            int slotId, boolean isSelected) {
+        // Recharge anywhere in a player's inventory (TC4-style), once a second.
+        if (level instanceof net.minecraft.server.level.ServerLevel serverLevel
+                && entity instanceof net.minecraft.world.entity.player.Player
+                && level.getGameTime() % WandRecharge.INTERVAL_TICKS == 0) {
+            WandRecharge.tick(serverLevel, entity.blockPosition(), stack);
+        }
+    }
+
+    @Override
     public void appendHoverText(ItemStack stack, TooltipContext context, List<Component> tooltip, TooltipFlag flag) {
         WandComponent component = componentOf(stack);
         if (component == null) {

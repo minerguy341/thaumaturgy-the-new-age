@@ -45,6 +45,7 @@ public final class NewAgeThaumClient {
 
     public static void init() {
         WandColors.register();
+        WandVisHud.register();
         OrreryDebugCommand.register();
         // listen() fires the moment the menu type is actually registered: late enough to
         // avoid the NeoForge early-.get() crash, early enough for RegisterMenuScreensEvent
