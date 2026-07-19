@@ -24,10 +24,11 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * {@code /nat_debug} — snapshots exactly what the hologram renderer computes for the
- * orrery you're looking at (or the nearest one): camera pose, sphere orientation, and
- * for every current the SAME visibility numbers the renderer uses (line-of-sight value
- * per endpoint, fade, verdict). Chat gets a one-line summary; the full dump goes to
+ * {@code /thaum debug} (client side of the shared {@code /thaum} root) — snapshots
+ * exactly what the hologram renderer computes for the orrery you're looking at (or the
+ * nearest one): camera pose, sphere orientation, and for every current the SAME
+ * visibility numbers the renderer uses (line-of-sight value per endpoint, fade,
+ * verdict). Chat gets a one-line summary; the full dump goes to
  * {@code new_age_thaum_debug.txt} in the game directory for pasting into a bug report.
  * Reads {@link OrreryHologramRenderer}'s own constants and math so it can never drift
  * from what actually rendered.
@@ -38,8 +39,9 @@ public final class OrreryDebugCommand {
 
     public static void register() {
         ClientCommandRegistrationEvent.EVENT.register((dispatcher, context) ->
-                dispatcher.register(ClientCommandRegistrationEvent.literal("nat_debug")
-                        .executes(ctx -> snapshot())));
+                dispatcher.register(ClientCommandRegistrationEvent.literal("thaum")
+                        .then(ClientCommandRegistrationEvent.literal("debug")
+                                .executes(ctx -> snapshot()))));
     }
 
     private static int snapshot() {
@@ -49,7 +51,7 @@ public final class OrreryDebugCommand {
         }
         ArcaneOrreryBlockEntity orrery = findOrrery(mc);
         if (orrery == null) {
-            chat(mc, "nat_debug: no orrery with a paper within 16 blocks (or under the crosshair).",
+            chat(mc, "thaum debug: no orrery with a paper within 16 blocks (or under the crosshair).",
                     ChatFormatting.RED);
             return 0;
         }
@@ -136,11 +138,11 @@ public final class OrreryDebugCommand {
         try {
             Files.writeString(file, out.toString());
         } catch (IOException e) {
-            chat(mc, "nat_debug: could not write " + file + ": " + e.getMessage(), ChatFormatting.RED);
+            chat(mc, "thaum debug: could not write " + file + ": " + e.getMessage(), ChatFormatting.RED);
             return 0;
         }
         chat(mc, String.format(Locale.ROOT,
-                "nat_debug: %d currents — %d full, %d faded, %d culled. Wrote %s",
+                "thaum debug: %d currents — %d full, %d faded, %d culled. Wrote %s",
                 links.pairs().size(), full, faded, culled, file), ChatFormatting.AQUA);
         return 1;
     }
