@@ -205,9 +205,12 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
             // Adjacent cells subtend a small angle, so normalized lerp ≈ the arc.
             point.set(a).lerp(b, t).normalize();
             // Silhouette clip: a unit-sphere surface point is on the visible cap iff
-            // dot(pointDir, camLocal) > 1. The small margin retreats the ribbon a hair
-            // before the limb so it never z-fights the shell edge-on.
-            visible[i] = point.dot(camLocal) > 1.05f;
+            // dot(pointDir, camLocal) > 1 — distance-independent, so keep the margin
+            // tiny: a larger one retreats the ribbon further from the limb the closer
+            // the camera gets. At the silhouette the lifted ribbon floats OUTSIDE the
+            // shell sphere, where the prepass stamps nothing, so grazing z-fights
+            // aren't a real risk.
+            visible[i] = point.dot(camLocal) > 1.01f;
             side.set(point).cross(chord).normalize();
             double envelope = Math.sin(Math.PI * t);
             double disp = envelope * amp * (1.9 * Math.sin(2 * Math.PI * 1.3 * t - time * speed * 2.4 + phase)
