@@ -109,9 +109,13 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
             LateHolograms.enqueue(dx * dx + dy * dy + dz * dz, true,
                     buffer -> drawCell(buffer, pose, cell, puzzle, placed, breath));
         }
-        // Each current sorts at its lifted arc midpoint — marginally nearer than the
-        // cells it connects, so it draws after them and rides on top. Not an occluder:
-        // its glow-under-core layering depends on blending.
+        // Each current sorts at its NEARER lifted endpoint. An endpoint floats at
+        // LIFT directly above its cell, strictly nearer than the cell surface — so the
+        // current always sorts after BOTH cells it touches and its ends can never be
+        // painted over by them. (Sorting at the arc midpoint failed exactly at the
+        // most face-on cell: the midpoint is farther than that nearest cell, so the
+        // cell drew later and covered the ribbon's tail.) Not an occluder: the
+        // glow-under-core layering depends on blending.
         //
         // Visibility is ALL-OR-NOTHING per current: a partial ribbon always reads as
         // broken (a tail amputated at the limb, or a floating scrap where an arc
@@ -137,13 +141,10 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
             if (fade <= 0f) {
                 continue; // an endpoint's sight line passes through the sphere
             }
-            rotated.set((float) (a.x() + b.x()), (float) (a.y() + b.y()), (float) (a.z() + b.z()))
-                    .normalize(LIFT * SCALE);
-            orientation.transform(rotated);
-            double dx = center.x + rotated.x - camera.x;
-            double dy = center.y + rotated.y - camera.y;
-            double dz = center.z + rotated.z - camera.z;
-            LateHolograms.enqueue(dx * dx + dy * dy + dz * dz,
+            double distSqr = Math.min(
+                    liftedEndpointDistSqr(a, orientation, center, camera, rotated),
+                    liftedEndpointDistSqr(b, orientation, center, camera, rotated));
+            LateHolograms.enqueue(distSqr,
                     buffer -> drawCurrent(buffer, pose, grid, links, pair, solved, breath, time, fade));
         }
         poseStack.popPose();
@@ -155,6 +156,17 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
         // entity by its block's chunk section, so looking slightly up in front of the
         // block made the projection vanish. Render off-screen like the beacon beam does.
         return true;
+    }
+
+    /** Squared world distance from the camera to a cell's lifted ribbon endpoint. */
+    private static double liftedEndpointDistSqr(GoldbergGrid.Cell cell, Quaternionf orientation,
+            Vec3 center, Vec3 camera, Vector3f scratch) {
+        scratch.set((float) cell.x(), (float) cell.y(), (float) cell.z()).mul(LIFT * SCALE);
+        orientation.transform(scratch);
+        double dx = center.x + scratch.x - camera.x;
+        double dy = center.y + scratch.y - camera.y;
+        double dz = center.z + scratch.z - camera.z;
+        return dx * dx + dy * dy + dz * dz;
     }
 
     /**
