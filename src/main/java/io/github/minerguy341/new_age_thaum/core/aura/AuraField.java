@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.LongPredicate;
 
 /**
  * The ambient aura field (PLAN.md §4.3, TC6 half of the hybrid): per-chunk vis in a
@@ -70,6 +71,16 @@ public final class AuraField extends SavedData {
      * nodes remain the only sources.
      */
     public void diffuse() {
+        diffuse(chunk -> true);
+    }
+
+    /**
+     * As {@link #diffuse()}, but only chunks passing {@code scope} act as SOURCES.
+     * Excluded chunks still receive inflow from included neighbors (a map write, not a
+     * chunk access), so a loaded-only scope doesn't build vis walls at the frontier.
+     * Skipped chunks still consume budget slots — the pass stays bounded either way.
+     */
+    public void diffuse(LongPredicate scope) {
         if (vis.isEmpty()) {
             return;
         }
@@ -77,6 +88,9 @@ public final class AuraField extends SavedData {
         int count = Math.min(chunks.size(), DIFFUSION_BUDGET);
         for (int i = 0; i < count; i++) {
             long chunk = chunks.get((diffusionCursor + i) % chunks.size());
+            if (!scope.test(chunk)) {
+                continue;
+            }
             float here = vis(chunk);
             ChunkPos pos = new ChunkPos(chunk);
             for (ChunkPos neighbor : new ChunkPos[]{

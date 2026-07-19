@@ -34,6 +34,12 @@ public final class NewAgeThaumConfig {
     /** Friction time constant of a flicked sphere's coast, in seconds. */
     public static double coastFriction = 0.7;
 
+    /** "loaded" = only loaded, block-ticking chunks act as diffusion sources; "all" = every recorded chunk. */
+    public static String auraDiffusionScope = "loaded";
+
+    /** Ticks between budgeted aura diffusion passes per dimension. */
+    public static int auraDiffusionInterval = 40;
+
     /** "aspects" = ribbon blends the linked aspects; "custom" = fixed base + pulse gradient. */
     public static String currentColorMode = "aspects";
     public static int currentBaseColor = 0x8A6BB5;
@@ -94,6 +100,11 @@ public final class NewAgeThaumConfig {
         currentWidth = parseDouble(values.get("currentWidth"), currentWidth, 0.0, 10.0);
         cellBorderWidth = parseDouble(values.get("cellBorderWidth"), cellBorderWidth, 0.0, 3.5);
         coastFriction = parseDouble(values.get("coastFriction"), coastFriction, 0.05, 5.0);
+        if (values.containsKey("auraDiffusionScope")) {
+            // Normalize: anything that isn't exactly "all" falls back to the safe scope.
+            auraDiffusionScope = "all".equalsIgnoreCase(values.get("auraDiffusionScope")) ? "all" : "loaded";
+        }
+        auraDiffusionInterval = parseInt(values.get("auraDiffusionInterval"), auraDiffusionInterval, 1, 1200);
         if (values.containsKey("currentColorMode")) {
             currentColorMode = values.get("currentColorMode");
         }
@@ -165,6 +176,17 @@ public final class NewAgeThaumConfig {
         out.append("# Default: 0.7. Accepted: 0.05 to 5.0 (clamped).\n");
         out.append("coastFriction = ").append(coastFriction).append("\n\n");
 
+        out.append("# Which chunks the ambient-aura diffusion pass may drain. \"loaded\" only lets\n");
+        out.append("# vis flow OUT of chunks that are loaded and block-ticking (vis still flows\n");
+        out.append("# INTO unloaded neighbors); \"all\" diffuses every recorded chunk in the save,\n");
+        out.append("# which can be costly on worlds with a very large explored area.\n");
+        out.append("# Default: \"loaded\". Accepted: \"loaded\", \"all\".\n");
+        out.append("auraDiffusionScope = \"").append(auraDiffusionScope).append("\"\n\n");
+
+        out.append("# Ticks between budgeted aura diffusion passes per dimension (20 = 1 second).\n");
+        out.append("# Default: 40. Accepted: 1 to 1200 (clamped).\n");
+        out.append("auraDiffusionInterval = ").append(auraDiffusionInterval).append("\n\n");
+
         out.append("# \"aspects\" = each current blends the colors of its two linked aspects.\n");
         out.append("# \"custom\"  = currents use currentBaseColor and the pulse grades\n");
         out.append("#             currentPulseFrom -> currentPulseTo. Default: \"aspects\".\n");
@@ -218,6 +240,14 @@ public final class NewAgeThaumConfig {
             }
             double parsed = Double.parseDouble(value);
             return Double.isFinite(parsed) ? net.minecraft.util.Mth.clamp(parsed, min, max) : fallback;
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    private static int parseInt(String value, int fallback, int min, int max) {
+        try {
+            return value == null ? fallback : net.minecraft.util.Mth.clamp(Integer.parseInt(value), min, max);
         } catch (NumberFormatException e) {
             return fallback;
         }

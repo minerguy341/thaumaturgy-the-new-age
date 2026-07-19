@@ -57,12 +57,9 @@ public final class NewAgeThaum {
         ReloadListenerRegistry.register(PackType.SERVER_DATA, new AspectAssignments(), id("aspect_assignments"));
         ReloadListenerRegistry.register(PackType.SERVER_DATA, new CodexReloadListener(), id("codex_entries"));
         ReloadListenerRegistry.register(PackType.SERVER_DATA, new WandMaterialReloadListener(), id("wand_materials"));
-        // Aura diffusion: budgeted pass every 2 seconds per dimension (PLAN §4.3/§5).
-        TickEvent.SERVER_LEVEL_POST.register(level -> {
-            if (level.getGameTime() % 40 == 0) {
-                io.github.minerguy341.new_age_thaum.core.aura.AuraField.get(level).diffuse();
-            }
-        });
+        // Aura diffusion: budgeted pass per dimension; cadence and scope are config-driven.
+        TickEvent.SERVER_LEVEL_POST.register(
+                io.github.minerguy341.new_age_thaum.core.aura.AuraDiffusionTicker::tick);
         PlayerEvent.PLAYER_JOIN.register(NewAgeThaum::syncAllTo);
         // Respawn rebuilds the client player: resync so the mirrors can't go stale
         // (and so any client-side reset around the respawn edge heals immediately).
