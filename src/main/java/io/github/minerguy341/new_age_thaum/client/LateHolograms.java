@@ -25,22 +25,30 @@ public final class LateHolograms {
     private static final int MAX_QUEUED = 4096;
     private static final List<Entry> QUEUE = new ArrayList<>();
 
-    private record Entry(double distSqr, Consumer<VertexConsumer> draw) {
+    private record Entry(double distSqr, boolean occludes, Consumer<VertexConsumer> draw) {
     }
 
     private LateHolograms() {
     }
 
+    /** As {@link #enqueue(double, boolean, Consumer)} with {@code occludes = false}. */
+    public static void enqueue(double distSqr, Consumer<VertexConsumer> draw) {
+        enqueue(distSqr, false, draw);
+    }
+
     /**
      * Called from a BER's render(): the draw runs later in the frame, so capture pose
      * matrices by COPY — the dispatcher's pose stack is reused after the BER returns.
-     * {@code distSqr} is the hologram's squared distance to the camera; the color pass
-     * blends whole holograms far-to-near by it, so a nearer hologram always draws over
-     * a farther one regardless of block-entity visit order.
+     * {@code distSqr} is the geometry's squared distance to the camera; the color pass
+     * blends entries far-to-near by it, so nearer always draws over farther regardless
+     * of block-entity visit order. {@code occludes} opts the geometry into the depth
+     * PREPASS: its nearest surface then hides everything behind it — its own far side
+     * included — per pixel. Use it for closed shells (the orrery sphere); leave it off
+     * for effects whose look depends on stacked layers blending (the aura orb's discs).
      */
-    public static void enqueue(double distSqr, Consumer<VertexConsumer> draw) {
+    public static void enqueue(double distSqr, boolean occludes, Consumer<VertexConsumer> draw) {
         if (QUEUE.size() < MAX_QUEUED) {
-            QUEUE.add(new Entry(distSqr, draw));
+            QUEUE.add(new Entry(distSqr, occludes, draw));
         }
     }
 
@@ -49,22 +57,40 @@ public final class LateHolograms {
         if (QUEUE.isEmpty()) {
             return;
         }
-        // Farthest hologram first — per-HOLOGRAM painter's order (per-quad sorting is
-        // what caused the self-overlap holes; whole compact objects sort cleanly).
+        // Farthest first — per-ENTRY painter's order for the color blend. (Per-quad
+        // sorting caused the earlier self-overlap holes; compact entries sort cleanly.)
         QUEUE.sort(Comparator.comparingDouble(Entry::distSqr).reversed());
         MultiBufferSource.BufferSource buffers = Minecraft.getInstance().renderBuffers().bufferSource();
-        // Color first (no depth write — blends in pure emission order, can't hole
-        // itself), then the same quads again as a depth-only silhouette stamp so the
-        // later cloud/weather passes stay behind the holograms. Switching buffer types
-        // flushes the color batch before the depth batch starts.
+
+        // Pass 1 — depth PREPASS of self-occluding geometry: stamps each shell's
+        // nearest surface so the color pass's depth test culls its far side per pixel.
+        // This replaces geometric back-face culling/fading outright: occlusion is a
+        // rendered result, so the front stays full-strength to a crisp silhouette.
+        VertexConsumer prepass = buffers.getBuffer(ModRenderTypes.HOLOGRAM_DEPTH);
+        for (Entry entry : QUEUE) {
+            if (entry.occludes()) {
+                entry.draw().accept(prepass);
+            }
+        }
+        buffers.endBatch(ModRenderTypes.HOLOGRAM_DEPTH);
+
+        // Pass 2 — color, no depth write: blends in sorted order over the already-drawn
+        // world; the prepass depth hides occluded-shell backsides and anything behind a
+        // stamped shell. Water/terrain/sky still show through (they're already drawn).
         VertexConsumer color = buffers.getBuffer(ModRenderTypes.HOLOGRAM);
         for (Entry entry : QUEUE) {
             entry.draw().accept(color);
         }
         buffers.endBatch(ModRenderTypes.HOLOGRAM);
+
+        // Pass 3 — depth stamp for the NON-prepassed geometry (orb discs, currents,
+        // columns), so the later cloud/weather passes stay behind every hologram; the
+        // prepassed shells are already in the depth buffer.
         VertexConsumer depth = buffers.getBuffer(ModRenderTypes.HOLOGRAM_DEPTH);
         for (Entry entry : QUEUE) {
-            entry.draw().accept(depth);
+            if (!entry.occludes()) {
+                entry.draw().accept(depth);
+            }
         }
         QUEUE.clear();
         buffers.endBatch(ModRenderTypes.HOLOGRAM_DEPTH);

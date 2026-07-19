@@ -13,7 +13,6 @@ import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
@@ -93,6 +92,10 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
         SphereLinks links = SphereLinks.compute(grid, effective, puzzle);
         double time = now / 1000.0;
 
+        // Cells enqueue as OCCLUDERS: the LateHolograms depth prepass stamps the shell's
+        // nearest surface, and the color pass's depth test then hides the far side per
+        // pixel — no facing math, no fade. The front face runs full-strength to a crisp
+        // silhouette, and gap holes (never stamped) still reveal the interior far wall.
         for (GoldbergGrid.Cell cell : grid.cells()) {
             if (puzzle != null && puzzle.isGap(cell.index())) {
                 continue; // gaps are holes in the sphere
@@ -101,21 +104,13 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
             double dx = center.x + rotated.x * SCALE - camera.x;
             double dy = center.y + rotated.y * SCALE - camera.y;
             double dz = center.z + rotated.z * SCALE - camera.z;
-            double distSqr = dx * dx + dy * dy + dz * dz;
-            // Facing fade: a cell's rotated direction IS its outward normal, so its dot
-            // with the direction to the camera says how squarely it faces the viewer.
-            // Cells angled away dissolve instead of drawing — the far side never bleeds
-            // through the veil, and the limb fades out smoothly instead of popping.
-            float alphaScale = facingFade(dx, dy, dz, distSqr, rotated, SCALE);
-            if (alphaScale < 0.05f) {
-                continue; // fully faded — un-rendered, exactly
-            }
-            LateHolograms.enqueue(distSqr,
-                    buffer -> drawCell(buffer, pose, cell, puzzle, placed, breath, alphaScale));
+            LateHolograms.enqueue(dx * dx + dy * dy + dz * dz, true,
+                    buffer -> drawCell(buffer, pose, cell, puzzle, placed, breath));
         }
         // Each current sorts at its lifted arc midpoint — marginally nearer than the
-        // cells it connects, so it draws after them and rides on top. Same facing fade
-        // as the cells so a current never outlives the faces it links.
+        // cells it connects, so it draws after them and rides on top. Not an occluder:
+        // its glow-under-core layering depends on blending, and a rear current behind
+        // the stamped shell depth-fails on its own.
         for (int[] pair : links.pairs()) {
             GoldbergGrid.Cell a = grid.cell(pair[0]);
             GoldbergGrid.Cell b = grid.cell(pair[1]);
@@ -125,31 +120,10 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
             double dx = center.x + rotated.x - camera.x;
             double dy = center.y + rotated.y - camera.y;
             double dz = center.z + rotated.z - camera.z;
-            double distSqr = dx * dx + dy * dy + dz * dz;
-            float alphaScale = facingFade(dx, dy, dz, distSqr, rotated, LIFT * SCALE);
-            if (alphaScale < 0.05f) {
-                continue;
-            }
-            LateHolograms.enqueue(distSqr,
-                    buffer -> drawCurrent(buffer, pose, grid, links, pair, solved, breath, time, alphaScale));
+            LateHolograms.enqueue(dx * dx + dy * dy + dz * dz,
+                    buffer -> drawCurrent(buffer, pose, grid, links, pair, solved, breath, time));
         }
         poseStack.popPose();
-    }
-
-    /**
-     * Alpha multiplier from how squarely a surface point faces the camera: 1 when seen
-     * head-on, ~0.15 edge-on at the limb, 0 once it turns away. {@code (dx,dy,dz)} is
-     * point-minus-camera and {@code normal} the outward normal scaled by
-     * {@code normalLength}.
-     */
-    private static float facingFade(double dx, double dy, double dz, double distSqr,
-            Vector3f normal, float normalLength) {
-        double dist = Math.sqrt(distSqr);
-        if (dist < 1.0e-4) {
-            return 1.0f; // camera inside the surface point — show it
-        }
-        double facing = -(dx * normal.x + dy * normal.y + dz * normal.z) / (dist * normalLength);
-        return (float) Mth.clamp(0.15 + 1.3 * facing, 0.0, 1.0);
     }
 
     @Override
@@ -166,8 +140,7 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
      * chain phase, jitter, and pulse all mirror {@link ResearchSphereScreen}.
      */
     private static void drawCurrent(VertexConsumer buffer, Matrix4f pose, GoldbergGrid grid,
-            SphereLinks links, int[] pair, boolean solved, double breath, double time,
-            float alphaScale) {
+            SphereLinks links, int[] pair, boolean solved, double breath, double time) {
         // Orient the link downstream: the current flows from lower chain depth to higher.
         int from = pair[0];
         int to = pair[1];
@@ -190,10 +163,10 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
         // being exactly coplanar where ribbons overlap; the color pass blends purely in
         // emission order and doesn't care.
         float lift = LIFT + (float) jitter * 0.006f;
-        ribbon(buffer, pose, grid.cell(from), grid.cell(to), c1, c2, 3.8f * widthScale,
-                Math.round((solved ? 110 : 70) * alphaScale), time, phase, depth, lift);            // soft glow
-        ribbon(buffer, pose, grid.cell(from), grid.cell(to), c1, c2, 1.6f * widthScale,
-                Math.round((solved ? 255 : 235) * alphaScale), time, phase, depth, lift + 0.004f);  // bright core
+        ribbon(buffer, pose, grid.cell(from), grid.cell(to), c1, c2,
+                3.8f * widthScale, solved ? 110 : 70, time, phase, depth, lift);            // soft glow
+        ribbon(buffer, pose, grid.cell(from), grid.cell(to), c1, c2,
+                1.6f * widthScale, solved ? 255 : 235, time, phase, depth, lift + 0.004f);  // bright core
     }
 
     /**
@@ -251,16 +224,16 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
     }
 
     private static void drawCell(VertexConsumer buffer, Matrix4f pose, GoldbergGrid.Cell cell,
-            ResearchPuzzle puzzle, Map<Integer, ResourceLocation> placed, double breath,
-            float alphaScale) {
+            ResearchPuzzle puzzle, Map<Integer, ResourceLocation> placed, double breath) {
         boolean endpoint = puzzle != null && puzzle.isEndpoint(cell.index());
         ResourceLocation aspect = endpoint ? puzzle.endpoints().get(cell.index()) : placed.get(cell.index());
 
         int rgb;
         int alpha;
-        // Filled cells are opaque when face-on (alphaScale fades them toward the limb);
-        // the empty-cell veil stays see-through for the hologram read. The far side
-        // never draws at all — the facing fade dissolves it before emission.
+        // Filled cells are opaque, the empty-cell veil see-through — the hologram read.
+        // The far side needs no alpha treatment at all: the depth prepass stamped the
+        // shell's nearest surface, so back cells depth-fail per pixel (except through
+        // gap holes, where seeing the interior far wall is intentional).
         if (endpoint) {
             rgb = SphereColors.blend(SphereColors.colorOf(aspect), SphereColors.GOLD, 0.5);
             alpha = 0xFF;
@@ -274,7 +247,6 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
         if (breath > 0) {
             rgb = SphereColors.blend(rgb, SphereColors.GOLD, breath);
         }
-        alpha = Math.round(alpha * alphaScale);
         int r = (rgb >> 16) & 0xFF;
         int g = (rgb >> 8) & 0xFF;
         int b = rgb & 0xFF;
