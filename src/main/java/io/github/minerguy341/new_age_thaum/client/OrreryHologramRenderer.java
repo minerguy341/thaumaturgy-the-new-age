@@ -277,15 +277,41 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
             rgb = SphereColors.blend(rgb, SphereColors.GOLD, breath);
         }
 
-        fan(buffer, pose, cell, 1.0, borderRgb, borderAlpha);
-        fan(buffer, pose, cell, SphereColors.cellShrink(), rgb, alpha);
+        // Border and fill NEVER overlap: the border is a ring of trapezoids between the
+        // full and shrunk outlines, the fill the inner fan only. Layering them coplanar
+        // z-fought under the depth prepass — the two layers' interpolated depths differ
+        // by float noise, so the color pass lost one or the other pixel by pixel.
+        double shrink = SphereColors.cellShrink();
+        ring(buffer, pose, cell, shrink, borderRgb, borderAlpha);
+        fan(buffer, pose, cell, shrink, rgb, alpha);
+    }
+
+    /** The border: trapezoid quads between the cell's full and shrunk outlines. */
+    private static void ring(VertexConsumer buffer, Matrix4f pose, GoldbergGrid.Cell cell,
+            double shrink, int rgb, int alpha) {
+        int r = (rgb >> 16) & 0xFF;
+        int g = (rgb >> 8) & 0xFF;
+        int b = rgb & 0xFF;
+        double[][] corners = cell.corners();
+        float cx = (float) cell.x();
+        float cy = (float) cell.y();
+        float cz = (float) cell.z();
+        for (int i = 0; i < corners.length; i++) {
+            double[] p1 = corners[i];
+            double[] p2 = corners[(i + 1) % corners.length];
+            buffer.addVertex(pose, (float) p1[0], (float) p1[1], (float) p1[2]).setColor(r, g, b, alpha);
+            buffer.addVertex(pose, (float) p2[0], (float) p2[1], (float) p2[2]).setColor(r, g, b, alpha);
+            buffer.addVertex(pose, shrunk(p2[0], cx, shrink), shrunk(p2[1], cy, shrink), shrunk(p2[2], cz, shrink))
+                    .setColor(r, g, b, alpha);
+            buffer.addVertex(pose, shrunk(p1[0], cx, shrink), shrunk(p1[1], cy, shrink), shrunk(p1[2], cz, shrink))
+                    .setColor(r, g, b, alpha);
+        }
     }
 
     /**
-     * The cell polygon as a center-fan of degenerate quads (QUADS mode; repeating the
-     * last corner turns each fan triangle into a valid quad), with the corners pulled
-     * toward the cell center by {@code shrink} — 1.0 is the full cell (border layer),
-     * less leaves the layer beneath showing as the border.
+     * The fill: a center-fan of degenerate quads (QUADS mode; repeating the last corner
+     * turns each fan triangle into a valid quad) over the outline pulled toward the
+     * cell center by {@code shrink} — it stops exactly where the border ring begins.
      */
     private static void fan(VertexConsumer buffer, Matrix4f pose, GoldbergGrid.Cell cell,
             double shrink, int rgb, int alpha) {
