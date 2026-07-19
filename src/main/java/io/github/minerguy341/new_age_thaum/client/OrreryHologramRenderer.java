@@ -31,8 +31,10 @@ import java.util.Map;
  * viewing player drags the sphere around in the screen.
  */
 public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryBlockEntity> {
-    private static final float HEIGHT = 1.55f;
-    private static final float SCALE = 0.45f;
+    // Package-private (with LIFT and endpointVisibility) so OrreryDebugCommand snapshots
+    // run the SAME constants and math as the renderer — no drift between the two.
+    static final float HEIGHT = 1.55f;
+    static final float SCALE = 0.45f;
     /**
      * The screen tunes its currents in pixels on a ~100px-radius sphere; the hologram
      * sphere has radius 1 pre-{@link #SCALE}, so 1px maps to 0.01 units and the config's
@@ -40,7 +42,7 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
      */
     private static final float PX = 0.01f;
     /** Currents float just above the cell fills so they never z-fight the surface. */
-    private static final float LIFT = 1.02f;
+    static final float LIFT = 1.02f;
 
     public OrreryHologramRenderer(BlockEntityRendererProvider.Context context) {
     }
@@ -162,7 +164,7 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
      * passes through. The measure is the segment's closest approach to the sphere's
      * center, so the fade band is the same at every camera distance.
      */
-    private static float endpointVisibility(double qx, double qy, double qz, Vector3f cam) {
+    static float endpointVisibility(double qx, double qy, double qz, Vector3f cam) {
         double dx = qx - cam.x;
         double dy = qy - cam.y;
         double dz = qz - cam.z;
