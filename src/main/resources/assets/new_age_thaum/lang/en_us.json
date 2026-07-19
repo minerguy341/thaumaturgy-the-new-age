@@ -128,5 +128,10 @@
   "aspect.new_age_thaum.opes.desc": "Wealth, riches, and greed.",
   "aspect.new_age_thaum.barathrum.desc": "The abyss and the eldritch deep.",
   "block.new_age_thaum.aura_node": "Aura Node",
-  "block.new_age_thaum.thaumic_dioptra": "Thaumic Dioptra"
+  "block.new_age_thaum.thaumic_dioptra": "Thaumic Dioptra",
+  "node_personality.new_age_thaum.bright": "Bright",
+  "node_personality.new_age_thaum.pale": "Pale",
+  "node_personality.new_age_thaum.hungry": "Hungry",
+  "node_personality.new_age_thaum.tainted": "Tainted",
+  "node_personality.new_age_thaum.pure": "Pure"
 }
