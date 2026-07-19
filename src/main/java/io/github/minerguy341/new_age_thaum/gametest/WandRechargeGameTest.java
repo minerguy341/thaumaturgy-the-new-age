@@ -62,7 +62,7 @@ public class WandRechargeGameTest {
         float perPass = (float) NewAgeThaumConfig.wandRechargeRate;
         int passes = (int) Math.ceil(Math.max(baseTarget, affinityTarget) / Math.max(perPass, 0.01f)) + 4;
         for (int i = 0; i < passes; i++) {
-            WandRecharge.charge(level, pos, wand, null);
+            WandRecharge.tick(level, pos, wand);
         }
 
         WandVis vis = wand.getOrDefault(ModComponents.WAND_VIS.get(), WandVis.EMPTY);
@@ -89,32 +89,31 @@ public class WandRechargeGameTest {
     //?} else {
     /*@GameTest(template = "new_age_thaum:empty")
     *///?}
-    public void nodeLiftsFloorToFullCapacity(GameTestHelper helper) {
+    public void nodeRightClickChargesTowardFull(GameTestHelper helper) {
         var level = helper.getLevel();
-        BlockPos nodePos = new BlockPos(1, 2, 1);
-        helper.setBlock(nodePos, ModRegistries.AURA_NODE.get());
-        if (!(helper.getBlockEntity(nodePos) instanceof AuraNodeBlockEntity node)) {
+        BlockPos nodePos = helper.absolutePos(new BlockPos(1, 2, 1));
+        helper.setBlock(new BlockPos(1, 2, 1), ModRegistries.AURA_NODE.get());
+        if (!(helper.getBlockEntity(new BlockPos(1, 2, 1)) instanceof AuraNodeBlockEntity node)) {
             helper.fail("Placed aura node has no block entity");
             return;
         }
         node.serverTick(level); // rolls the node's primal identity
         helper.assertTrue(node.aspect() != null, "A ticked node must roll an aspect identity");
 
-        BlockPos holderPos = helper.absolutePos(new BlockPos(2, 2, 1));
-        helper.assertTrue(WandRecharge.findNode(level, holderPos) == node,
-                "findNode must see an aura node one block away");
-
         AuraField aura = AuraField.get(level);
-        long chunk = new ChunkPos(holderPos).toLong();
+        long chunk = new ChunkPos(nodePos).toLong();
         ItemStack wand = assembledWand();
         float capacity = 50f;
 
-        // A few passes in, the node's own primal must lead any other primal (its rate
-        // is doubled; every primal's target is full capacity near a node).
+        // One click, from a topped chunk: the node's own primal takes double any other's,
+        // and the wand gains exactly what the chunk loses (conservation).
         aura.add(chunk, AuraField.CHUNK_CAP);
-        for (int i = 0; i < 3; i++) {
-            WandRecharge.charge(level, holderPos, wand, node);
-        }
+        float chunkBefore = aura.vis(chunk);
+        float moved = WandRecharge.chargeFromNode(level, nodePos, wand, node);
+        helper.assertTrue(moved > 0f, "A node click on a charged chunk must move vis");
+        helper.assertTrue(Math.abs((chunkBefore - aura.vis(chunk)) - moved) < 1.0e-3f,
+                "Node charging must conserve chunk aura: chunk lost "
+                        + (chunkBefore - aura.vis(chunk)) + ", wand gained " + moved);
         WandVis early = wand.getOrDefault(ModComponents.WAND_VIS.get(), WandVis.EMPTY);
         ResourceLocation other = Primals.ORDER.stream()
                 .filter(id -> !id.equals(node.aspect())).findFirst().orElseThrow();
@@ -122,19 +121,23 @@ public class WandRechargeGameTest {
                 "The node's own primal must charge fastest, got " + early.get(node.aspect())
                         + " vs " + early.get(other));
 
-        float nodePerPass = (float) (NewAgeThaumConfig.wandRechargeRate
-                * NewAgeThaumConfig.wandNodeRechargeMultiplier);
-        int passes = (int) Math.ceil(capacity / Math.max(nodePerPass, 0.01f)) + 8;
-        for (int i = 0; i < passes; i++) {
-            aura.add(chunk, AuraField.CHUNK_CAP); // keep the chunk topped up
-            WandRecharge.charge(level, holderPos, wand, node);
+        // Repeated clicks with the chunk kept topped must fill every primal to capacity.
+        float perUse = (float) NewAgeThaumConfig.wandNodeChargePerUse;
+        int clicks = (int) Math.ceil(capacity / Math.max(perUse, 0.01f)) + 8;
+        for (int i = 0; i < clicks; i++) {
+            aura.add(chunk, AuraField.CHUNK_CAP);
+            WandRecharge.chargeFromNode(level, nodePos, wand, node);
         }
         WandVis full = wand.getOrDefault(ModComponents.WAND_VIS.get(), WandVis.EMPTY);
         for (ResourceLocation primal : Primals.ORDER) {
             helper.assertTrue(Math.abs(full.get(primal) - capacity) < 1.0e-3f,
-                    "Near a node every primal must reach full capacity, " + primal
-                            + " got " + full.get(primal));
+                    "Node charging must reach full capacity for " + primal
+                            + ", got " + full.get(primal));
         }
+        // A full wand on a topped chunk takes nothing more.
+        aura.add(chunk, AuraField.CHUNK_CAP);
+        helper.assertTrue(WandRecharge.chargeFromNode(level, nodePos, wand, node) == 0f,
+                "A full wand must draw nothing from a node");
         helper.succeed();
     }
 
@@ -151,7 +154,7 @@ public class WandRechargeGameTest {
 
         ItemStack wand = assembledWand();
         for (int i = 0; i < 5; i++) {
-            WandRecharge.charge(level, pos, wand, null);
+            WandRecharge.tick(level, pos, wand);
         }
         helper.assertTrue(wand.get(ModComponents.WAND_VIS.get()) == null,
                 "An empty chunk must charge nothing (component never set)");

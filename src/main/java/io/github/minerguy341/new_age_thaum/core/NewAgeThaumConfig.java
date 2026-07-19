@@ -52,8 +52,8 @@ public final class NewAgeThaumConfig {
     /** Ambient recharge rate, vis per second per primal, drawn from the chunk aura. */
     public static double wandRechargeRate = 0.5;
 
-    /** Recharge rate multiplier while within range of an aura node (which lifts the floor to full). */
-    public static double wandNodeRechargeMultiplier = 4.0;
+    /** Vis pulled per primal per right-click on an aura node (node's own primal doubled). */
+    public static double wandNodeChargePerUse = 8.0;
 
     /** "aspects" = ribbon blends the linked aspects; "custom" = fixed base + pulse gradient. */
     public static String currentColorMode = "aspects";
@@ -124,7 +124,7 @@ public final class NewAgeThaumConfig {
         wandAmbientFloor = parseDouble(values.get("wandAmbientFloor"), wandAmbientFloor, 0.0, 1.0);
         wandAffinityFloor = parseDouble(values.get("wandAffinityFloor"), wandAffinityFloor, 0.0, 1.0);
         wandRechargeRate = parseDouble(values.get("wandRechargeRate"), wandRechargeRate, 0.0, 100.0);
-        wandNodeRechargeMultiplier = parseDouble(values.get("wandNodeRechargeMultiplier"), wandNodeRechargeMultiplier, 1.0, 100.0);
+        wandNodeChargePerUse = parseDouble(values.get("wandNodeChargePerUse"), wandNodeChargePerUse, 0.1, 100.0);
         if (values.containsKey("currentColorMode")) {
             currentColorMode = values.get("currentColorMode");
         }
@@ -226,10 +226,11 @@ public final class NewAgeThaumConfig {
         out.append("# the chunk the holder stands in. Default: 0.5. Accepted: 0.0 to 100.0.\n");
         out.append("wandRechargeRate = ").append(wandRechargeRate).append("\n\n");
 
-        out.append("# Recharge rate multiplier while within 10 blocks of an aura node; the node's\n");
-        out.append("# own primal charges at double this again.\n");
-        out.append("# Default: 4.0. Accepted: 1.0 to 100.0 (clamped).\n");
-        out.append("wandNodeRechargeMultiplier = ").append(wandNodeRechargeMultiplier).append("\n\n");
+        out.append("# Vis pulled into each primal per right-click on an aura node (the node's own\n");
+        out.append("# primal takes double). Node charging fills toward FULL capacity, drawn from\n");
+        out.append("# the node's chunk aura, which the node then re-pumps — so the node's recharge\n");
+        out.append("# rate is the real rate limit. Default: 8.0. Accepted: 0.1 to 100.0 (clamped).\n");
+        out.append("wandNodeChargePerUse = ").append(wandNodeChargePerUse).append("\n\n");
 
         out.append("# \"aspects\" = each current blends the colors of its two linked aspects.\n");
         out.append("# \"custom\"  = currents use currentBaseColor and the pulse grades\n");
