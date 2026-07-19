@@ -165,9 +165,11 @@ public class DioptraGameTest {
         aura.add(ownChunk, 33f);
         aura.add(cornerChunk, -AuraField.CHUNK_CAP * 2);
         aura.add(cornerChunk, 77f);
+        aura.addFlux(cornerChunk, 44f); // flux rides the same snapshot
         dioptra.refreshSnapshot(level);
 
         float[] window = dioptra.visWindow();
+        float[] fluxWindow = dioptra.fluxWindow();
         int grid = ThaumicDioptraBlockEntity.GRID;
         float centerCell = window[(6 * grid) + 6];
         float cornerCell = window[(12 * grid) + 12];
@@ -175,6 +177,10 @@ public class DioptraGameTest {
                 "Center cell must mirror the aura field, got " + centerCell);
         helper.assertTrue(Math.abs(cornerCell - 77f) < 1.0e-4f,
                 "Window corner cell must mirror the aura field, got " + cornerCell);
+        helper.assertTrue(Math.abs(fluxWindow[(12 * grid) + 12] - 44f) < 1.0e-4f,
+                "Corner cell flux must mirror the aura field, got " + fluxWindow[(12 * grid) + 12]);
+        helper.assertTrue(fluxWindow[(6 * grid) + 6] == 0f,
+                "A flux-free cell must read zero flux, got " + fluxWindow[(6 * grid) + 6]);
         helper.succeed();
     }
 

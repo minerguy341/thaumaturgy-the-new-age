@@ -36,6 +36,7 @@ public class ThaumicDioptraBlockEntity extends BlockEntity {
     private int windowCenterX;
     private int windowCenterZ;
     private final float[] visWindow = new float[GRID * GRID];
+    private final float[] fluxWindow = new float[GRID * GRID];
     private int comparatorSignal;
     // Fresh placement (no NBT load) triggers one group recompute on the first tick —
     // onPlace fires before the block entity exists, so placement can't hook it directly.
@@ -56,6 +57,11 @@ public class ThaumicDioptraBlockEntity extends BlockEntity {
     /** Row-major 13x13 vis snapshot of the window; client display data. */
     public float[] visWindow() {
         return visWindow;
+    }
+
+    /** Row-major 13x13 flux snapshot of the window; stains the map where flux is high. */
+    public float[] fluxWindow() {
+        return fluxWindow;
     }
 
     /** Cached comparator signal, 0–15 proportional to the block's own chunk vis. */
@@ -108,10 +114,16 @@ public class ThaumicDioptraBlockEntity extends BlockEntity {
         boolean changed = false;
         for (int dz = -HALF; dz <= HALF; dz++) {
             for (int dx = -HALF; dx <= HALF; dx++) {
-                float value = aura.vis(new ChunkPos(windowCenterX + dx, windowCenterZ + dz).toLong());
+                long chunk = new ChunkPos(windowCenterX + dx, windowCenterZ + dz).toLong();
                 int index = (dz + HALF) * GRID + (dx + HALF);
+                float value = aura.vis(chunk);
                 if (visWindow[index] != value) {
                     visWindow[index] = value;
+                    changed = true;
+                }
+                float fluxValue = aura.flux(chunk);
+                if (fluxWindow[index] != fluxValue) {
+                    fluxWindow[index] = fluxValue;
                     changed = true;
                 }
             }
@@ -138,10 +150,13 @@ public class ThaumicDioptraBlockEntity extends BlockEntity {
         // The snapshot rides along so getUpdateTag carries it; stale values on world
         // load are refreshed by the first sync interval.
         int[] snapshot = new int[visWindow.length];
+        int[] fluxSnapshot = new int[fluxWindow.length];
         for (int i = 0; i < visWindow.length; i++) {
             snapshot[i] = Float.floatToIntBits(visWindow[i]);
+            fluxSnapshot[i] = Float.floatToIntBits(fluxWindow[i]);
         }
         tag.putIntArray("Vis", snapshot);
+        tag.putIntArray("Flux", fluxSnapshot);
         tag.putInt("Signal", comparatorSignal);
     }
 
@@ -158,9 +173,12 @@ public class ThaumicDioptraBlockEntity extends BlockEntity {
         windowCenterX = sane ? loadedX : own.x;
         windowCenterZ = sane ? loadedZ : own.z;
         int[] snapshot = tag.getIntArray("Vis");
+        int[] fluxSnapshot = tag.getIntArray("Flux");
         for (int i = 0; i < visWindow.length; i++) {
             float value = i < snapshot.length ? Float.intBitsToFloat(snapshot[i]) : 0f;
             visWindow[i] = Float.isFinite(value) ? Mth.clamp(value, 0f, AuraField.CHUNK_CAP) : 0f;
+            float fluxValue = i < fluxSnapshot.length ? Float.intBitsToFloat(fluxSnapshot[i]) : 0f;
+            fluxWindow[i] = Float.isFinite(fluxValue) ? Mth.clamp(fluxValue, 0f, AuraField.FLUX_CAP) : 0f;
         }
         comparatorSignal = Mth.clamp(tag.getInt("Signal"), 0, 15);
     }

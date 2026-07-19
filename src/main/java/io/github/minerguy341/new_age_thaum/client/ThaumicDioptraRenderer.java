@@ -31,6 +31,7 @@ public class ThaumicDioptraRenderer implements BlockEntityRenderer<ThaumicDioptr
     private static final int HALF = DioptraGroup.HALF;
     private static final int LOW_COLOR = 0x14331F;   // starved chunk: deep moss shadow
     private static final int HIGH_COLOR = 0x66FFAA;  // saturated: bright hologram green
+    private static final int TAINT_STAIN = 0x7A2E8A; // flux pollution: creeping violet rot
     /** Map footprint over the block top, block-local units. */
     private static final float FOOT = 0.85f;
     private static final float MARGIN = (1f - FOOT) / 2f;
@@ -58,11 +59,14 @@ public class ThaumicDioptraRenderer implements BlockEntityRenderer<ThaumicDioptr
         float toCamZ = (float) (camera.getPosition().z - (origin.getZ() + 0.5));
         double distSqr = toCamX * toCamX + toCamY * toCamY + toCamZ * toCamZ;
 
-        // Snapshot the vis fractions at BER time; the draw runs later this frame.
+        // Snapshot the vis and flux fractions at BER time; the draw runs later this frame.
         float[] window = dioptra.visWindow();
+        float[] fluxWindow = dioptra.fluxWindow();
         float[] fracs = new float[GRID * GRID];
+        float[] fluxFracs = new float[GRID * GRID];
         for (int i = 0; i < fracs.length; i++) {
             fracs[i] = Mth.clamp(window[i] / AuraField.CHUNK_CAP, 0f, 1f);
+            fluxFracs[i] = Mth.clamp(fluxWindow[i] / AuraField.FLUX_CAP, 0f, 1f);
         }
         ChunkPos own = new ChunkPos(origin);
         ChunkPos center = dioptra.windowCenter();
@@ -74,10 +78,10 @@ public class ThaumicDioptraRenderer implements BlockEntityRenderer<ThaumicDioptr
         // One sort unit: the whole map is compact (< 1 block), one camera distance
         // orders it correctly against other holograms. Not occluding: the map is a
         // stack of translucent layers whose look depends on blending.
-        LateHolograms.enqueue(distSqr, buffer -> drawMap(buffer, pose, fracs, ownIndex));
+        LateHolograms.enqueue(distSqr, buffer -> drawMap(buffer, pose, fracs, fluxFracs, ownIndex));
     }
 
-    private static void drawMap(VertexConsumer buffer, Matrix4f pose, float[] fracs, int ownIndex) {
+    private static void drawMap(VertexConsumer buffer, Matrix4f pose, float[] fracs, float[] fluxFracs, int ownIndex) {
         // Faint base plate: a zero-vis map is still visibly "on".
         quadY(buffer, pose, MARGIN, MARGIN, 1f - MARGIN, 1f - MARGIN, BASE_Y, LOW_COLOR, 0x18);
 
@@ -92,6 +96,13 @@ public class ThaumicDioptraRenderer implements BlockEntityRenderer<ThaumicDioptr
                 float top = height(frac);
                 int rgb = SphereColors.blend(LOW_COLOR, HIGH_COLOR, frac);
                 int alpha = 0x38 + (int) (0x70 * frac);
+                // Flux stains the cell toward a taint violet — pollution reads as purple
+                // rot creeping over the green vis terrain.
+                float flux = fluxFracs[index];
+                if (flux > 0f) {
+                    rgb = SphereColors.blend(rgb, TAINT_STAIN, Math.min(0.75f, flux * 0.85f));
+                    alpha = Math.min(0xFF, alpha + (int) (0x40 * flux));
+                }
                 if (index == ownIndex) {
                     rgb = SphereColors.blend(rgb, 0xFFFFFF, 0.35);
                     alpha = Math.min(0xFF, alpha + 0x30);
