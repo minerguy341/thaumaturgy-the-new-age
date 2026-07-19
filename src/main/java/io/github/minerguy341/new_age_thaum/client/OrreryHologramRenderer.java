@@ -113,11 +113,13 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
         //
         // Visibility is ALL-OR-NOTHING per current: a partial ribbon always reads as
         // broken (a tail amputated at the limb, or a floating scrap where an arc
-        // between two hidden cells crests back over the horizon). A current draws iff
-        // BOTH its cells are on the visible cap — dot(cellDir, camLocal) > 1 in the
-        // sphere's local frame — and since a sub-hemisphere cap is geodesically
-        // convex, the whole arc between two visible cells is provably visible: nothing
-        // can clip it. A short fade below the threshold turns the pop into a dissolve.
+        // between two hidden cells crests back over the horizon). The test is true
+        // LINE-OF-SIGHT to each ribbon endpoint — the lifted point stays visible past
+        // the SURFACE horizon (it peeks over the limb), so a horizon-cap test on the
+        // cell centers culled currents 10–25° early depending on distance and angle.
+        // Both endpoints unoccluded ⇒ the whole short arc between adjacent cells is
+        // unoccluded too, so nothing can clip a drawn current; a grazing sight line
+        // fades the whole current out instead of popping it.
         Quaternionf inverse = new Quaternionf(orientation).conjugate();
         Vector3f camLocal = new Vector3f(
                 (float) ((camera.x - center.x) / SCALE),
@@ -127,13 +129,12 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
         for (int[] pair : links.pairs()) {
             GoldbergGrid.Cell a = grid.cell(pair[0]);
             GoldbergGrid.Cell b = grid.cell(pair[1]);
-            float dotA = (float) (a.x() * camLocal.x + a.y() * camLocal.y + a.z() * camLocal.z);
-            float dotB = (float) (b.x() * camLocal.x + b.y() * camLocal.y + b.z() * camLocal.z);
-            float minDot = Math.min(dotA, dotB);
-            if (minDot <= 1.0f) {
-                continue; // a cell at or past the horizon: the whole current is gone
+            float fade = Math.min(
+                    endpointVisibility(a.x() * LIFT, a.y() * LIFT, a.z() * LIFT, camLocal),
+                    endpointVisibility(b.x() * LIFT, b.y() * LIFT, b.z() * LIFT, camLocal));
+            if (fade <= 0f) {
+                continue; // an endpoint's sight line passes through the sphere
             }
-            float fade = Math.min(1.0f, (minDot - 1.0f) / 0.35f);
             rotated.set((float) (a.x() + b.x()), (float) (a.y() + b.y()), (float) (a.z() + b.z()))
                     .normalize(LIFT * SCALE);
             orientation.transform(rotated);
@@ -152,6 +153,27 @@ public class OrreryHologramRenderer implements BlockEntityRenderer<ArcaneOrreryB
         // entity by its block's chunk section, so looking slightly up in front of the
         // block made the projection vanish. Render off-screen like the beacon beam does.
         return true;
+    }
+
+    /**
+     * True line-of-sight visibility of a ribbon endpoint at {@code (qx,qy,qz)} in the
+     * sphere's local frame (unit-sphere radius = 1): 1 when the segment from the camera
+     * clears the sphere comfortably, fading to 0 as the sight line grazes it, 0 once it
+     * passes through. The measure is the segment's closest approach to the sphere's
+     * center, so the fade band is the same at every camera distance.
+     */
+    private static float endpointVisibility(double qx, double qy, double qz, Vector3f cam) {
+        double dx = qx - cam.x;
+        double dy = qy - cam.y;
+        double dz = qz - cam.z;
+        double lenSq = dx * dx + dy * dy + dz * dz;
+        double t = lenSq < 1.0e-9 ? 0.0 : -(cam.x * dx + cam.y * dy + cam.z * dz) / lenSq;
+        t = Math.max(0.0, Math.min(1.0, t));
+        double px = cam.x + dx * t;
+        double py = cam.y + dy * t;
+        double pz = cam.z + dz * t;
+        double closestSq = px * px + py * py + pz * pz;
+        return (float) Math.max(0.0, Math.min(1.0, (closestSq - 1.0) / 0.15));
     }
 
     /**
