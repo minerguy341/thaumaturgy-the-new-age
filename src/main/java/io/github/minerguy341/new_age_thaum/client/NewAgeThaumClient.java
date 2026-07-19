@@ -78,6 +78,7 @@ public final class NewAgeThaumClient {
             AspectAssignments.accept(Map.of(), Map.of());
             CodexRegistry.reload(Map.of());
             WandMaterialRegistry.reload(Map.of());
+            ClientCastingConfig.reset();
             AspectResolver.invalidate();
         });
         ClientTooltipEvent.ITEM.register((stack, lines, context, flag) -> {

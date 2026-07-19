@@ -85,10 +85,11 @@ public final class WandVisHud {
                 graphics.fill(barX, y + 1, barX + Math.max(1, (int) (BAR_WIDTH * frac)),
                         y + BAR_HEIGHT - 1, color);
             }
-            // Ambient floor tick: where recharge stops without a node nearby. Client
-            // config values — display only, the server's config governs the mechanic.
-            float floor = (float) Mth.clamp(affinityPrimals.contains(primal)
-                    ? NewAgeThaumConfig.wandAffinityFloor : NewAgeThaumConfig.wandAmbientFloor, 0.0, 1.0);
+            // Ambient floor tick: where the automatic trickle stops (a node right-click
+            // fills beyond it). Read from the server-synced mirror so the mark is correct
+            // on multiplayer, not from this client's own config file.
+            float floor = Mth.clamp(affinityPrimals.contains(primal)
+                    ? ClientCastingConfig.affinityFloor() : ClientCastingConfig.ambientFloor(), 0f, 1f);
             int floorX = barX + (int) (BAR_WIDTH * floor);
             graphics.fill(floorX, y - 1, floorX + 1, y + BAR_HEIGHT + 1, 0xC0FFFFFF);
 

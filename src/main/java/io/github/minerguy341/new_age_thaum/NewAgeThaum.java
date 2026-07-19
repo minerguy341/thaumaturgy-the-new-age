@@ -74,6 +74,7 @@ public final class NewAgeThaum {
         NewAgeThaumNetwork.syncAssignmentsTo(player);
         NewAgeThaumNetwork.syncCodexTo(player);
         NewAgeThaumNetwork.syncWandMaterialsTo(player);
+        NewAgeThaumNetwork.syncCastingConfigTo(player);
         PlayerProgressService.syncOnJoin(player);
     }
 }
