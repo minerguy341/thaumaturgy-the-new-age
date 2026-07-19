@@ -5,6 +5,7 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import io.github.minerguy341.new_age_thaum.content.AuraNodeBlockEntity;
 import io.github.minerguy341.new_age_thaum.core.ModRegistries;
 import io.github.minerguy341.new_age_thaum.core.aura.AuraField;
+import io.github.minerguy341.new_age_thaum.core.aura.NodePersonality;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -28,6 +29,7 @@ import org.joml.Quaternionf;
 public class AuraNodeRenderer implements BlockEntityRenderer<AuraNodeBlockEntity> {
     private static final int LOW_COLOR = 0x2A3550;   // starved chunk: dim slate blue
     private static final int HIGH_COLOR = 0x7FE8D8;  // saturated: the magic accent teal
+    private static final int TAINT_TINT = 0x50337A;  // tainted node: a sick murky violet
     private static final float COLUMN_MAX_HEIGHT = 3.0f;
     private static final float COLUMN_HALF_WIDTH = 0.6f;
 
@@ -38,7 +40,26 @@ public class AuraNodeRenderer implements BlockEntityRenderer<AuraNodeBlockEntity
     public void render(AuraNodeBlockEntity node, float partialTick, PoseStack poseStack,
             MultiBufferSource bufferSource, int packedLight, int packedOverlay) {
         long now = Util.getMillis();
-        int color = SphereColors.colorOf(node.aspect()); // grey until the server rolls it
+        int aspectColor = SphereColors.colorOf(node.aspect()); // grey until the server rolls it
+        // Personality reads at a glance: bright orbs swell and glow, pale ones shrink and
+        // dim, hungry ones flicker restlessly, tainted ones curdle toward a sick violet,
+        // pure ones brighten toward white. Modifiers are local to this frame's emission.
+        NodePersonality nature = node.personality(); // null for a client frame before sync
+        float sizeBoost = 1.0f;
+        float glow = 0f;
+        float pulseAmp = 0.08f;
+        int tinted = aspectColor;
+        if (nature != null) {
+            switch (nature) {
+                case BRIGHT -> { sizeBoost = 1.2f; glow = 0.15f; }
+                case PALE -> { sizeBoost = 0.8f; glow = -0.10f; }
+                case HUNGRY -> { sizeBoost = 0.9f; pulseAmp = 0.16f; }
+                case TAINTED -> { tinted = SphereColors.blend(aspectColor, TAINT_TINT, 0.55); glow = -0.05f; }
+                case PURE -> { tinted = SphereColors.blend(aspectColor, 0xFFFFFF, 0.25); glow = 0.20f; }
+            }
+        }
+        final int color = tinted;      // final copies for the deferred lambda below
+        final float brighten = glow;
         // Point-at-camera billboard, not screen-aligned: each orb's disc plane must be
         // perpendicular to the line from THIS node to the camera. With the shared
         // camera.rotation() plane, nodes off the view axis tilt relative to their own
@@ -72,20 +93,24 @@ public class AuraNodeRenderer implements BlockEntityRenderer<AuraNodeBlockEntity
         Matrix4f gridPose = holdingAetherlens() ? new Matrix4f(poseStack.last().pose()) : null;
 
         double seconds = now / 1000.0;
-        float pulse = 1.0f + 0.08f * (float) Math.sin(seconds * 2.1);
-        float base = 0.28f * (0.7f + 0.3f * node.size());
+        float pulse = 1.0f + pulseAmp * (float) Math.sin(seconds * 2.1);
+        float base = 0.28f * (0.7f + 0.3f * node.size()) * sizeBoost;
         // The orb is one sort unit: the billboarded discs are paper-thin along the view
         // axis, so a single camera distance orders it correctly against other holograms.
         LateHolograms.enqueue(distSqr, buffer -> {
             // Outer halo breathes, the mid swirl and bright core counter-rotate. Each
             // layer sits at its own depth along the local view axis (+Z points away
             // from the camera) so the depth-stamp pass isn't coplanar; blend order is
-            // the far-to-near emission order.
-            disc(buffer, discPose, base * 1.7f * pulse, SphereColors.blend(color, 0xFFFFFF, 0.10), 0x2E,
+            // the far-to-near emission order. The personality glow shifts each layer's
+            // white-blend up or down.
+            disc(buffer, discPose, base * 1.7f * pulse,
+                    SphereColors.blend(color, 0xFFFFFF, Mth.clamp(0.10 + brighten, 0.0, 1.0)), 0x2E,
                     (float) (seconds * 0.35), 0.04f);
-            disc(buffer, discPose, base * 1.15f, SphereColors.blend(color, 0xFFFFFF, 0.25), 0x78,
+            disc(buffer, discPose, base * 1.15f,
+                    SphereColors.blend(color, 0xFFFFFF, Mth.clamp(0.25 + brighten, 0.0, 1.0)), 0x78,
                     (float) (seconds * 0.9), 0f);
-            disc(buffer, discPose, base * 0.55f * (2.0f - pulse), SphereColors.blend(color, 0xFFFFFF, 0.65), 0xE6,
+            disc(buffer, discPose, base * 0.55f * (2.0f - pulse),
+                    SphereColors.blend(color, 0xFFFFFF, Mth.clamp(0.65 + brighten, 0.0, 1.0)), 0xE6,
                     (float) (-seconds * 1.6), -0.04f);
         });
         if (gridPose != null) {
