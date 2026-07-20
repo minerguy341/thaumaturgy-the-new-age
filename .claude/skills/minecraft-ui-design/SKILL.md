@@ -100,6 +100,55 @@ started").
 - Dark-purple UI palette pattern: panel fill `0xF0100A18`, chrome `0xFF241B33`, inset
   wells near-black, primary text `0xE8D9FF`, secondary `0x9A8CBF`, dimmed `0x5F5876`.
 
+## HUD overlays (drawn over the world, not a container screen)
+
+A `ClientGuiEvent.RENDER_HUD` overlay (Architectury) is a different beast from a screen:
+no `leftPos`/`topPos`, you own the whole framebuffer, and it draws **every frame** whether
+or not the player is using the feature. Proven on the wand/stave vis bar — a wand-shaped
+HUD assembled from authored sprites plus dynamically-drawn chambers.
+
+- **Gate hard and gate first.** Bail on `minecraft.options.hideGui`, a null player, and
+  your feature toggle before touching anything. RENDER_HUD fires constantly; an unguarded
+  overlay is a per-frame tax on every player who isn't using it.
+- **Ship the pixel art, don't reimplement it.** Author chrome in the pixel-art toolkit,
+  export PNGs to `assets/<ns>/textures/gui/...`, and blit them; draw only the *dynamic*
+  parts (bars, fills, ticks) in code. Re-porting shading into `fill()` calls never matches
+  the source and wastes the whole reason you authored art.
+- **HD without the blit-signature fight.** To land 2x-detail sprites at native HUD size,
+  wrap the whole element in `pose().pushPose(); translate(x, y, 0); scale(0.5f, 0.5f, 1f)`
+  and draw everything in "2x space" at each sprite's native pixel size. The matrix does the
+  downscale, so one basic `blit(rl, x, y, 0, 0, w, h, w, h)` covers every sprite — no
+  scaling-blit overload, no per-call source-rect math. At GUI scale ≥2 (almost always) the
+  extra texels land on real pixels and read crisp.
+- **Porting a Pillow/PIL builder 1:1?** `ImageDraw.rectangle` is **inclusive** of both
+  corners; GuiGraphics `fill(x0, y0, x1, y1, c)` is **exclusive** of `x1, y1`. Convert with
+  `fill(x0, y0, x1 + 1, y1 + 1, c)` or every rect is a pixel short — this alone kept the
+  in-game chambers pixel-identical to the approved mockup.
+- **Mirrored/facing variants: re-light, don't blind-flip.** An element that points left in
+  one hand and right in the other can't just be `FLIP_LEFT_RIGHT`-ed — that mirrors the
+  lighting too (a top-left key light becomes top-right). Author a variant rendered with the
+  light-x reversed, *then* flip it, so the shape mirrors but the shine stays top-left. Only
+  x-asymmetric shading (domes, bevels) needs this; flat top-lit pieces flip fine.
+
+### Moving the vanilla rows (health / hunger / mount) — loader-split, no library
+
+There is **no cross-loader library** that repositions the vanilla status bars; the HUD
+"libraries" are end-user mods or add-only layer registries. The standard approach is a
+per-loader hook behind a `platform/` service:
+
+- **NeoForge — no mixin.** `RenderGuiLayerEvent.Pre` for `VanillaGuiLayers.PLAYER_HEALTH` /
+  `FOOD_LEVEL` / `ARMOR_LEVEL` / `AIR_LEVEL` / `VEHICLE_HEALTH`: pose-translate to move a
+  layer, `setCanceled(true)` to hide it. (NeoForge splits vanilla `Gui` into per-element
+  layers; a cancel-and-re-render wrapper doesn't stack across mods, but a plain offset does.)
+- **Fabric — a small `Gui` mixin.** Fabric API's HUD layer system only adds/reorders/hides;
+  it can't re-anchor the vanilla bars. Inject `@At("HEAD")`/`@At("RETURN")` on
+  `Gui#renderPlayerHealth` (draws health+armor+hunger+air as one on unpatched vanilla) and
+  `Gui#renderVehicleHealth`, and push/translate/pop the pose. The method split differs from
+  NeoForge — don't try to share one mixin.
+- Gate the offset in common code on your held-item condition; only the render hook is
+  loader-specific. Skipping this entirely — parking your overlay in the free space *above*
+  the health row — is a legitimate v1 that needs no mixin at all.
+
 ## Verification loop
 
 After any UI change: `chiseledBuild` + gametests for the logic, then boot the NeoForge
