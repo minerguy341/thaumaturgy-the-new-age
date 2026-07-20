@@ -49,6 +49,13 @@ public class ThaumicDioptraRenderer implements BlockEntityRenderer<ThaumicDioptr
     private static final float BASE_Y = 0.9375f;
     private static final float MIN_HEIGHT = 0.03f;
     private static final float VAR_HEIGHT = 0.72f;
+    /**
+     * How far the hologram stays visible. Because the BER is global (see
+     * {@link #shouldRenderOffScreen}), vanilla's frustum and distance culls no longer
+     * gate it, so this is the only distance bound — we apply it by hand below.
+     */
+    private static final int VIEW_DISTANCE = 64;
+    private static final double VIEW_SQR = (double) VIEW_DISTANCE * VIEW_DISTANCE;
 
     public ThaumicDioptraRenderer(BlockEntityRendererProvider.Context context) {
     }
@@ -61,6 +68,15 @@ public class ThaumicDioptraRenderer implements BlockEntityRenderer<ThaumicDioptr
             return;
         }
         BlockPos self = dioptra.getBlockPos();
+        // Global BEs skip vanilla's distance cull, so bound it ourselves — otherwise every
+        // loaded dioptra in the dimension would rebuild its combined mesh each frame.
+        var cam = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
+        double dcx = cam.x - (self.getX() + 0.5);
+        double dcy = cam.y - (self.getY() + 0.5);
+        double dcz = cam.z - (self.getZ() + 0.5);
+        if (dcx * dcx + dcy * dcy + dcz * dcz > VIEW_SQR) {
+            return;
+        }
         // Fast bail: the leader is the group's min (x, then z) member, which never has a
         // dioptra to its west or north. Every other block returns here after two reads.
         if (isDioptra(level, self.getX() - 1, self.getY(), self.getZ())
@@ -129,10 +145,9 @@ public class ThaumicDioptraRenderer implements BlockEntityRenderer<ThaumicDioptr
         // Pose is at the leader block's origin; the group extends in +x/+z, so local
         // coords span [0, blocksW] x [0, blocksD], matching the world footprint.
         Matrix4f pose = new Matrix4f(poseStack.last().pose());
-        var camera = Minecraft.getInstance().gameRenderer.getMainCamera();
-        double toCamX = camera.getPosition().x - (self.getX() + blocksW * 0.5);
-        double toCamY = camera.getPosition().y - (self.getY() + BASE_Y + 0.3);
-        double toCamZ = camera.getPosition().z - (self.getZ() + blocksD * 0.5);
+        double toCamX = cam.x - (self.getX() + blocksW * 0.5);
+        double toCamY = cam.y - (self.getY() + BASE_Y + 0.3);
+        double toCamZ = cam.z - (self.getZ() + blocksD * 0.5);
         double distSqr = toCamX * toCamX + toCamY * toCamY + toCamZ * toCamZ;
 
         LateHolograms.enqueue(distSqr, buffer -> drawMap(buffer, pose, gw, gd, fracs, fluxFracs, present, ownCells));
@@ -269,6 +284,19 @@ public class ThaumicDioptraRenderer implements BlockEntityRenderer<ThaumicDioptr
 
     @Override
     public int getViewDistance() {
-        return 64;
+        return VIEW_DISTANCE;
+    }
+
+    /**
+     * Render regardless of whether the anchor block's chunk section is in the camera
+     * frustum. The hologram floats above the block and spans a whole group, so tying its
+     * visibility to the single anchor section made it blink out when that section left
+     * frame even though the projection was still in view. Treating it as a global (beacon
+     * -style) BE keeps it drawn from any angle; the distance guard in {@link #render} and
+     * the leader check keep that from being expensive.
+     */
+    @Override
+    public boolean shouldRenderOffScreen(ThaumicDioptraBlockEntity blockEntity) {
+        return true;
     }
 }
