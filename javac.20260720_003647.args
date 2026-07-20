@@ -1,0 +1,7 @@
+-proc:none
+-Xmaxerrs
+2000
+-d
+/tmp/claude-0/-home-user-thaumaturgy-the-new-age/d5e74b47-e964-5c9c-956e-48cb003e14b9/scratchpad/dio3
+src/main/java/io/github/minerguy341/new_age_thaum/content/ThaumicDioptraBlock.java
+src/main/java/io/github/minerguy341/new_age_thaum/client/ThaumicDioptraRenderer.java

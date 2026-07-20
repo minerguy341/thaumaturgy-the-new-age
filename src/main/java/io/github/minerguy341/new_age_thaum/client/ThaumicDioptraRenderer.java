@@ -45,8 +45,8 @@ public class ThaumicDioptraRenderer implements BlockEntityRenderer<ThaumicDioptr
     private static final int TAINT_STAIN = 0x8A3AA0; // flux pollution: creeping violet rot
     /** One cell per chunk, spanning the full block top so adjacent maps meet with no gap. */
     private static final float CELL = 1f / GRID;
-    /** Base plane of the terrain — just above the basin rim (block is 15/16 tall). */
-    private static final float BASE_Y = 0.98f;
+    /** Base plane of the terrain — sits at the 15px block top (1px above the basin floor). */
+    private static final float BASE_Y = 0.9375f;
     private static final float MIN_HEIGHT = 0.03f;
     private static final float VAR_HEIGHT = 0.72f;
 

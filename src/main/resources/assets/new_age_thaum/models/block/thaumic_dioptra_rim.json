@@ -1,0 +1,21 @@
+{
+  "__comment": "One basin-rim edge (north). The blockstate rotates it to the sides that face no dioptra, so a slab keeps only its outer rim.",
+  "textures": {
+    "particle": "new_age_thaum:block/thaumic_dioptra",
+    "band": "new_age_thaum:block/thaumic_dioptra_band"
+  },
+  "elements": [
+    {
+      "from": [0, 14, 0],
+      "to": [16, 15, 1],
+      "faces": {
+        "up":    { "texture": "#band" },
+        "down":  { "texture": "#band" },
+        "north": { "texture": "#band" },
+        "south": { "texture": "#band" },
+        "west":  { "texture": "#band" },
+        "east":  { "texture": "#band" }
+      }
+    }
+  ]
+}
