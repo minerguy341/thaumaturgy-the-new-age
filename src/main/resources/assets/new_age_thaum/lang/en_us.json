@@ -37,6 +37,7 @@
   "message.new_age_thaum.node.strength": "strength %s",
   "message.new_age_thaum.node.field": "chunk vis %s/%s · flux %s",
   "message.new_age_thaum.node.dormant": "The node is still stirring…",
+  "hud.new_age_thaum.node.vis": "vis %s / %s",
   "screen.new_age_thaum.codex": "Codex Thaumaturgica",
   "codex.new_age_thaum.category.fundamenta": "Fundamenta",
   "codex.new_age_thaum.stub": "The pages here are still blank…",

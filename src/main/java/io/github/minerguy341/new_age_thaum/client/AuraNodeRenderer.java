@@ -3,9 +3,11 @@ package io.github.minerguy341.new_age_thaum.client;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import io.github.minerguy341.new_age_thaum.content.AuraNodeBlockEntity;
+import io.github.minerguy341.new_age_thaum.core.ModRegistries;
 import io.github.minerguy341.new_age_thaum.core.aura.NodePersonality;
 import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
@@ -21,6 +23,7 @@ import org.joml.Quaternionf;
  */
 public class AuraNodeRenderer implements BlockEntityRenderer<AuraNodeBlockEntity> {
     private static final int TAINT_TINT = 0x50337A;  // tainted node: a sick murky violet
+    private static final float NODE_UNLENSED_ALPHA = 0.12f; // fade factor when the Aetherlens is not held
 
     public AuraNodeRenderer(BlockEntityRendererProvider.Context context) {
     }
@@ -55,7 +58,9 @@ public class AuraNodeRenderer implements BlockEntityRenderer<AuraNodeBlockEntity
         }
         final int color = hue;             // final copies for the deferred lambda below
         final float glowCore = coreGlow;
-        final float alphaMul = alphaScale;
+        // The Aetherlens is what makes a node visible: held, the orb renders in full;
+        // otherwise it fades to a near-invisible shimmer you have to know to look for.
+        final float alphaMul = holdingAetherlens() ? alphaScale : alphaScale * NODE_UNLENSED_ALPHA;
         final float spinMul = spinScale;
         // Point-at-camera billboard, not screen-aligned: each orb's disc plane must be
         // perpendicular to the line from THIS node to the camera. With the shared
@@ -116,6 +121,12 @@ public class AuraNodeRenderer implements BlockEntityRenderer<AuraNodeBlockEntity
     /** Scales a base disc alpha by a personality's luminosity multiplier, clamped 0–255. */
     private static int scaleAlpha(int base, float scale) {
         return Mth.clamp(Math.round(base * scale), 0, 255);
+    }
+
+    private static boolean holdingAetherlens() {
+        LocalPlayer player = Minecraft.getInstance().player;
+        return player != null && (player.getMainHandItem().is(ModRegistries.AETHERLENS.get())
+                || player.getOffhandItem().is(ModRegistries.AETHERLENS.get()));
     }
 
     /** A flat hexagon fan in the billboarded view plane, spun by {@code spin} radians. */
