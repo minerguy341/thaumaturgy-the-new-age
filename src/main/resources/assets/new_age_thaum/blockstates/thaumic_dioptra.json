@@ -1,5 +1,9 @@
 {
-  "variants": {
-    "": { "model": "new_age_thaum:block/thaumic_dioptra" }
-  }
+  "multipart": [
+    { "apply": { "model": "new_age_thaum:block/thaumic_dioptra_body" } },
+    { "when": { "rim_north": "true" }, "apply": { "model": "new_age_thaum:block/thaumic_dioptra_rim" } },
+    { "when": { "rim_east": "true" },  "apply": { "model": "new_age_thaum:block/thaumic_dioptra_rim", "y": 90 } },
+    { "when": { "rim_south": "true" }, "apply": { "model": "new_age_thaum:block/thaumic_dioptra_rim", "y": 180 } },
+    { "when": { "rim_west": "true" },  "apply": { "model": "new_age_thaum:block/thaumic_dioptra_rim", "y": 270 } }
+  ]
 }

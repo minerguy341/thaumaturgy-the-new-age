@@ -1,0 +1,34 @@
+{
+  "__comment": "Dioptra minus the rim; its top (y14) is the basin floor. The blockstate adds rim pieces only on sides with no adjacent dioptra, so slabs share one basin.",
+  "textures": {
+    "particle": "new_age_thaum:block/thaumic_dioptra",
+    "dark": "new_age_thaum:block/thaumic_dioptra",
+    "band": "new_age_thaum:block/thaumic_dioptra_band"
+  },
+  "elements": [
+    {
+      "__comment": "base accent band",
+      "from": [0, 0, 0],
+      "to": [16, 2, 16],
+      "faces": {
+        "down":  { "texture": "#band" },
+        "north": { "texture": "#band" },
+        "south": { "texture": "#band" },
+        "west":  { "texture": "#band" },
+        "east":  { "texture": "#band" }
+      }
+    },
+    {
+      "__comment": "main body; its top is the basin floor",
+      "from": [0, 2, 0],
+      "to": [16, 14, 16],
+      "faces": {
+        "up":    { "texture": "#dark" },
+        "north": { "texture": "#dark" },
+        "south": { "texture": "#dark" },
+        "west":  { "texture": "#dark" },
+        "east":  { "texture": "#dark" }
+      }
+    }
+  ]
+}
