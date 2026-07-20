@@ -4,10 +4,13 @@ import io.github.minerguy341.new_age_thaum.NewAgeThaum;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectBag;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectNames;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectResolver;
+import io.github.minerguy341.new_age_thaum.core.aura.AuraField;
 import io.github.minerguy341.new_age_thaum.core.player.PlayerProgressService;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
@@ -44,6 +47,11 @@ public class AetherlensItem extends Item {
         Player player = context.getPlayer();
         if (!(player instanceof ServerPlayer serverPlayer)) {
             return InteractionResult.sidedSuccess(level.isClientSide);
+        }
+        // An aura node reports its stats instead of a generic scan — the Aetherlens is
+        // how you read a node's aspect, temperament, and the aura it sits in.
+        if (level.getBlockEntity(context.getClickedPos()) instanceof AuraNodeBlockEntity node) {
+            return reportNode(serverPlayer, context.getClickedPos(), node);
         }
         BlockState state = level.getBlockState(context.getClickedPos());
         ResourceLocation blockId = BuiltInRegistries.BLOCK.getKey(state.getBlock());
@@ -86,6 +94,32 @@ public class AetherlensItem extends Item {
         player.displayClientMessage(
                 Component.translatable("message.new_age_thaum.scan.discovered", aspectList(aspects)), true);
         level.playSound(null, pos, SoundEvents.AMETHYST_BLOCK_CHIME, SoundSource.PLAYERS, 0.8f, 1.2f);
+        return InteractionResult.CONSUME;
+    }
+
+    /** Reads an aura node's identity and the aura of the chunk it feeds, to the player. */
+    private InteractionResult reportNode(ServerPlayer player, BlockPos pos, AuraNodeBlockEntity node) {
+        if (node.aspect() == null || node.personality() == null) {
+            player.displayClientMessage(
+                    Component.translatable("message.new_age_thaum.node.dormant").withStyle(ChatFormatting.GRAY), true);
+            return InteractionResult.CONSUME;
+        }
+        ServerLevel level = player.serverLevel();
+        AuraField aura = AuraField.get(level);
+        long chunk = new ChunkPos(pos).toLong();
+        player.displayClientMessage(Component.translatable("message.new_age_thaum.node.header")
+                .withStyle(ChatFormatting.LIGHT_PURPLE)
+                .append(Component.literal(" "))
+                .append(AspectNames.colored(node.aspect()))
+                .append(Component.literal(" · ").withStyle(ChatFormatting.DARK_GRAY))
+                .append(Component.translatable(node.personality().translationKey()).withStyle(ChatFormatting.AQUA))
+                .append(Component.literal(" · ").withStyle(ChatFormatting.DARK_GRAY))
+                .append(Component.translatable("message.new_age_thaum.node.strength",
+                        String.format("%.1f", node.size())).withStyle(ChatFormatting.GRAY)), false);
+        player.displayClientMessage(Component.translatable("message.new_age_thaum.node.field",
+                Math.round(aura.vis(chunk)), (int) AuraField.CHUNK_CAP, Math.round(aura.flux(chunk)))
+                .withStyle(ChatFormatting.DARK_AQUA), false);
+        level.playSound(null, pos, SoundEvents.AMETHYST_BLOCK_CHIME, SoundSource.PLAYERS, 0.6f, 1.4f);
         return InteractionResult.CONSUME;
     }
 
