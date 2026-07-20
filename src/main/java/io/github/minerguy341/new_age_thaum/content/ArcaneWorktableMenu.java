@@ -54,13 +54,16 @@ public class ArcaneWorktableMenu extends AbstractContainerMenu {
     public static final int STATUS_INSUFFICIENT = 3;
     public static final int STATUS_VANILLA_READY = 4;
 
-    // Layout — the VANILLA crafting-table slot coordinates (the screen blits
-    // minecraft's crafting_table.png as its background), plus a wand slot in the
-    // blank area to the right of the result. 176x166 panel.
-    public static final int GRID_X = 30, GRID_Y = 17;
-    public static final int RESULT_X = 124, RESULT_Y = 35;
-    public static final int WAND_X = 146, WAND_Y = 35;
-    public static final int INV_X = 8, INV_Y = 84, HOTBAR_Y = 142;
+    // Layout — a custom 194x196 arcane panel (room to ring the grid with a vis gauge,
+    // TC Arcane-Workbench style). Slots are stamped from a real vanilla slot cell so they
+    // still read as Minecraft slots. The grid is centred so the vis ring encircles it; the
+    // wand slot sits to its left (the payer), result to its right past an arrow.
+    public static final int GRID_X = 44, GRID_Y = 24;
+    public static final int RESULT_X = 150, RESULT_Y = 42;
+    public static final int WAND_X = 16, WAND_Y = 42;
+    public static final int INV_X = 16, INV_Y = 114, HOTBAR_Y = 172;
+    // Grid centre (x), shared with the screen for centring the vis-cost readout under the grid.
+    public static final int GRID_CX = GRID_X + 27; // 3x3 @18 = 54px wide
 
     private final CraftingContainer craftSlots = new TransientCraftingContainer(this, 3, 3);
     private final SimpleContainer wandContainer = new SimpleContainer(1);
