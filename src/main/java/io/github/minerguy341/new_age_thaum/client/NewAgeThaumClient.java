@@ -58,8 +58,9 @@ public final class NewAgeThaumClient {
                         .register(type, OrreryHologramRenderer::new));
         ModBlockEntities.AURA_NODE.listen(type ->
                 BlockEntityRendererRegistry.register(type, AuraNodeRenderer::new));
-        ModBlockEntities.THAUMIC_DIOPTRA.listen(type ->
-                BlockEntityRendererRegistry.register(type, ThaumicDioptraRenderer::new));
+        // No block-entity renderer for the dioptra: its hologram is emitted per-frame from
+        // LateHolograms.renderAll() (see ThaumicDioptraRenderer.emitAll) so it stays visible
+        // from any camera angle instead of being culled with its anchor block's section.
         // Synced state is per-server. Without this reset, a vanilla server joined next
         // (which never syncs) would render the previous server's aspects in tooltips and
         // report its point balances. Singleplayer repopulates on world load (reload

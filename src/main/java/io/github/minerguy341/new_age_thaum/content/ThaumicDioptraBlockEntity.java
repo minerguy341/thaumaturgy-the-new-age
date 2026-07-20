@@ -11,9 +11,16 @@ import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Set;
 
 /**
  * The Thaumic Dioptra's state: which chunk window this block displays (assigned by
@@ -26,6 +33,18 @@ import net.minecraft.world.level.block.state.BlockState;
 public class ThaumicDioptraBlockEntity extends BlockEntity {
     /** Snapshot grid edge, one cell per chunk (13x13 centered on the window center). */
     public static final int GRID = DioptraGroup.WINDOW;
+    /**
+     * Every dioptra block entity currently loaded on the CLIENT. The hologram is drawn
+     * from a per-frame hook (see {@code ThaumicDioptraRenderer}) instead of block-entity
+     * renderer dispatch, so it must not depend on any anchor block's chunk section being
+     * in the camera frustum — the whole point is that a group's map keeps drawing from
+     * any angle. This set is that hook's source of truth. The {@code isClientSide} guard
+     * below means the server never adds to it, so it stays empty and touches no client
+     * code; keeping it here (common) rather than in the client class keeps this block
+     * entity free of any client-only import.
+     */
+    private static final Set<ThaumicDioptraBlockEntity> CLIENT_LOADED =
+            Collections.synchronizedSet(Collections.newSetFromMap(new IdentityHashMap<>()));
     private static final int HALF = DioptraGroup.HALF;
     private static final int COMPARATOR_INTERVAL_TICKS = 20;
     private static final int SYNC_INTERVAL_TICKS = 60;
@@ -47,6 +66,29 @@ public class ThaumicDioptraBlockEntity extends BlockEntity {
         ChunkPos own = new ChunkPos(pos);
         windowCenterX = own.x;
         windowCenterZ = own.z;
+    }
+
+    /** A snapshot of every client-loaded dioptra, for the per-frame hologram hook. */
+    public static List<ThaumicDioptraBlockEntity> loadedClientSide() {
+        synchronized (CLIENT_LOADED) {
+            return new ArrayList<>(CLIENT_LOADED);
+        }
+    }
+
+    // Client load/unload = the render hook's registration. setLevel fires when a chunk
+    // brings the block entity into a level (both sides); the guard keeps the server out.
+    @Override
+    public void setLevel(Level level) {
+        super.setLevel(level);
+        if (level.isClientSide) {
+            CLIENT_LOADED.add(this);
+        }
+    }
+
+    @Override
+    public void setRemoved() {
+        super.setRemoved();
+        CLIENT_LOADED.remove(this); // no-op server-side; the block was never tracked there
     }
 
     /** Center chunk of the displayed window. */

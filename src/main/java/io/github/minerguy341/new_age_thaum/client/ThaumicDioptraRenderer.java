@@ -1,19 +1,16 @@
 package io.github.minerguy341.new_age_thaum.client;
 
-import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import io.github.minerguy341.new_age_thaum.content.DioptraGroup;
 import io.github.minerguy341.new_age_thaum.content.ThaumicDioptraBlock;
 import io.github.minerguy341.new_age_thaum.content.ThaumicDioptraBlockEntity;
 import io.github.minerguy341.new_age_thaum.core.aura.AuraField;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
-import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 
 import java.util.ArrayDeque;
@@ -29,13 +26,21 @@ import java.util.Set;
  * share a smoothed height, so chunks angle together into ridges and valleys.
  *
  * <p><b>One hologram per group.</b> A run of adjacent dioptras renders as a SINGLE draw
- * from one block (the group's min-corner "leader"); every other member draws nothing.
- * The leader assembles all members' windows into one combined heightmap — smoothed
- * across the seams, with skirts only on the group's outer silhouette — and enqueues it
- * as one sort unit. That removes the per-dioptra translucent sort fighting that made
- * adjacent maps flicker at their seams, and makes a slab read as one continuous map.
+ * from the group's min-corner; every member's window is assembled into one combined
+ * heightmap — smoothed across the seams, with skirts only on the group's outer
+ * silhouette — and enqueued as one sort unit. That removes the per-dioptra translucent
+ * sort fighting that made adjacent maps flicker at their seams.
+ *
+ * <p><b>Frustum-independent.</b> This is NOT a block-entity renderer. Tying the hologram
+ * to a BER meant vanilla only dispatched it while the anchor block's chunk section was
+ * in the camera frustum, so the whole group's map blinked out at angles where the anchor
+ * left frame even though the projection was still on screen. Instead {@link #emitAll()}
+ * runs every frame from {@link LateHolograms#renderAll()} (the loader's unconditional
+ * post-translucent hook), walking the client-side set of loaded dioptras
+ * ({@link ThaumicDioptraBlockEntity#loadedClientSide()}). The map now draws from any
+ * angle, bounded only by the {@link #VIEW_DISTANCE} range check below.
  */
-public class ThaumicDioptraRenderer implements BlockEntityRenderer<ThaumicDioptraBlockEntity> {
+public final class ThaumicDioptraRenderer {
     private static final int GRID = ThaumicDioptraBlockEntity.GRID;
     private static final int HALF = DioptraGroup.HALF;
     /** Chebyshev cap on the client-side group scan; mirrors DioptraGroup's server cap. */
@@ -49,59 +54,55 @@ public class ThaumicDioptraRenderer implements BlockEntityRenderer<ThaumicDioptr
     private static final float BASE_Y = 0.9375f;
     private static final float MIN_HEIGHT = 0.03f;
     private static final float VAR_HEIGHT = 0.72f;
-    /**
-     * How far the hologram stays visible. Because the BER is global (see
-     * {@link #shouldRenderOffScreen}), vanilla's frustum and distance culls no longer
-     * gate it, so this is the only distance bound — we apply it by hand below.
-     */
+    /** How near the camera must be to a group for its map to draw (blocks). */
     private static final int VIEW_DISTANCE = 64;
     private static final double VIEW_SQR = (double) VIEW_DISTANCE * VIEW_DISTANCE;
 
-    public ThaumicDioptraRenderer(BlockEntityRendererProvider.Context context) {
+    private ThaumicDioptraRenderer() {
     }
 
-    @Override
-    public void render(ThaumicDioptraBlockEntity dioptra, float partialTick, PoseStack poseStack,
-            MultiBufferSource bufferSource, int packedLight, int packedOverlay) {
-        Level level = dioptra.getLevel();
+    /**
+     * Enqueues one merged hologram per dioptra group, every frame, regardless of frustum.
+     * Called from {@link LateHolograms#renderAll()}. Groups are discovered from the loaded
+     * block states (blockstates are present whether or not a chunk section is in view), so
+     * a group renders whenever any of its blocks is within {@link #VIEW_DISTANCE}.
+     */
+    public static void emitAll() {
+        Minecraft mc = Minecraft.getInstance();
+        Level level = mc.level;
         if (level == null) {
             return;
         }
-        BlockPos self = dioptra.getBlockPos();
-        // Global BEs skip vanilla's distance cull, so bound it ourselves — otherwise every
-        // loaded dioptra in the dimension would rebuild its combined mesh each frame.
-        var cam = Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
-        double dcx = cam.x - (self.getX() + 0.5);
-        double dcy = cam.y - (self.getY() + 0.5);
-        double dcz = cam.z - (self.getZ() + 0.5);
-        if (dcx * dcx + dcy * dcy + dcz * dcz > VIEW_SQR) {
+        List<ThaumicDioptraBlockEntity> loaded = ThaumicDioptraBlockEntity.loadedClientSide();
+        if (loaded.isEmpty()) {
             return;
         }
-        // Fast bail: the leader is the group's min (x, then z) member, which never has a
-        // dioptra to its west or north. Every other block returns here after two reads.
-        if (isDioptra(level, self.getX() - 1, self.getY(), self.getZ())
-                || isDioptra(level, self.getX(), self.getY(), self.getZ() - 1)) {
-            return;
-        }
-        List<BlockPos> members = discover(level, self);
-        // Confirm this really is the lex-min member (an L/U shape can have two NW corners;
-        // both scan the same group here, but only the true min renders it).
-        BlockPos leader = self;
-        for (BlockPos member : members) {
-            if (member.getX() < leader.getX()
-                    || (member.getX() == leader.getX() && member.getZ() < leader.getZ())) {
-                leader = member;
+        Vec3 cam = mc.gameRenderer.getMainCamera().getPosition();
+        // A group is drawn once, from whichever member we reach first; the rest are marked
+        // processed so an N-block group enqueues one hologram, not N.
+        Set<BlockPos> processed = new HashSet<>();
+        for (ThaumicDioptraBlockEntity be : loaded) {
+            if (be.isRemoved() || be.getLevel() != level) {
+                continue; // stale entry; the BE untracks itself on setRemoved
+            }
+            BlockPos origin = be.getBlockPos();
+            if (processed.contains(origin)) {
+                continue;
+            }
+            List<BlockPos> members = discover(level, origin);
+            processed.addAll(members);
+            if (!members.isEmpty()) {
+                emitGroup(level, members, cam);
             }
         }
-        if (!leader.equals(self)) {
-            return;
-        }
+    }
 
-        // Combined grid over the group's bounding box, in cells (GRID per block).
-        int minX = self.getX();
-        int minZ = self.getZ();
-        int maxX = self.getX();
-        int maxZ = self.getZ();
+    private static void emitGroup(Level level, List<BlockPos> members, Vec3 cam) {
+        int minX = Integer.MAX_VALUE;
+        int minZ = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE;
+        int maxZ = Integer.MIN_VALUE;
+        int y = members.get(0).getY();
         for (BlockPos member : members) {
             minX = Math.min(minX, member.getX());
             minZ = Math.min(minZ, member.getZ());
@@ -116,7 +117,12 @@ public class ThaumicDioptraRenderer implements BlockEntityRenderer<ThaumicDioptr
         float[] fluxFracs = new float[gw * gd];
         boolean[] present = new boolean[gw * gd];
         Set<Integer> ownCells = new HashSet<>();
+        double nearestSqr = Double.MAX_VALUE;
         for (BlockPos member : members) {
+            double ex = cam.x - (member.getX() + 0.5);
+            double ey = cam.y - (member.getY() + BASE_Y);
+            double ez = cam.z - (member.getZ() + 0.5);
+            nearestSqr = Math.min(nearestSqr, ex * ex + ey * ey + ez * ez);
             if (!(level.getBlockEntity(member) instanceof ThaumicDioptraBlockEntity be)) {
                 continue;
             }
@@ -141,15 +147,21 @@ public class ThaumicDioptraRenderer implements BlockEntityRenderer<ThaumicDioptr
                 ownCells.add((obz + odz + HALF) * gw + (obx + odx + HALF));
             }
         }
+        // Bound the work: only draw groups with a block near the camera. Because the BER
+        // dispatch no longer gates us, this range check is the sole distance cull.
+        if (nearestSqr > VIEW_SQR) {
+            return;
+        }
 
-        // Pose is at the leader block's origin; the group extends in +x/+z, so local
-        // coords span [0, blocksW] x [0, blocksD], matching the world footprint.
-        Matrix4f pose = new Matrix4f(poseStack.last().pose());
-        double toCamX = cam.x - (self.getX() + blocksW * 0.5);
-        double toCamY = cam.y - (self.getY() + BASE_Y + 0.3);
-        double toCamZ = cam.z - (self.getZ() + blocksD * 0.5);
-        double distSqr = toCamX * toCamX + toCamY * toCamY + toCamZ * toCamZ;
-
+        // Pose origin = the group's min (x, z) world corner at the block's Y, matching the
+        // combined grid's cell (0,0). Camera rotation is still live in RenderSystem when
+        // LateHolograms drains, so a plain camera-relative translation places it correctly.
+        Matrix4f pose = new Matrix4f().translation(
+                (float) (minX - cam.x), (float) (y - cam.y), (float) (minZ - cam.z));
+        double dcx = cam.x - (minX + blocksW * 0.5);
+        double dcy = cam.y - (y + BASE_Y + 0.3);
+        double dcz = cam.z - (minZ + blocksD * 0.5);
+        double distSqr = dcx * dcx + dcy * dcy + dcz * dcz;
         LateHolograms.enqueue(distSqr, buffer -> drawMap(buffer, pose, gw, gd, fracs, fluxFracs, present, ownCells));
     }
 
@@ -225,10 +237,6 @@ public class ThaumicDioptraRenderer implements BlockEntityRenderer<ThaumicDioptr
         }
     }
 
-    private static boolean isDioptra(Level level, int x, int y, int z) {
-        return level.getBlockState(new BlockPos(x, y, z)).getBlock() instanceof ThaumicDioptraBlock;
-    }
-
     /** 4-way flood over same-Y dioptra blocks, bounded by {@link #MAX_REACH} from origin. */
     private static List<BlockPos> discover(Level level, BlockPos origin) {
         List<BlockPos> members = new ArrayList<>();
@@ -280,23 +288,5 @@ public class ThaumicDioptraRenderer implements BlockEntityRenderer<ThaumicDioptr
         buffer.addVertex(pose, bx, yBottom, bz).setColor(r, g, b, alpha);
         buffer.addVertex(pose, bx, yTopB, bz).setColor(r, g, b, alpha);
         buffer.addVertex(pose, ax, yTopA, az).setColor(r, g, b, alpha);
-    }
-
-    @Override
-    public int getViewDistance() {
-        return VIEW_DISTANCE;
-    }
-
-    /**
-     * Render regardless of whether the anchor block's chunk section is in the camera
-     * frustum. The hologram floats above the block and spans a whole group, so tying its
-     * visibility to the single anchor section made it blink out when that section left
-     * frame even though the projection was still in view. Treating it as a global (beacon
-     * -style) BE keeps it drawn from any angle; the distance guard in {@link #render} and
-     * the leader check keep that from being expensive.
-     */
-    @Override
-    public boolean shouldRenderOffScreen(ThaumicDioptraBlockEntity blockEntity) {
-        return true;
     }
 }
