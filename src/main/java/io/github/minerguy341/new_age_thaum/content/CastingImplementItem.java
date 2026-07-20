@@ -53,8 +53,8 @@ public class CastingImplementItem extends Item {
                 Component.translatable(materialKey(component.capA())),
                 Component.translatable(materialKey(component.capB()))).withStyle(ChatFormatting.GRAY));
         tooltip.add(Component.translatable("tooltip.new_age_thaum.wand.vis",
-                (int) Math.round(WandVis.get(stack)),
-                (int) Math.round(stats.capacity())).withStyle(ChatFormatting.AQUA));
+                WandVis.get(stack).total(),
+                WandVis.capacity(stack)).withStyle(ChatFormatting.AQUA));
         tooltip.add(Component.translatable("tooltip.new_age_thaum.wand.discount",
                 (int) Math.round(stats.discount() * 100)).withStyle(ChatFormatting.GOLD));
         stats.rechargeAffinity().ifPresent(affinity -> tooltip.add(

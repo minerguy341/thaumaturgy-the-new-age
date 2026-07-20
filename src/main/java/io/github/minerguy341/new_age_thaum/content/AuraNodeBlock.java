@@ -35,6 +35,8 @@ import org.jetbrains.annotations.Nullable;
  */
 public class AuraNodeBlock extends Block implements EntityBlock {
     private static final VoxelShape SHAPE = Shapes.box(0.25, 0.25, 0.25, 0.75, 0.75, 0.75);
+    /** Vis drawn from the chunk aura per wand-charge use, added to every primal. */
+    private static final int CHARGE_PER_USE = 20;
 
     public AuraNodeBlock(BlockBehaviour.Properties properties) {
         super(properties);
@@ -63,19 +65,17 @@ public class AuraNodeBlock extends Block implements EntityBlock {
             return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
         }
         if (level instanceof ServerLevel serverLevel) {
-            float need = WandVis.capacity(stack) - WandVis.get(stack);
-            if (need <= 0f) {
-                return ItemInteractionResult.CONSUME; // already full — no-op, but a deliberate use
-            }
             AuraField field = AuraField.get(serverLevel);
             long chunk = new ChunkPos(pos).toLong();
-            float drawn = Math.min(need, field.vis(chunk));
-            if (drawn <= 0f) {
+            // Draw a slug of chunk aura and top up every primal by that much (a testing
+            // simplification — real per-aspect sourcing from the node's own aspect is a follow-up).
+            int drawn = (int) Math.min(CHARGE_PER_USE, field.vis(chunk));
+            int gained = drawn > 0 ? WandVis.chargeAll(stack, drawn) : 0;
+            if (gained <= 0) {
                 level.playSound(null, pos, SoundEvents.AMETHYST_BLOCK_STEP, SoundSource.BLOCKS, 0.5f, 0.7f);
-                return ItemInteractionResult.CONSUME;
+                return ItemInteractionResult.CONSUME; // wand full, or chunk aura depleted
             }
-            field.add(chunk, -drawn);
-            WandVis.add(stack, drawn);
+            field.add(chunk, -gained);
             level.playSound(null, pos, SoundEvents.AMETHYST_BLOCK_CHIME, SoundSource.BLOCKS, 0.7f, 1.2f);
         }
         return ItemInteractionResult.sidedSuccess(level.isClientSide);

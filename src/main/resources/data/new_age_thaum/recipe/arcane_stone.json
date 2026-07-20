@@ -7,5 +7,8 @@
     { "item": "minecraft:stone" }
   ],
   "result": { "id": "new_age_thaum:arcane_stone", "count": 4 },
-  "vis": 20
+  "vis": {
+    "new_age_thaum:tellus": 8,
+    "new_age_thaum:forma": 6
+  }
 }

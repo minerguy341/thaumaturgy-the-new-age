@@ -1,9 +1,9 @@
 package io.github.minerguy341.new_age_thaum.content;
 
-import com.mojang.serialization.Codec;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import io.github.minerguy341.new_age_thaum.core.ModRecipes;
+import io.github.minerguy341.new_age_thaum.core.aspect.AspectBag;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.NonNullList;
 import net.minecraft.network.RegistryFriendlyByteBuf;
@@ -28,7 +28,7 @@ import java.util.List;
  * ingredient count, and a one-to-one assignment of ingredients to stacks must exist. Because
  * of that, crafting consumes exactly one item from each non-empty grid slot (see the menu).
  */
-public record ArcaneCraftingRecipe(NonNullList<Ingredient> ingredients, ItemStack result, int visCost)
+public record ArcaneCraftingRecipe(NonNullList<Ingredient> ingredients, ItemStack result, AspectBag visCost)
         implements Recipe<CraftingInput> {
 
     @Override
@@ -101,7 +101,7 @@ public record ArcaneCraftingRecipe(NonNullList<Ingredient> ingredients, ItemStac
         public static final MapCodec<ArcaneCraftingRecipe> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(
                 Ingredient.CODEC_NONEMPTY.listOf().fieldOf("ingredients").forGetter(r -> r.ingredients),
                 ItemStack.STRICT_CODEC.fieldOf("result").forGetter(ArcaneCraftingRecipe::result),
-                Codec.INT.optionalFieldOf("vis", 0).forGetter(ArcaneCraftingRecipe::visCost)
+                AspectBag.CODEC.optionalFieldOf("vis", AspectBag.EMPTY).forGetter(ArcaneCraftingRecipe::visCost)
         ).apply(instance, (ingredients, result, vis) -> new ArcaneCraftingRecipe(toNonNull(ingredients), result, vis)));
 
         public static final StreamCodec<RegistryFriendlyByteBuf, ArcaneCraftingRecipe> STREAM_CODEC =
@@ -119,7 +119,7 @@ public record ArcaneCraftingRecipe(NonNullList<Ingredient> ingredients, ItemStac
                 Ingredient.CONTENTS_STREAM_CODEC.encode(buf, ingredient);
             }
             ItemStack.STREAM_CODEC.encode(buf, recipe.result);
-            buf.writeVarInt(recipe.visCost);
+            AspectBag.STREAM_CODEC.encode(buf, recipe.visCost);
         }
 
         private static ArcaneCraftingRecipe fromNetwork(RegistryFriendlyByteBuf buf) {
@@ -129,7 +129,7 @@ public record ArcaneCraftingRecipe(NonNullList<Ingredient> ingredients, ItemStac
                 ingredients.set(i, Ingredient.CONTENTS_STREAM_CODEC.decode(buf));
             }
             ItemStack result = ItemStack.STREAM_CODEC.decode(buf);
-            int vis = buf.readVarInt();
+            AspectBag vis = AspectBag.STREAM_CODEC.decode(buf);
             return new ArcaneCraftingRecipe(ingredients, result, vis);
         }
 

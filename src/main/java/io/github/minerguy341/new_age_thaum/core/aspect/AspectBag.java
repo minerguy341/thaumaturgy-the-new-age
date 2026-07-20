@@ -1,6 +1,8 @@
 package io.github.minerguy341.new_age_thaum.core.aspect;
 
 import com.mojang.serialization.Codec;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.Comparator;
@@ -16,8 +18,42 @@ public record AspectBag(Map<ResourceLocation, Integer> amounts) {
             .unboundedMap(ResourceLocation.CODEC, Codec.intRange(1, 65536))
             .xmap(map -> new AspectBag(Map.copyOf(map)), AspectBag::amounts);
 
+    public static final StreamCodec<RegistryFriendlyByteBuf, AspectBag> STREAM_CODEC = StreamCodec.of(
+            (buf, bag) -> {
+                buf.writeVarInt(bag.amounts.size());
+                bag.amounts.forEach((id, amount) -> {
+                    ResourceLocation.STREAM_CODEC.encode(buf, id);
+                    buf.writeVarInt(amount);
+                });
+            },
+            buf -> {
+                int n = buf.readVarInt();
+                Map<ResourceLocation, Integer> map = new HashMap<>();
+                for (int i = 0; i < n; i++) {
+                    ResourceLocation id = ResourceLocation.STREAM_CODEC.decode(buf);
+                    map.put(id, buf.readVarInt());
+                }
+                return new AspectBag(Map.copyOf(map));
+            });
+
     public boolean isEmpty() {
         return amounts.isEmpty();
+    }
+
+    /** Amount of one aspect, 0 if absent. */
+    public int amountOf(ResourceLocation id) {
+        return amounts.getOrDefault(id, 0);
+    }
+
+    /** A copy with {@code id} set to {@code amount} (amount &le; 0 removes it). */
+    public AspectBag with(ResourceLocation id, int amount) {
+        Map<ResourceLocation, Integer> map = new HashMap<>(amounts);
+        if (amount <= 0) {
+            map.remove(id);
+        } else {
+            map.put(id, amount);
+        }
+        return new AspectBag(Map.copyOf(map));
     }
 
     /**
