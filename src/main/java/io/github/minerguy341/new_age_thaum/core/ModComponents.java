@@ -1,11 +1,13 @@
 package io.github.minerguy341.new_age_thaum.core;
 
+import com.mojang.serialization.Codec;
 import dev.architectury.registry.registries.DeferredRegister;
 import dev.architectury.registry.registries.RegistrySupplier;
 import io.github.minerguy341.new_age_thaum.NewAgeThaum;
 import io.github.minerguy341.new_age_thaum.core.casting.WandComponent;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.network.codec.ByteBufCodecs;
 
 /** Custom data components. The wand component carries the core + cap material ids. */
 public final class ModComponents {
@@ -16,6 +18,17 @@ public final class ModComponents {
             () -> DataComponentType.<WandComponent>builder()
                     .persistent(WandComponent.CODEC)
                     .networkSynchronized(WandComponent.STREAM_CODEC)
+                    .build());
+
+    /**
+     * Stored vis on an assembled wand/stave (the reservoir crafts draw from). Capped at the
+     * derived {@link io.github.minerguy341.new_age_thaum.core.casting.WandStats#capacity()};
+     * charged by siphoning an aura node, spent at the Arcane Worktable. Absent = empty (0).
+     */
+    public static final RegistrySupplier<DataComponentType<Float>> WAND_VIS = COMPONENTS.register("wand_vis",
+            () -> DataComponentType.<Float>builder()
+                    .persistent(Codec.FLOAT)
+                    .networkSynchronized(ByteBufCodecs.FLOAT)
                     .build());
 
     /** The generated puzzle definition (frequency, endpoints, gaps) on a research paper. */

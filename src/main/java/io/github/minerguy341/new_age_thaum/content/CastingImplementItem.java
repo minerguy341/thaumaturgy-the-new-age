@@ -5,6 +5,7 @@ import io.github.minerguy341.new_age_thaum.core.aspect.AspectNames;
 import io.github.minerguy341.new_age_thaum.core.casting.WandComponent;
 import io.github.minerguy341.new_age_thaum.core.casting.WandForm;
 import io.github.minerguy341.new_age_thaum.core.casting.WandStats;
+import io.github.minerguy341.new_age_thaum.core.casting.WandVis;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
@@ -51,7 +52,8 @@ public class CastingImplementItem extends Item {
         tooltip.add(Component.translatable("tooltip.new_age_thaum.wand.caps",
                 Component.translatable(materialKey(component.capA())),
                 Component.translatable(materialKey(component.capB()))).withStyle(ChatFormatting.GRAY));
-        tooltip.add(Component.translatable("tooltip.new_age_thaum.wand.capacity",
+        tooltip.add(Component.translatable("tooltip.new_age_thaum.wand.vis",
+                (int) Math.round(WandVis.get(stack)),
                 (int) Math.round(stats.capacity())).withStyle(ChatFormatting.AQUA));
         tooltip.add(Component.translatable("tooltip.new_age_thaum.wand.discount",
                 (int) Math.round(stats.discount() * 100)).withStyle(ChatFormatting.GOLD));

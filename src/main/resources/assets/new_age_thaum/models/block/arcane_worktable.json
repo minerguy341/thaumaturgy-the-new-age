@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/cube_bottom_top",
+  "textures": {
+    "top": "new_age_thaum:block/arcane_worktable_top",
+    "side": "new_age_thaum:block/arcane_worktable_side",
+    "bottom": "new_age_thaum:block/arcane_worktable_bottom"
+  }
+}

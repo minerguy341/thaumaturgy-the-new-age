@@ -1,10 +1,20 @@
 package io.github.minerguy341.new_age_thaum.content;
 
 import io.github.minerguy341.new_age_thaum.core.ModBlockEntities;
+import io.github.minerguy341.new_age_thaum.core.aura.AuraField;
+import io.github.minerguy341.new_age_thaum.core.casting.WandVis;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.ItemInteractionResult;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.RenderShape;
@@ -39,6 +49,36 @@ public class AuraNodeBlock extends Block implements EntityBlock {
     @Override
     protected RenderShape getRenderShape(BlockState state) {
         return RenderShape.INVISIBLE; // the BER draws the orb
+    }
+
+    /**
+     * Right-click with a wand/stave to siphon this chunk's ambient aura into the wand's vis
+     * reservoir (up to the wand's capacity, limited by what the chunk holds). This is the
+     * charging half of the vis loop: aura node → wand → Arcane Worktable craft.
+     */
+    @Override
+    protected ItemInteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos,
+            Player player, InteractionHand hand, BlockHitResult hit) {
+        if (!WandVis.isReservoir(stack)) {
+            return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
+        }
+        if (level instanceof ServerLevel serverLevel) {
+            float need = WandVis.capacity(stack) - WandVis.get(stack);
+            if (need <= 0f) {
+                return ItemInteractionResult.CONSUME; // already full — no-op, but a deliberate use
+            }
+            AuraField field = AuraField.get(serverLevel);
+            long chunk = new ChunkPos(pos).toLong();
+            float drawn = Math.min(need, field.vis(chunk));
+            if (drawn <= 0f) {
+                level.playSound(null, pos, SoundEvents.AMETHYST_BLOCK_STEP, SoundSource.BLOCKS, 0.5f, 0.7f);
+                return ItemInteractionResult.CONSUME;
+            }
+            field.add(chunk, -drawn);
+            WandVis.add(stack, drawn);
+            level.playSound(null, pos, SoundEvents.AMETHYST_BLOCK_CHIME, SoundSource.BLOCKS, 0.7f, 1.2f);
+        }
+        return ItemInteractionResult.sidedSuccess(level.isClientSide);
     }
 
     @Override
