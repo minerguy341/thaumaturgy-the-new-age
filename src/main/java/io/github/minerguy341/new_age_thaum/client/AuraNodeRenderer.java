@@ -41,25 +41,33 @@ public class AuraNodeRenderer implements BlockEntityRenderer<AuraNodeBlockEntity
             MultiBufferSource bufferSource, int packedLight, int packedOverlay) {
         long now = Util.getMillis();
         int aspectColor = SphereColors.colorOf(node.aspect()); // grey until the server rolls it
-        // Personality reads at a glance: bright orbs swell and glow, pale ones shrink and
-        // dim, hungry ones flicker restlessly, tainted ones curdle toward a sick violet,
-        // pure ones brighten toward white. Modifiers are local to this frame's emission.
+        // Personality reads at a glance WITHOUT washing out the aspect hue — the color is
+        // what tells you WHICH aspect the node is, so brightness is no longer the main tell.
+        // Instead: bright orbs swell, pulse hard and read a touch more opaque; pale ones
+        // shrink, calm down, fade and desaturate; hungry ones flicker and spin fast; tainted
+        // ones curdle toward a sick violet (a hue shift); pure ones sit a little larger and
+        // cleaner. Modifiers are local to this frame's emission.
         NodePersonality nature = node.personality(); // null for a client frame before sync
         float sizeBoost = 1.0f;
-        float glow = 0f;
         float pulseAmp = 0.08f;
-        int tinted = aspectColor;
+        float spinScale = 1.0f;   // hungry nodes churn faster
+        float alphaScale = 1.0f;  // luminosity via opacity, not white-blend — keeps the hue
+        float coreGlow = 0f;      // a small extra white on the hot core only
+        int hue = aspectColor;    // personality hue shifts (taint violet, pale desaturate)
         if (nature != null) {
             switch (nature) {
-                case BRIGHT -> { sizeBoost = 1.2f; glow = 0.15f; }
-                case PALE -> { sizeBoost = 0.8f; glow = -0.10f; }
-                case HUNGRY -> { sizeBoost = 0.9f; pulseAmp = 0.16f; }
-                case TAINTED -> { tinted = SphereColors.blend(aspectColor, TAINT_TINT, 0.55); glow = -0.05f; }
-                case PURE -> { tinted = SphereColors.blend(aspectColor, 0xFFFFFF, 0.25); glow = 0.20f; }
+                case BRIGHT -> { sizeBoost = 1.25f; pulseAmp = 0.13f; alphaScale = 1.18f; coreGlow = 0.08f; }
+                case PALE -> { sizeBoost = 0.78f; pulseAmp = 0.05f; alphaScale = 0.72f;
+                        hue = SphereColors.blend(aspectColor, 0x8A8F9C, 0.22); }
+                case HUNGRY -> { sizeBoost = 0.90f; pulseAmp = 0.22f; spinScale = 1.8f; }
+                case TAINTED -> { hue = SphereColors.blend(aspectColor, TAINT_TINT, 0.55); pulseAmp = 0.10f; }
+                case PURE -> { sizeBoost = 1.08f; pulseAmp = 0.09f; alphaScale = 1.10f; coreGlow = 0.10f; }
             }
         }
-        final int color = tinted;      // final copies for the deferred lambda below
-        final float brighten = glow;
+        final int color = hue;             // final copies for the deferred lambda below
+        final float glowCore = coreGlow;
+        final float alphaMul = alphaScale;
+        final float spinMul = spinScale;
         // Point-at-camera billboard, not screen-aligned: each orb's disc plane must be
         // perpendicular to the line from THIS node to the camera. With the shared
         // camera.rotation() plane, nodes off the view axis tilt relative to their own
@@ -101,17 +109,19 @@ public class AuraNodeRenderer implements BlockEntityRenderer<AuraNodeBlockEntity
             // Outer halo breathes, the mid swirl and bright core counter-rotate. Each
             // layer sits at its own depth along the local view axis (+Z points away
             // from the camera) so the depth-stamp pass isn't coplanar; blend order is
-            // the far-to-near emission order. The personality glow shifts each layer's
-            // white-blend up or down.
+            // the far-to-near emission order. White-blends are kept low — the halo and
+            // swirl stay near full aspect saturation and only the hot core lightens — so
+            // the aspect hue reads at a glance. Luminosity differences between
+            // personalities ride on alpha (alphaMul), not on bleaching the color.
             disc(buffer, discPose, base * 1.7f * pulse,
-                    SphereColors.blend(color, 0xFFFFFF, Mth.clamp(0.10 + brighten, 0.0, 1.0)), 0x2E,
-                    (float) (seconds * 0.35), 0.04f);
+                    SphereColors.blend(color, 0xFFFFFF, 0.05), scaleAlpha(0x2E, alphaMul),
+                    (float) (seconds * 0.35 * spinMul), 0.04f);
             disc(buffer, discPose, base * 1.15f,
-                    SphereColors.blend(color, 0xFFFFFF, Mth.clamp(0.25 + brighten, 0.0, 1.0)), 0x78,
-                    (float) (seconds * 0.9), 0f);
+                    SphereColors.blend(color, 0xFFFFFF, 0.16), scaleAlpha(0x78, alphaMul),
+                    (float) (seconds * 0.9 * spinMul), 0f);
             disc(buffer, discPose, base * 0.55f * (2.0f - pulse),
-                    SphereColors.blend(color, 0xFFFFFF, Mth.clamp(0.65 + brighten, 0.0, 1.0)), 0xE6,
-                    (float) (-seconds * 1.6), -0.04f);
+                    SphereColors.blend(color, 0xFFFFFF, Mth.clamp(0.40 + glowCore, 0.0, 1.0)), scaleAlpha(0xE6, alphaMul),
+                    (float) (-seconds * 1.6 * spinMul), -0.04f);
         });
         if (gridPose != null) {
             enqueueAuraGrid(node, gridPose, toCamX + 0.5f, toCamY + 0.5f, toCamZ + 0.5f);
@@ -172,6 +182,11 @@ public class AuraNodeRenderer implements BlockEntityRenderer<AuraNodeBlockEntity
         buffer.addVertex(pose, x, y, z + w).setColor(r, g, b, alpha);
         buffer.addVertex(pose, x, y + height, z + w).setColor(r, g, b, alpha);
         buffer.addVertex(pose, x, y + height, z - w).setColor(r, g, b, alpha);
+    }
+
+    /** Scales a base disc alpha by a personality's luminosity multiplier, clamped 0–255. */
+    private static int scaleAlpha(int base, float scale) {
+        return Mth.clamp(Math.round(base * scale), 0, 255);
     }
 
     /** A flat hexagon fan in the billboarded view plane, spun by {@code spin} radians. */
