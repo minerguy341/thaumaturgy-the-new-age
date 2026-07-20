@@ -34,7 +34,6 @@ public class ArcaneWorktableScreen extends AbstractContainerScreen<ArcaneWorktab
     private static final int PIP_OFF = 0xFF37304A;
     private static final int WARN = 0xFFE08A8A;
     private static final int WARN_TEXT = 0xE08A8A;
-    private static final int ARROW = 0xFF6A6480;
 
     private static final int RING_PIPS = 16;
 
@@ -43,7 +42,7 @@ public class ArcaneWorktableScreen extends AbstractContainerScreen<ArcaneWorktab
     public ArcaneWorktableScreen(ArcaneWorktableMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
         this.imageWidth = 194;
-        this.imageHeight = 196;
+        this.imageHeight = 200;
         this.inventoryLabelY = ArcaneWorktableMenu.INV_Y - 11;
     }
 
@@ -60,7 +59,6 @@ public class ArcaneWorktableScreen extends AbstractContainerScreen<ArcaneWorktab
         }
 
         drawVisRing(g, x, y);
-        drawArrow(g, x, y);
 
         // Ghost-wand hint in the empty wand slot.
         if (!menu.hasWand()) {
@@ -122,23 +120,11 @@ public class ArcaneWorktableScreen extends AbstractContainerScreen<ArcaneWorktab
         }
     }
 
-    /** A small arrow from the grid to the result slot. */
-    private void drawArrow(GuiGraphics g, int x, int y) {
-        int ay = y + ArcaneWorktableMenu.RESULT_Y + 8;
-        int ax = x + ArcaneWorktableMenu.GRID_X + 54 + 8; // just right of the grid
-        g.fill(ax, ay - 1, ax + 22, ay + 1, ARROW);       // shaft
-        for (int k = 0; k < 7; k++) {                      // head
-            g.fill(ax + 22 + k, ay - (7 - k), ax + 23 + k, ay + (7 - k), ARROW);
-        }
-    }
-
     @Override
     protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {
         super.renderLabels(g, mouseX, mouseY); // title + "Inventory"
-        // A "Wand" label under the wand slot (the study: label the arcane slots).
-        g.drawString(font, Component.translatable("screen.new_age_thaum.wand_label"),
-                ArcaneWorktableMenu.WAND_X - 2, ArcaneWorktableMenu.WAND_Y + 20, DIM, false);
-        // Numeric cost centred under the grid, coloured by affordability.
+        // Numeric cost centred under the grid, coloured by affordability. (The wand slot is
+        // self-labelled by its ghost-wand hint, TC4-style, so no separate label.)
         int status = menu.status();
         int costY = ArcaneWorktableMenu.GRID_Y + 54 + 12; // below the ring's bottom edge
         int costX = ArcaneWorktableMenu.GRID_CX;

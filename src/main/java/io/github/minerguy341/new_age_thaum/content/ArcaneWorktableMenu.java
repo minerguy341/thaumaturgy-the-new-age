@@ -54,15 +54,15 @@ public class ArcaneWorktableMenu extends AbstractContainerMenu {
     public static final int STATUS_INSUFFICIENT = 3;
     public static final int STATUS_VANILLA_READY = 4;
 
-    // Layout — a custom 194x196 arcane panel (room to ring the grid with a vis gauge,
-    // TC Arcane-Workbench style). Slots are stamped from a real vanilla slot cell so they
-    // still read as Minecraft slots. The grid is centred so the vis ring encircles it; the
-    // wand slot sits to its left (the payer), result to its right past an arrow.
-    public static final int GRID_X = 44, GRID_Y = 24;
-    public static final int RESULT_X = 150, RESULT_Y = 42;
-    public static final int WAND_X = 16, WAND_Y = 42;
-    public static final int INV_X = 16, INV_Y = 114, HOTBAR_Y = 172;
-    // Grid centre (x), shared with the screen for centring the vis-cost readout under the grid.
+    // Layout — a custom 194x200 arcane panel following TC4's Arcane Worktable: the 3×3 grid
+    // is CENTRED with the vis-cost gauge ringing it (TC4's six aspect symbols surround the
+    // grid), the wand slot sits TOP-RIGHT (TC4 auto-inserts the wand there), the result below
+    // it. Slots are stamped from a real vanilla slot cell so they still read as Minecraft.
+    public static final int GRID_X = 70, GRID_Y = 26;   // centred: 70..124, panel centre x=97
+    public static final int WAND_X = 150, WAND_Y = 22;  // top-right (TC4)
+    public static final int RESULT_X = 150, RESULT_Y = 54;
+    public static final int INV_X = 16, INV_Y = 118, HOTBAR_Y = 176;
+    // Grid centre (x) = panel centre, shared with the screen for centring the vis readout.
     public static final int GRID_CX = GRID_X + 27; // 3x3 @18 = 54px wide
 
     private final CraftingContainer craftSlots = new TransientCraftingContainer(this, 3, 3);
