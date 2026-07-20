@@ -5,49 +5,48 @@ import io.github.minerguy341.new_age_thaum.core.ModRegistries;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * Arcane Worktable screen — the "augment don't replace" overlay: a familiar 3×3 grid + result
- * where players expect them, plus a wand slot (with a ghost-wand empty-state hint) and a live
- * vis-cost chip that appears only when an arcane recipe is on the grid and locks the result
- * with a reason when the wand can't pay. Drawn procedurally against the shared dark-purple UI
- * palette; nine-slice sprite chrome is a studio follow-up.
+ * Arcane Worktable screen — the "augment don't replace" overlay. It blits the VANILLA
+ * crafting-table GUI (referenced by ResourceLocation — the client already ships it, nothing is
+ * bundled here) so the 3×3 grid + result read as the familiar crafting table, then adds exactly
+ * two arcane augments: a wand slot (blitted from a real vanilla slot cell, with a ghost-wand
+ * empty-state hint) and a live vis-cost chip that appears only when an arcane recipe is on the
+ * grid and locks the result with a reason when the wand can't pay.
  */
 public class ArcaneWorktableScreen extends AbstractContainerScreen<ArcaneWorktableMenu> {
-    // Shared UI palette (minecraft-ui-design skill).
-    private static final int PANEL = 0xF0100A18;
-    private static final int CHROME = 0xFF241B33;
-    private static final int WELL_EDGE = 0xFF0B0912;
-    private static final int WELL_FILL = 0xFF1A1526;
-    private static final int TEXT = 0xE8D9FF;
-    private static final int DIM = 0x9A8CBF;
+    // Vanilla crafting-table container texture (256×256). Referenced, not shipped.
+    private static final ResourceLocation BG =
+            ResourceLocation.withDefaultNamespace("textures/gui/container/crafting_table.png");
+    // A single 18×18 slot cell within that texture (the top-left grid slot's inset).
+    private static final int SLOT_CELL_U = 29;
+    private static final int SLOT_CELL_V = 16;
+
     private static final int TEAL = 0x7FE8D8;
-    private static final int WARN = 0xE08A8A;
+    private static final int WARN = 0xC0392B;
+    private static final int DIM = 0x6A6A6A;
 
     private ItemStack ghostWand = ItemStack.EMPTY;
 
     public ArcaneWorktableScreen(ArcaneWorktableMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
         this.imageWidth = 176;
-        this.imageHeight = 190;
-        this.titleLabelY = 5;
-        this.inventoryLabelY = ArcaneWorktableMenu.INV_Y - 11;
+        this.imageHeight = 166;
+        this.titleLabelX = 29; // vanilla crafting-table title inset
     }
 
     @Override
     protected void renderBg(GuiGraphics g, float partialTick, int mouseX, int mouseY) {
         int x = leftPos;
         int y = topPos;
-        g.fill(x, y, x + imageWidth, y + imageHeight, PANEL);
-        g.fill(x, y, x + imageWidth, y + 14, CHROME);
-
-        for (Slot slot : menu.slots) {
-            g.fill(x + slot.x - 1, y + slot.y - 1, x + slot.x + 17, y + slot.y + 17, WELL_EDGE);
-            g.fill(x + slot.x, y + slot.y, x + slot.x + 16, y + slot.y + 16, WELL_FILL);
-        }
+        g.blit(BG, x, y, 0, 0, imageWidth, imageHeight);
+        // The wand slot sits over blank background — stamp a real vanilla slot cell behind it.
+        g.blit(BG, x + ArcaneWorktableMenu.WAND_X - 1, y + ArcaneWorktableMenu.WAND_Y - 1,
+                SLOT_CELL_U, SLOT_CELL_V, 18, 18);
 
         // Ghost-wand hint in the empty wand slot: says "put a wand here" without a label.
         if (!menu.hasWand()) {
@@ -57,23 +56,23 @@ public class ArcaneWorktableScreen extends AbstractContainerScreen<ArcaneWorktab
             int wx = x + ArcaneWorktableMenu.WAND_X;
             int wy = y + ArcaneWorktableMenu.WAND_Y;
             g.renderFakeItem(ghostWand, wx, wy);
-            g.fill(wx, wy, wx + 16, wy + 16, 0x90100A18); // dim to a ghost
+            g.fill(wx, wy, wx + 16, wy + 16, 0x90C6C6C6); // dim to a ghost on the light bg
         }
     }
 
     @Override
     protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {
-        super.renderLabels(g, mouseX, mouseY); // title + "Inventory"
-        int status = menu.status();
-        int chipX = ArcaneWorktableMenu.RESULT_X - 22;
-        int chipY = ArcaneWorktableMenu.RESULT_Y + 20;
-        switch (status) {
+        super.renderLabels(g, mouseX, mouseY); // title + "Inventory", vanilla dark text
+        // Vis chip under the wand slot (the payer), so cost sits with the tool that pays it.
+        int chipX = ArcaneWorktableMenu.WAND_X - 8;
+        int chipY = ArcaneWorktableMenu.WAND_Y + 20;
+        switch (menu.status()) {
             case ArcaneWorktableMenu.STATUS_ARCANE_READY -> g.drawString(font,
                     Component.translatable("screen.new_age_thaum.vis_cost", menu.visCost()), chipX, chipY, TEAL, false);
             case ArcaneWorktableMenu.STATUS_INSUFFICIENT -> g.drawString(font,
                     Component.translatable("screen.new_age_thaum.vis_cost", menu.visCost()), chipX, chipY, WARN, false);
             case ArcaneWorktableMenu.STATUS_NEED_WAND -> g.drawString(font,
-                    Component.translatable("screen.new_age_thaum.need_wand"), chipX - 12, chipY, DIM, false);
+                    Component.translatable("screen.new_age_thaum.wand_label"), chipX, chipY, DIM, false);
             default -> { /* no chip */ }
         }
     }

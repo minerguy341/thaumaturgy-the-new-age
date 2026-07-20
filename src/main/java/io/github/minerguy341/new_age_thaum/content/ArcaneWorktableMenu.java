@@ -54,11 +54,13 @@ public class ArcaneWorktableMenu extends AbstractContainerMenu {
     public static final int STATUS_INSUFFICIENT = 3;
     public static final int STATUS_VANILLA_READY = 4;
 
-    // Layout (relative to leftPos/topPos); the screen mirrors these.
-    public static final int GRID_X = 30, GRID_Y = 18;
-    public static final int RESULT_X = 124, RESULT_Y = 36;
-    public static final int WAND_X = 124, WAND_Y = 64;
-    public static final int INV_X = 8, INV_Y = 108, HOTBAR_Y = 166;
+    // Layout — the VANILLA crafting-table slot coordinates (the screen blits
+    // minecraft's crafting_table.png as its background), plus a wand slot in the
+    // blank area to the right of the result. 176x166 panel.
+    public static final int GRID_X = 30, GRID_Y = 17;
+    public static final int RESULT_X = 124, RESULT_Y = 35;
+    public static final int WAND_X = 146, WAND_Y = 35;
+    public static final int INV_X = 8, INV_Y = 84, HOTBAR_Y = 142;
 
     private final CraftingContainer craftSlots = new TransientCraftingContainer(this, 3, 3);
     private final SimpleContainer wandContainer = new SimpleContainer(1);

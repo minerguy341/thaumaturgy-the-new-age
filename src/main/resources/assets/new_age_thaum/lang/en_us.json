@@ -34,6 +34,7 @@
   "screen.new_age_thaum.arcane_worktable": "Arcane Worktable",
   "screen.new_age_thaum.vis_cost": "Vis: %s",
   "screen.new_age_thaum.need_wand": "Insert a wand",
+  "screen.new_age_thaum.wand_label": "Wand",
   "screen.new_age_thaum.insufficient_vis": "Needs %s vis (wand has %s)",
   "itemGroup.new_age_thaum.main": "Thaumaturgy: The New Age",
   "tooltip.new_age_thaum.aspects": "Aspects:",
