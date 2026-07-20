@@ -62,8 +62,9 @@ public final class NewAgeThaumClient {
                         .register(type, OrreryHologramRenderer::new));
         ModBlockEntities.AURA_NODE.listen(type ->
                 BlockEntityRendererRegistry.register(type, AuraNodeRenderer::new));
-        ModBlockEntities.THAUMIC_DIOPTRA.listen(type ->
-                BlockEntityRendererRegistry.register(type, ThaumicDioptraRenderer::new));
+        // No block-entity renderer for the dioptra: its hologram is emitted per-frame from
+        // LateHolograms.renderAll() (see ThaumicDioptraRenderer.emitAll) so it stays visible
+        // from any camera angle instead of being culled with its anchor block's section.
         // Saplings are cross models with transparency; same listen() timing rule.
         cutout(ModRegistries.GREATWOOD_SAPLING);
         cutout(ModRegistries.SILVERWOOD_SAPLING);
