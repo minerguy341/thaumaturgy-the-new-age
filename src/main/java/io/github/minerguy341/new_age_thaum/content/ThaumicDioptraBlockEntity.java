@@ -115,6 +115,13 @@ public class ThaumicDioptraBlockEntity extends BlockEntity {
         if (pendingGroupRefresh) {
             pendingGroupRefresh = false;
             DioptraGroup.refresh(level, worldPosition);
+            // Fill and push the snapshot immediately on the first tick after placement, so
+            // a freshly placed dioptra shows its real terrain at once instead of a flat
+            // patch until the periodic sync. A group join already fills via applyWindowCenter
+            // (the center changes), but a lone block keeps its own-chunk default, so that
+            // path never fires — this covers it. refreshSnapshot only syncs on a real change,
+            // so it's a no-op when the group path already pushed the data.
+            refreshSnapshot(level);
         }
         long time = level.getGameTime();
         if (time % COMPARATOR_INTERVAL_TICKS == 0) {
