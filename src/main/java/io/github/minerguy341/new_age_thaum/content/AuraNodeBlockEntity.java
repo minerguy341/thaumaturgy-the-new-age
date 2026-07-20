@@ -4,6 +4,7 @@ import io.github.minerguy341.new_age_thaum.core.ModBlockEntities;
 import io.github.minerguy341.new_age_thaum.core.aspect.Aspect;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectRegistry;
 import io.github.minerguy341.new_age_thaum.core.aura.AuraField;
+import io.github.minerguy341.new_age_thaum.core.aura.NodePersonality;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
@@ -38,6 +39,7 @@ public class AuraNodeBlockEntity extends BlockEntity {
 
     private ResourceLocation aspect;
     private float size = 1.0f; // recharge rate in vis per pump, also scales the orb
+    private NodePersonality personality; // temperament; null until rolled (or migrated)
     private final float[] auraSnapshot = new float[GRID * GRID];
 
     public AuraNodeBlockEntity(BlockPos pos, BlockState state) {
@@ -50,6 +52,23 @@ public class AuraNodeBlockEntity extends BlockEntity {
 
     public float size() {
         return size;
+    }
+
+    /** The node's temperament; never null after its first server tick. */
+    public NodePersonality personality() {
+        return personality;
+    }
+
+    /**
+     * Pre-seeds this node's identity so its first tick won't roll a random one — used by
+     * worldgen to plant a specific node (e.g. a pure, aether-leaning node in a silverwood
+     * trunk). Sets aspect, personality, and size directly; the tick guards then skip.
+     */
+    public void seedIdentity(ResourceLocation aspect, NodePersonality personality, float size) {
+        this.aspect = aspect;
+        this.personality = personality;
+        this.size = Mth.clamp(size, 0.1f, 4f);
+        setChanged();
     }
 
     /** Row-major 5x5 vis snapshot centered on this node's chunk; client display data. */
@@ -76,6 +95,14 @@ public class AuraNodeBlockEntity extends BlockEntity {
             setChanged();
             level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), Block.UPDATE_CLIENTS);
         }
+        if (personality == null) {
+            // Fresh nodes roll here; nodes saved before personalities existed migrate the
+            // first time they tick after the update (aspect is already set, so only this
+            // runs). A worldgen feature that pre-seeds a personality skips both.
+            personality = NodePersonality.roll(level.random);
+            setChanged();
+            level.sendBlockUpdated(worldPosition, getBlockState(), getBlockState(), Block.UPDATE_CLIENTS);
+        }
         if (time % PUMP_INTERVAL_TICKS == 0) {
             pump(level);
         }
@@ -99,18 +126,25 @@ public class AuraNodeBlockEntity extends BlockEntity {
 
     /**
      * One regeneration pulse: full rate into the node's chunk, quarter rate into the
-     * eight neighbors. Public so gametests drive the exact production path.
+     * eight neighbors, both scaled by the personality's vis multiplier. Tainted nodes
+     * also add flux to their chunk; pure nodes burn it down. Public so gametests drive
+     * the exact production path.
      */
     public void pump(ServerLevel level) {
         AuraField aura = AuraField.get(level);
         ChunkPos center = new ChunkPos(worldPosition);
-        aura.add(center.toLong(), size);
+        NodePersonality nature = personality != null ? personality : NodePersonality.PALE;
+        float output = size * nature.visMultiplier();
+        aura.add(center.toLong(), output);
         for (int dx = -1; dx <= 1; dx++) {
             for (int dz = -1; dz <= 1; dz++) {
                 if (dx != 0 || dz != 0) {
-                    aura.add(new ChunkPos(center.x + dx, center.z + dz).toLong(), size * 0.25f);
+                    aura.add(new ChunkPos(center.x + dx, center.z + dz).toLong(), output * 0.25f);
                 }
             }
+        }
+        if (nature.fluxPerPump() != 0f) {
+            aura.addFlux(center.toLong(), size * nature.fluxPerPump());
         }
     }
 
@@ -121,6 +155,9 @@ public class AuraNodeBlockEntity extends BlockEntity {
             tag.putString("Aspect", aspect.toString());
         }
         tag.putFloat("Size", size);
+        if (personality != null) {
+            tag.putString("Personality", personality.id());
+        }
         // The snapshot rides along so getUpdateTag carries it; stale values on world
         // load are refreshed by the first sync interval.
         int[] snapshot = new int[auraSnapshot.length];
@@ -136,6 +173,8 @@ public class AuraNodeBlockEntity extends BlockEntity {
         aspect = tag.contains("Aspect") ? ResourceLocation.tryParse(tag.getString("Aspect")) : null;
         float loadedSize = tag.getFloat("Size");
         size = Float.isFinite(loadedSize) && loadedSize > 0f ? Mth.clamp(loadedSize, 0.1f, 4f) : 1.0f;
+        // Absent on pre-personality saves — left null so the first tick migrates it.
+        personality = tag.contains("Personality") ? NodePersonality.byId(tag.getString("Personality")) : null;
         int[] snapshot = tag.getIntArray("Aura");
         for (int i = 0; i < auraSnapshot.length; i++) {
             float value = i < snapshot.length ? Float.intBitsToFloat(snapshot[i]) : 0f;

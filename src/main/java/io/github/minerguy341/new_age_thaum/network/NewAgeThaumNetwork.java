@@ -10,6 +10,7 @@ import io.github.minerguy341.new_age_thaum.core.aspect.AspectAssignments;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectRegistry;
 import io.github.minerguy341.new_age_thaum.core.casting.WandMaterial;
 import io.github.minerguy341.new_age_thaum.core.casting.WandMaterialRegistry;
+import io.github.minerguy341.new_age_thaum.core.NewAgeThaumConfig;
 import io.github.minerguy341.new_age_thaum.core.codex.CodexEntry;
 import io.github.minerguy341.new_age_thaum.core.codex.CodexRegistry;
 import io.github.minerguy341.new_age_thaum.core.player.PlayerProgress;
@@ -83,12 +84,16 @@ public final class NewAgeThaumNetwork {
                         }
                         WandMaterialRegistry.reload(incoming);
                     });
+            NetworkManager.registerReceiver(NetworkManager.s2c(), CastingConfigSyncPayload.TYPE, CastingConfigSyncPayload.STREAM_CODEC,
+                    (payload, context) ->
+                            io.github.minerguy341.new_age_thaum.client.ClientCastingConfig.accept(payload));
         } else {
             NetworkManager.registerS2CPayloadType(AspectSyncPayload.TYPE, AspectSyncPayload.STREAM_CODEC);
             NetworkManager.registerS2CPayloadType(AssignmentSyncPayload.TYPE, AssignmentSyncPayload.STREAM_CODEC);
             NetworkManager.registerS2CPayloadType(PlayerProgressSyncPayload.TYPE, PlayerProgressSyncPayload.STREAM_CODEC);
             NetworkManager.registerS2CPayloadType(CodexSyncPayload.TYPE, CodexSyncPayload.STREAM_CODEC);
             NetworkManager.registerS2CPayloadType(WandMaterialSyncPayload.TYPE, WandMaterialSyncPayload.STREAM_CODEC);
+            NetworkManager.registerS2CPayloadType(CastingConfigSyncPayload.TYPE, CastingConfigSyncPayload.STREAM_CODEC);
             NetworkManager.registerS2CPayloadType(OrreryOrientationPayload.TYPE, OrreryOrientationPayload.STREAM_CODEC);
         }
 
@@ -313,6 +318,17 @@ public final class NewAgeThaumNetwork {
 
     public static void syncWandMaterialsToAll(MinecraftServer server) {
         syncToAll(server, NewAgeThaumNetwork::syncWandMaterialsTo);
+    }
+
+    public static void syncCastingConfigTo(ServerPlayer player) {
+        sendIfPossible(player, new CastingConfigSyncPayload(
+                (float) NewAgeThaumConfig.wandAmbientFloor, (float) NewAgeThaumConfig.wandAffinityFloor,
+                (float) NewAgeThaumConfig.wandRechargeRate, (float) NewAgeThaumConfig.wandNodeChargePerUse),
+                CastingConfigSyncPayload.TYPE);
+    }
+
+    public static void syncCastingConfigToAll(MinecraftServer server) {
+        syncToAll(server, NewAgeThaumNetwork::syncCastingConfigTo);
     }
 
     public static void syncAspectsTo(ServerPlayer player) {

@@ -4,11 +4,15 @@ import io.github.minerguy341.new_age_thaum.NewAgeThaum;
 import io.github.minerguy341.new_age_thaum.content.AuraNodeBlockEntity;
 import io.github.minerguy341.new_age_thaum.core.ModRegistries;
 import io.github.minerguy341.new_age_thaum.core.aura.AuraField;
+import io.github.minerguy341.new_age_thaum.core.aura.NodePersonality;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
 import net.minecraft.world.level.ChunkPos;
 
 /**
@@ -77,18 +81,20 @@ public class AuraGameTest {
         node.serverTick(level); // first tick rolls the node's aspect identity (and may pump)
         helper.assertTrue(node.aspect() != null, "A ticked node must roll an aspect identity");
         helper.assertTrue(node.size() > 0f, "A ticked node must roll a positive size");
+        helper.assertTrue(node.personality() != null, "A ticked node must roll a personality");
 
         // Baselines AFTER serverTick — it pumps on its own cadence; the explicit pump
-        // below is the measured one.
+        // below is the measured one. Output scales by the rolled personality's multiplier.
+        float expectedCenter = node.size() * node.personality().visMultiplier();
         float centerBefore = aura.vis(centerKey);
         float neighborBefore = aura.vis(neighborKey);
         node.pump(level);
         float centerGain = aura.vis(centerKey) - centerBefore;
         float neighborGain = aura.vis(neighborKey) - neighborBefore;
-        helper.assertTrue(Math.abs(centerGain - node.size()) < 1.0e-4f,
-                "The node's own chunk gains the full rate, got " + centerGain);
-        helper.assertTrue(Math.abs(neighborGain - node.size() * 0.25f) < 1.0e-4f,
-                "Neighbor chunks gain a quarter rate, got " + neighborGain);
+        helper.assertTrue(Math.abs(centerGain - expectedCenter) < 1.0e-4f,
+                "The node's own chunk gains size*personality, expected " + expectedCenter + " got " + centerGain);
+        helper.assertTrue(Math.abs(neighborGain - expectedCenter * 0.25f) < 1.0e-4f,
+                "Neighbor chunks gain a quarter rate, expected " + (expectedCenter * 0.25f) + " got " + neighborGain);
         helper.succeed();
     }
 
@@ -109,6 +115,132 @@ public class AuraGameTest {
         var tag = net.minecraft.tags.TagKey.create(Registries.BIOME, NewAgeThaum.id("has_aura_nodes"));
         helper.assertTrue(biomes.getTag(tag).map(set -> set.size() > 0).orElse(false),
                 "Biome tag has_aura_nodes should resolve to at least one biome");
+        helper.succeed();
+    }
+
+    //? if neoforge {
+    @GameTest(template = "empty")
+    //?} else {
+    /*@GameTest(template = "new_age_thaum:empty")
+    *///?}
+    public void fluxDiffusesConservesAndPersistsBesideVis(GameTestHelper helper) {
+        AuraField field = new AuraField();
+        long center = new ChunkPos(0, 0).toLong();
+        long east = new ChunkPos(1, 0).toLong();
+
+        helper.assertTrue(field.addFlux(center, AuraField.FLUX_CAP * 2) == AuraField.FLUX_CAP,
+                "Flux must clamp at the cap");
+        helper.assertTrue(field.addFlux(center, -AuraField.FLUX_CAP * 3) == 0f,
+                "Flux must clamp at zero");
+
+        field.add(center, 30f);       // vis and flux coexist on the same chunk
+        field.addFlux(center, 80f);
+        field.diffuse();
+        helper.assertTrue(field.flux(east) > 0f, "Diffusion must bleed flux into an empty neighbor");
+        helper.assertTrue(field.flux(center) < 80f, "Diffusion must drain the flux source");
+        float total = field.flux(center) + field.flux(east)
+                + field.flux(new ChunkPos(-1, 0).toLong())
+                + field.flux(new ChunkPos(0, 1).toLong())
+                + field.flux(new ChunkPos(0, -1).toLong());
+        helper.assertTrue(Math.abs(total - 80f) < 1.0e-3f, "Diffusion conserves flux, got total " + total);
+
+        var registries = helper.getLevel().registryAccess();
+        AuraField reloaded = AuraField.load(field.save(new CompoundTag(), registries), registries);
+        helper.assertTrue(Math.abs(reloaded.flux(center) - field.flux(center)) < 1.0e-5f,
+                "Flux must survive the SavedData round trip");
+        helper.assertTrue(Math.abs(reloaded.vis(center) - field.vis(center)) < 1.0e-5f,
+                "Vis on a flux-carrying chunk must also survive the round trip");
+        helper.succeed();
+    }
+
+    //? if neoforge {
+    @GameTest(template = "empty")
+    //?} else {
+    /*@GameTest(template = "new_age_thaum:empty")
+    *///?}
+    public void nodePersonalityDrivesFluxOnPump(GameTestHelper helper) {
+        BlockPos pos = new BlockPos(1, 2, 1);
+        helper.setBlock(pos, ModRegistries.AURA_NODE.get());
+        if (!(helper.getBlockEntity(pos) instanceof AuraNodeBlockEntity node)) {
+            helper.fail("Placed aura node has no block entity");
+            return;
+        }
+        var level = helper.getLevel();
+        node.serverTick(level); // rolls aspect + personality
+        NodePersonality nature = node.personality();
+        helper.assertTrue(nature != null, "A ticked node must have a personality");
+
+        AuraField aura = AuraField.get(level);
+        long chunk = new ChunkPos(helper.absolutePos(pos)).toLong();
+        aura.addFlux(chunk, 50f); // headroom for tainted, something for pure to burn
+        float before = aura.flux(chunk);
+        node.pump(level);
+        float after = aura.flux(chunk);
+        float expected = Mth.clamp(before + node.size() * nature.fluxPerPump(), 0f, AuraField.FLUX_CAP);
+        helper.assertTrue(Math.abs(after - expected) < 1.0e-3f,
+                "Pump flux for " + nature + " expected " + expected + " got " + after);
+        // Tainted raises it, pure lowers it, the plain temperaments leave it flat.
+        if (nature == NodePersonality.TAINTED) {
+            helper.assertTrue(after > before, "A tainted node must raise flux");
+        } else if (nature == NodePersonality.PURE) {
+            helper.assertTrue(after < before, "A pure node must burn flux down");
+        } else {
+            helper.assertTrue(after == before, nature + " must not change flux, got " + after);
+        }
+        helper.succeed();
+    }
+
+    //? if neoforge {
+    @GameTest(template = "empty")
+    //?} else {
+    /*@GameTest(template = "new_age_thaum:empty")
+    *///?}
+    public void personalityIdRoundTrips(GameTestHelper helper) {
+        for (NodePersonality personality : NodePersonality.values()) {
+            helper.assertTrue(NodePersonality.byId(personality.id()) == personality,
+                    "Personality id must round-trip for " + personality);
+        }
+        helper.assertTrue(NodePersonality.byId("nonsense") == NodePersonality.PALE,
+                "An unknown personality id must fall back to PALE");
+        helper.succeed();
+    }
+
+    //? if neoforge {
+    @GameTest(template = "empty")
+    //?} else {
+    /*@GameTest(template = "new_age_thaum:empty")
+    *///?}
+    public void seededNodeKeepsItsIdentity(GameTestHelper helper) {
+        BlockPos pos = new BlockPos(1, 2, 1);
+        helper.setBlock(pos, ModRegistries.AURA_NODE.get());
+        if (!(helper.getBlockEntity(pos) instanceof AuraNodeBlockEntity node)) {
+            helper.fail("Placed aura node has no block entity");
+            return;
+        }
+        ResourceLocation forma = NewAgeThaum.id("forma");
+        node.seedIdentity(forma, NodePersonality.PURE, 1.3f);
+        node.serverTick(helper.getLevel()); // a seeded node must NOT re-roll on first tick
+        helper.assertTrue(forma.equals(node.aspect()),
+                "A worldgen-seeded aspect must survive the first tick, got " + node.aspect());
+        helper.assertTrue(node.personality() == NodePersonality.PURE,
+                "A seeded personality must survive the first tick, got " + node.personality());
+        helper.assertTrue(Math.abs(node.size() - 1.3f) < 1.0e-4f,
+                "A seeded size must survive the first tick, got " + node.size());
+        helper.succeed();
+    }
+
+    //? if neoforge {
+    @GameTest(template = "empty")
+    //?} else {
+    /*@GameTest(template = "new_age_thaum:empty")
+    *///?}
+    public void silverwoodNodeTreeFeatureLoads(GameTestHelper helper) {
+        helper.assertTrue(BuiltInRegistries.FEATURE.containsKey(NewAgeThaum.id("node_tree")),
+                "The custom node_tree feature must be registered before worldgen loads");
+        var registries = helper.getLevel().registryAccess();
+        helper.assertTrue(registries.registryOrThrow(Registries.CONFIGURED_FEATURE)
+                        .containsKey(NewAgeThaum.id("silverwood_node_tree")),
+                "Configured feature silverwood_node_tree failed to load from the datapack");
         helper.succeed();
     }
 }

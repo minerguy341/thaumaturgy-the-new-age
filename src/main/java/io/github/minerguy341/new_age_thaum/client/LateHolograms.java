@@ -54,6 +54,9 @@ public final class LateHolograms {
 
     /** Drains the frame's queue; called once per frame by the loader render-stage hook. */
     public static void renderAll() {
+        // The dioptra map is emitted here rather than from a block-entity renderer, so it
+        // draws every frame independent of whether any anchor block is in the frustum.
+        ThaumicDioptraRenderer.emitAll();
         if (QUEUE.isEmpty()) {
             return;
         }

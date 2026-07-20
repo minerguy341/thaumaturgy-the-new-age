@@ -3,10 +3,13 @@ package io.github.minerguy341.new_age_thaum.client;
 import dev.architectury.event.events.client.ClientPlayerEvent;
 import dev.architectury.registry.client.rendering.BlockEntityRendererRegistry;
 import dev.architectury.event.events.client.ClientTooltipEvent;
+import dev.architectury.registry.client.rendering.RenderTypeRegistry;
 import dev.architectury.registry.menu.MenuRegistry;
+import dev.architectury.registry.registries.RegistrySupplier;
 import io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity;
 import io.github.minerguy341.new_age_thaum.core.ModBlockEntities;
 import io.github.minerguy341.new_age_thaum.core.ModMenus;
+import io.github.minerguy341.new_age_thaum.core.ModRegistries;
 import io.github.minerguy341.new_age_thaum.core.casting.WandMaterialRegistry;
 import io.github.minerguy341.new_age_thaum.core.codex.CodexRegistry;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectAssignments;
@@ -19,6 +22,7 @@ import io.github.minerguy341.new_age_thaum.network.NewAgeThaumNetwork;
 import io.github.minerguy341.new_age_thaum.network.OrreryOrientationPayload;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
@@ -45,6 +49,7 @@ public final class NewAgeThaumClient {
 
     public static void init() {
         WandColors.register();
+        WandVisHud.register();
         OrreryDebugCommand.register();
         // listen() fires the moment the menu type is actually registered: late enough to
         // avoid the NeoForge early-.get() crash, early enough for RegisterMenuScreensEvent
@@ -57,6 +62,12 @@ public final class NewAgeThaumClient {
                         .register(type, OrreryHologramRenderer::new));
         ModBlockEntities.AURA_NODE.listen(type ->
                 BlockEntityRendererRegistry.register(type, AuraNodeRenderer::new));
+        // No block-entity renderer for the dioptra: its hologram is emitted per-frame from
+        // LateHolograms.renderAll() (see ThaumicDioptraRenderer.emitAll) so it stays visible
+        // from any camera angle instead of being culled with its anchor block's section.
+        // Saplings are cross models with transparency; same listen() timing rule.
+        cutout(ModRegistries.GREATWOOD_SAPLING);
+        cutout(ModRegistries.SILVERWOOD_SAPLING);
         // Synced state is per-server. Without this reset, a vanilla server joined next
         // (which never syncs) would render the previous server's aspects in tooltips and
         // report its point balances. Singleplayer repopulates on world load (reload
@@ -75,6 +86,7 @@ public final class NewAgeThaumClient {
             AspectAssignments.accept(Map.of(), Map.of());
             CodexRegistry.reload(Map.of());
             WandMaterialRegistry.reload(Map.of());
+            ClientCastingConfig.reset();
             AspectResolver.invalidate();
         });
         ClientTooltipEvent.ITEM.register((stack, lines, context, flag) -> {
@@ -93,5 +105,9 @@ public final class NewAgeThaumClient {
                         .append(Component.literal(" ×" + entry.getValue()).withStyle(ChatFormatting.DARK_GRAY)));
             }
         });
+    }
+
+    private static void cutout(RegistrySupplier<net.minecraft.world.level.block.Block> block) {
+        block.listen(b -> RenderTypeRegistry.register(RenderType.cutout(), b));
     }
 }

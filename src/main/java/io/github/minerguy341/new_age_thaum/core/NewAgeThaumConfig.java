@@ -34,6 +34,27 @@ public final class NewAgeThaumConfig {
     /** Friction time constant of a flicked sphere's coast, in seconds. */
     public static double coastFriction = 0.7;
 
+    /** "loaded" = only loaded, block-ticking chunks act as diffusion sources; "all" = every recorded chunk. */
+    public static String auraDiffusionScope = "loaded";
+
+    /** Ticks between budgeted aura diffusion passes per dimension. */
+    public static int auraDiffusionInterval = 40;
+
+    /** Show the per-primal vis bars while holding an assembled wand/stave. */
+    public static boolean wandHudEnabled = true;
+
+    /** Ambient recharge floor: fraction of capacity each primal fills to away from nodes. */
+    public static double wandAmbientFloor = 0.10;
+
+    /** Ambient floor for primals in the core's recharge-affinity decomposition. */
+    public static double wandAffinityFloor = 0.25;
+
+    /** Ambient recharge rate, vis per second per primal, drawn from the chunk aura. */
+    public static double wandRechargeRate = 0.5;
+
+    /** Vis pulled per primal per right-click on an aura node (node's own primal doubled). */
+    public static double wandNodeChargePerUse = 8.0;
+
     /** "aspects" = ribbon blends the linked aspects; "custom" = fixed base + pulse gradient. */
     public static String currentColorMode = "aspects";
     public static int currentBaseColor = 0x8A6BB5;
@@ -94,6 +115,16 @@ public final class NewAgeThaumConfig {
         currentWidth = parseDouble(values.get("currentWidth"), currentWidth, 0.0, 10.0);
         cellBorderWidth = parseDouble(values.get("cellBorderWidth"), cellBorderWidth, 0.0, 3.5);
         coastFriction = parseDouble(values.get("coastFriction"), coastFriction, 0.05, 5.0);
+        if (values.containsKey("auraDiffusionScope")) {
+            // Normalize: anything that isn't exactly "all" falls back to the safe scope.
+            auraDiffusionScope = "all".equalsIgnoreCase(values.get("auraDiffusionScope")) ? "all" : "loaded";
+        }
+        auraDiffusionInterval = parseInt(values.get("auraDiffusionInterval"), auraDiffusionInterval, 1, 1200);
+        wandHudEnabled = parseBool(values.get("wandHudEnabled"), wandHudEnabled);
+        wandAmbientFloor = parseDouble(values.get("wandAmbientFloor"), wandAmbientFloor, 0.0, 1.0);
+        wandAffinityFloor = parseDouble(values.get("wandAffinityFloor"), wandAffinityFloor, 0.0, 1.0);
+        wandRechargeRate = parseDouble(values.get("wandRechargeRate"), wandRechargeRate, 0.0, 100.0);
+        wandNodeChargePerUse = parseDouble(values.get("wandNodeChargePerUse"), wandNodeChargePerUse, 0.1, 100.0);
         if (values.containsKey("currentColorMode")) {
             currentColorMode = values.get("currentColorMode");
         }
@@ -165,6 +196,42 @@ public final class NewAgeThaumConfig {
         out.append("# Default: 0.7. Accepted: 0.05 to 5.0 (clamped).\n");
         out.append("coastFriction = ").append(coastFriction).append("\n\n");
 
+        out.append("# Which chunks the ambient-aura diffusion pass may drain. \"loaded\" only lets\n");
+        out.append("# vis flow OUT of chunks that are loaded and block-ticking (vis still flows\n");
+        out.append("# INTO unloaded neighbors); \"all\" diffuses every recorded chunk in the save,\n");
+        out.append("# which can be costly on worlds with a very large explored area.\n");
+        out.append("# Default: \"loaded\". Accepted: \"loaded\", \"all\".\n");
+        out.append("auraDiffusionScope = \"").append(auraDiffusionScope).append("\"\n\n");
+
+        out.append("# Ticks between budgeted aura diffusion passes per dimension (20 = 1 second).\n");
+        out.append("# Default: 40. Accepted: 1 to 1200 (clamped).\n");
+        out.append("auraDiffusionInterval = ").append(auraDiffusionInterval).append("\n\n");
+
+        out.append("# Show the six per-primal vis bars while holding an assembled wand or stave.\n");
+        out.append("# Default: true. Accepted: true, false.\n");
+        out.append("wandHudEnabled = ").append(wandHudEnabled).append("\n\n");
+
+        out.append("# Away from aura nodes, each primal recharges from the chunk aura only up to\n");
+        out.append("# this fraction of the wand's capacity. Near a node the floor is lifted to\n");
+        out.append("# full capacity (\"nodes provide the rest\").\n");
+        out.append("# Default: 0.1. Accepted: 0.0 to 1.0 (clamped).\n");
+        out.append("wandAmbientFloor = ").append(wandAmbientFloor).append("\n\n");
+
+        out.append("# The ambient floor for primals matching the core's recharge affinity (the\n");
+        out.append("# affinity aspect decomposed to its primals; greatwood's silva = tellus+unda).\n");
+        out.append("# Default: 0.25. Accepted: 0.0 to 1.0 (clamped).\n");
+        out.append("wandAffinityFloor = ").append(wandAffinityFloor).append("\n\n");
+
+        out.append("# Ambient recharge rate in vis per second per primal, drawn (conserved) from\n");
+        out.append("# the chunk the holder stands in. Default: 0.5. Accepted: 0.0 to 100.0.\n");
+        out.append("wandRechargeRate = ").append(wandRechargeRate).append("\n\n");
+
+        out.append("# Vis pulled into each primal per right-click on an aura node (the node's own\n");
+        out.append("# primal takes double). Node charging fills toward FULL capacity, drawn from\n");
+        out.append("# the node's chunk aura, which the node then re-pumps — so the node's recharge\n");
+        out.append("# rate is the real rate limit. Default: 8.0. Accepted: 0.1 to 100.0 (clamped).\n");
+        out.append("wandNodeChargePerUse = ").append(wandNodeChargePerUse).append("\n\n");
+
         out.append("# \"aspects\" = each current blends the colors of its two linked aspects.\n");
         out.append("# \"custom\"  = currents use currentBaseColor and the pulse grades\n");
         out.append("#             currentPulseFrom -> currentPulseTo. Default: \"aspects\".\n");
@@ -218,6 +285,14 @@ public final class NewAgeThaumConfig {
             }
             double parsed = Double.parseDouble(value);
             return Double.isFinite(parsed) ? net.minecraft.util.Mth.clamp(parsed, min, max) : fallback;
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    private static int parseInt(String value, int fallback, int min, int max) {
+        try {
+            return value == null ? fallback : net.minecraft.util.Mth.clamp(Integer.parseInt(value), min, max);
         } catch (NumberFormatException e) {
             return fallback;
         }

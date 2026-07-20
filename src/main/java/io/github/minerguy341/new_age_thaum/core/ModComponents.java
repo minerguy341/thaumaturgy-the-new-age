@@ -18,6 +18,14 @@ public final class ModComponents {
                     .networkSynchronized(WandComponent.STREAM_CODEC)
                     .build());
 
+    /** Per-primal vis stored on a wand/stave (sibling of WAND so shipped wands keep loading). */
+    public static final RegistrySupplier<DataComponentType<io.github.minerguy341.new_age_thaum.core.casting.WandVis>> WAND_VIS =
+            COMPONENTS.register("wand_vis",
+                    () -> DataComponentType.<io.github.minerguy341.new_age_thaum.core.casting.WandVis>builder()
+                            .persistent(io.github.minerguy341.new_age_thaum.core.casting.WandVis.CODEC)
+                            .networkSynchronized(io.github.minerguy341.new_age_thaum.core.casting.WandVis.STREAM_CODEC)
+                            .build());
+
     /** The generated puzzle definition (frequency, endpoints, gaps) on a research paper. */
     public static final RegistrySupplier<DataComponentType<io.github.minerguy341.new_age_thaum.core.research.ResearchPuzzle>> RESEARCH_PUZZLE =
             COMPONENTS.register("research_puzzle",

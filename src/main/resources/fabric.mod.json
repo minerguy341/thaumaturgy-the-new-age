@@ -36,7 +36,10 @@
       "${group}.gametest.PuzzleGeneratorGameTest",
       "${group}.gametest.OrrerySolveGameTest",
       "${group}.gametest.OrreryValidationGameTest",
-      "${group}.gametest.AuraGameTest"
+      "${group}.gametest.AuraGameTest",
+      "${group}.gametest.DioptraGameTest",
+      "${group}.gametest.WandRechargeGameTest",
+      "${group}.gametest.TreeGenGameTest"
     ]
   },
   "depends": {
