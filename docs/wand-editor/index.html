@@ -1,0 +1,619 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Arcane Wand Forge</title>
+<style>
+/* ============================================================
+   Arcane Wand Forge — hot-swap wand/stave customizer
+   Standalone, dependency-free. Palette from docs/art-direction.md.
+   ============================================================ */
+:root{
+  --bg-0:#14101c; --bg-1:#1d1730; --panel:#211a33cc; --panel-solid:#211a33;
+  --ink:#efe9dd; --ink-dim:#b9b0c8; --ink-faint:#8f86a4;
+  --line:#3a3152; --line-soft:#2c2540;
+  --brass:#C79A55; --aetherium:#8A6BB5; --teal:#7FE8D8;
+  --silva:#5FB04A; --aether:#9d7fe8;
+  --accent:var(--aetherium); --glow:rgba(138,107,181,.45);
+  --radius:14px; --radius-sm:10px;
+  --shadow:0 10px 40px rgba(0,0,0,.45);
+  --sans:"Segoe UI",Roboto,-apple-system,BlinkMacSystemFont,sans-serif;
+}
+:root[data-theme="light"]{
+  --bg-0:#e9e3d4; --bg-1:#f3eee2; --panel:#fffdf7e6; --panel-solid:#fffdf7;
+  --ink:#241d2e; --ink-dim:#4f4560; --ink-faint:#7a7089;
+  --line:#d8cdb6; --line-soft:#e6ddc9;
+  --glow:rgba(138,107,181,.28);
+  --shadow:0 10px 34px rgba(80,60,30,.18);
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg-0:#e9e3d4; --bg-1:#f3eee2; --panel:#fffdf7e6; --panel-solid:#fffdf7;
+    --ink:#241d2e; --ink-dim:#4f4560; --ink-faint:#7a7089;
+    --line:#d8cdb6; --line-soft:#e6ddc9;
+    --glow:rgba(138,107,181,.28);
+    --shadow:0 10px 34px rgba(80,60,30,.18);
+  }
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  font-family:var(--sans); color:var(--ink);
+  background:
+    radial-gradient(120% 90% at 30% 0%, var(--bg-1), var(--bg-0) 70%);
+  overflow:hidden;
+}
+.app{
+  display:flex; height:100dvh; width:100vw;
+}
+/* ---- Stage (3D viewport) ---- */
+.stage{
+  position:relative; flex:1 1 auto; min-width:0;
+  background:
+    radial-gradient(60% 55% at 50% 42%, var(--glow), transparent 70%);
+}
+#gl{ position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none; }
+.stage .brand{
+  position:absolute; top:16px; left:20px; z-index:3; pointer-events:none;
+  font-weight:700; letter-spacing:.5px; font-size:15px;
+  text-shadow:0 1px 8px rgba(0,0,0,.5);
+}
+.stage .brand small{
+  display:block; font-weight:500; font-size:11px; color:var(--ink-faint);
+  letter-spacing:2.5px; text-transform:uppercase; margin-top:2px;
+}
+.stage .hint{
+  position:absolute; bottom:14px; left:0; right:0; z-index:3; text-align:center;
+  font-size:11.5px; color:var(--ink-faint); pointer-events:none;
+  letter-spacing:.4px; text-shadow:0 1px 6px rgba(0,0,0,.5);
+}
+.stage-btns{
+  position:absolute; top:14px; right:14px; z-index:3; display:flex; gap:8px;
+}
+.icon-btn{
+  width:38px; height:38px; border-radius:10px; border:1px solid var(--line);
+  background:var(--panel); color:var(--ink); cursor:pointer; font-size:17px;
+  backdrop-filter:blur(8px); display:grid; place-items:center; transition:.15s;
+}
+.icon-btn:hover{ border-color:var(--accent); color:var(--accent) }
+.icon-btn:active{ transform:scale(.94) }
+
+/* ---- Panel ---- */
+.panel{
+  flex:0 0 372px; max-width:100%;
+  background:var(--panel); backdrop-filter:blur(14px);
+  border-left:1px solid var(--line);
+  display:flex; flex-direction:column; box-shadow:var(--shadow);
+  z-index:2;
+}
+.panel-scroll{ overflow-y:auto; padding:20px 20px 28px; }
+.title-row{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:4px }
+.wand-name{ font-size:19px; font-weight:700; line-height:1.25 }
+.wand-form-tag{
+  font-size:10.5px; letter-spacing:1.5px; text-transform:uppercase;
+  color:var(--accent); font-weight:700; white-space:nowrap;
+}
+
+/* form toggle */
+.seg{
+  display:grid; grid-template-columns:1fr 1fr; gap:6px; margin:16px 0 4px;
+  background:var(--line-soft); padding:5px; border-radius:12px;
+}
+.seg button{
+  border:0; background:transparent; color:var(--ink-dim); font-weight:600;
+  padding:11px 8px; border-radius:8px; cursor:pointer; font-size:14px;
+  display:flex; flex-direction:column; align-items:center; gap:3px; transition:.15s;
+  font-family:inherit;
+}
+.seg button small{ font-size:10px; color:var(--ink-faint); font-weight:500; letter-spacing:.3px }
+.seg button.on{ background:var(--panel-solid); color:var(--ink); box-shadow:0 2px 10px rgba(0,0,0,.25) }
+.seg button.on small{ color:var(--accent) }
+
+/* slot */
+.slot{ margin-top:18px }
+.slot-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:9px }
+.slot-label{ display:flex; align-items:center; gap:8px; font-weight:600; font-size:13.5px }
+.slot-label .dot{ width:9px; height:9px; border-radius:50%; box-shadow:0 0 0 3px rgba(255,255,255,.06) }
+.slot-role{ font-size:10.5px; color:var(--ink-faint); letter-spacing:.3px }
+.link-toggle{
+  font-size:11px; color:var(--ink-dim); display:flex; align-items:center; gap:6px;
+  cursor:pointer; user-select:none; border:1px solid var(--line); border-radius:20px;
+  padding:4px 9px; transition:.15s; background:transparent; font-family:inherit;
+}
+.link-toggle.on{ color:var(--accent); border-color:var(--accent) }
+.opts{ display:flex; flex-wrap:wrap; gap:8px }
+.opt{
+  flex:1 1 calc(50% - 4px); min-width:120px;
+  display:flex; align-items:center; gap:10px; cursor:pointer;
+  border:1.5px solid var(--line); border-radius:var(--radius-sm);
+  padding:9px 11px; background:transparent; color:var(--ink); transition:.15s;
+  font-family:inherit; text-align:left;
+}
+.opt:hover{ border-color:var(--ink-faint) }
+.opt.on{ border-color:var(--accent); background:rgba(138,107,181,.12) }
+.opt .sw{ width:20px; height:20px; border-radius:6px; flex:0 0 auto; box-shadow:inset 0 0 0 1px rgba(0,0,0,.35) }
+.opt .nm{ font-size:12.5px; font-weight:600; line-height:1.2 }
+.opt .mt{ font-size:10.5px; color:var(--ink-faint) }
+.sub-slot > .slot-role{ margin:2px 0 8px }
+
+/* stats */
+.stats{ margin-top:24px; border-top:1px solid var(--line); padding-top:18px }
+.stats h3{
+  margin:0 0 12px; font-size:11px; letter-spacing:2px; text-transform:uppercase;
+  color:var(--ink-faint); font-weight:700;
+}
+.stat{ margin-bottom:14px }
+.stat-top{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:5px }
+.stat-name{ font-size:12.5px; color:var(--ink-dim) }
+.stat-val{ font-size:13.5px; font-weight:700 }
+.bar{ height:7px; border-radius:5px; background:var(--line-soft); overflow:hidden }
+.bar > span{ display:block; height:100%; border-radius:5px; transition:width .35s cubic-bezier(.2,.7,.3,1) }
+.chip{
+  display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:600;
+  padding:5px 11px; border-radius:20px; border:1px solid var(--line);
+}
+.chip .dot{ width:9px; height:9px; border-radius:50% }
+.foot{ margin-top:18px; font-size:11px; color:var(--ink-faint); line-height:1.5 }
+.foot b{ color:var(--ink-dim); font-weight:600 }
+
+/* responsive: stack on narrow / touch */
+@media (max-width: 860px){
+  .app{ flex-direction:column }
+  .stage{ flex:1 1 46dvh; min-height:44dvh }
+  .panel{
+    flex:1 1 auto; border-left:0; border-top:1px solid var(--line);
+    border-radius:18px 18px 0 0; margin-top:-18px;
+  }
+  .panel-scroll{ padding:18px 16px calc(28px + env(safe-area-inset-bottom)) }
+  .opt{ min-width:calc(50% - 4px) }
+  .stage .brand{ font-size:13px }
+}
+.sr-only{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0) }
+:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; border-radius:6px }
+.glfail{ position:absolute; inset:0; display:grid; place-items:center; text-align:center;
+  padding:24px; color:var(--ink-dim); font-size:14px; line-height:1.5 }
+@media (prefers-reduced-motion: reduce){ *{ transition:none !important } }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="stage">
+    <div class="brand">Arcane Wand Forge<small>Thaumaturgy · The New Age</small></div>
+    <canvas id="gl"></canvas>
+    <div class="stage-btns">
+      <button class="icon-btn" id="btnSpin" title="Toggle auto-spin" aria-label="Toggle auto-spin" aria-pressed="true">↻</button>
+      <button class="icon-btn" id="btnRandom" title="Randomize" aria-label="Randomize">⚄</button>
+      <button class="icon-btn" id="btnTheme" title="Toggle light/dark" aria-label="Toggle theme">◐</button>
+    </div>
+    <div class="hint">drag to rotate · scroll or pinch to zoom</div>
+  </div>
+
+  <aside class="panel">
+    <div class="panel-scroll">
+      <div class="title-row">
+        <div class="wand-name" id="wandName">Wand</div>
+        <div class="wand-form-tag" id="formTag">WAND</div>
+      </div>
+
+      <div class="seg" id="formSeg" role="tablist" aria-label="Implement">
+        <button data-form="wand" class="on" role="tab" aria-selected="true">Wand<small>compact · ×1.0 vis</small></button>
+        <button data-form="stave" role="tab" aria-selected="false">Stave<small>double-bladed · ×1.6</small></button>
+      </div>
+
+      <div id="slots"></div>
+
+      <div class="stats">
+        <h3>Derived stats</h3>
+        <div class="stat">
+          <div class="stat-top"><span class="stat-name">Vis capacity</span><span class="stat-val" id="vCap">—</span></div>
+          <div class="bar"><span id="barCap" style="background:linear-gradient(90deg,#7FE8D8,#9d7fe8)"></span></div>
+        </div>
+        <div class="stat">
+          <div class="stat-top"><span class="stat-name">Cost discount</span><span class="stat-val" id="vDisc">—</span></div>
+          <div class="bar"><span id="barDisc" style="background:linear-gradient(90deg,#C79A55,#E8C983)"></span></div>
+        </div>
+        <div class="stat">
+          <div class="stat-top"><span class="stat-name">Potency</span><span class="stat-val" id="vPot">—</span></div>
+          <div class="bar"><span id="barPot" style="background:linear-gradient(90deg,#8A6BB5,#B99BE0)"></span></div>
+        </div>
+        <div class="stat">
+          <div class="stat-top"><span class="stat-name">Recharge affinity</span></div>
+          <span class="chip" id="vAff"><span class="dot"></span><span>—</span></span>
+        </div>
+      </div>
+
+      <p class="foot" id="foot"></p>
+    </div>
+  </aside>
+</div>
+
+<script>
+"use strict";
+/* ======================================================================
+   DATA — mirrors the mod (data/new_age_thaum/wand_materials/*.json,
+   WandStats.compute, WandForm). Web-editor scope: geometry is authored
+   here from the cap/rod models; the double-bladed stave + central grip
+   are a design proposal layered on top of the shipped WandComponent model.
+   ====================================================================== */
+const MAT = {
+  greatwood: {name:"Greatwood", kind:"core", color:"#7A5B3C", capacity:50, affinity:"silva"},
+  silverwood:{name:"Silverwood",kind:"core", color:"#CFD3C4", capacity:75, affinity:"aether"},
+  brass:     {name:"Brass",     kind:"cap",  color:"#C79A55", discount:0.10, potency:0.00},
+  aetherium: {name:"Aetherium", kind:"cap",  color:"#8A6BB5", discount:0.05, potency:0.15},
+};
+const AFF = { silva:{name:"Silva", color:"#5FB04A"}, aether:{name:"Aether", color:"#7FE8D8"} };
+const CAPS  = ["brass","aetherium"];
+const CORES = ["greatwood","silverwood"];
+const GRIPS = ["brass","aetherium","greatwood","silverwood"];
+const FORM_MULT = { wand:1.0, stave:1.6 };
+const MAX_DISCOUNT = 0.5;
+const CAP_REF = 100, POT_REF = 0.6; // bar normalisers
+
+const state = {
+  form:"wand",
+  wand:  { emitter:"brass", core:"greatwood", pommel:"aetherium" },
+  stave: { emitterTop:"aetherium", emitterBottom:"aetherium", linked:true,
+           core:"silverwood", grip:"brass" },
+};
+
+/* ======================================================================
+   GEOMETRY — Minecraft-style box parts (0..16 space, Y up), tinted by
+   material. Emitter & pommel use the cap model (wand_cap_base: a 4x5x4
+   cap); the rod is the thin core; the grip is a bare-bones connector.
+   Each box: {min:[x,y,z], max:[x,y,z], color:"#hex"}.
+   ====================================================================== */
+function box(x0,x1,y0,y1,z0,z1,color){ return {min:[x0,y0,z0],max:[x1,y1,z1],color}; }
+
+// A cap "part" = the chunky cap box (the wand_cap_base model) + a small
+// nub so an emitter reads tip-outward and a pommel reads foot-outward.
+// The main box spans [mainY0,mainY1]; nubDir=+1 puts the nub on top.
+function capPart(mainY0, mainY1, nubDir, color, emitter){
+  const parts=[box(6,10, mainY0,mainY1, 6,10, color)];     // main cap (the model)
+  const nl=1.4, nh=1.6, n0=8-nl, n1=8+nl;                  // nub
+  const tc = emitter ? tint(color,1.35) : tint(color,0.85);
+  if(nubDir>0) parts.push(box(n0,n1, mainY1, mainY1+nh, n0,n1, tc));
+  else         parts.push(box(n0,n1, mainY0-nh, mainY0, n0,n1, tc));
+  return parts;
+}
+function rodPart(y0,y1,color){ return [box(7.5,8.5, y0,y1, 7.5,8.5, color)]; }
+// bare-bones grip: a body + a raised mid-band (the central connector)
+function gripPart(y0,y1,color){
+  const cy=(y0+y1)/2;
+  return [
+    box(6.6,9.4, y0,y1, 6.6,9.4, color),
+    box(6.2,9.8, cy-1.2, cy+1.2, 6.2,9.8, tint(color,0.78)),
+  ];
+}
+
+// Parts overlap at their seams so the implement reads as one connected object.
+function buildParts(){
+  const s = state;
+  if(s.form==="wand"){
+    const c = MAT[s.wand.core].color;
+    return [
+      ...capPart(0,5,-1, MAT[s.wand.pommel].color, false),   // pommel (bottom)
+      ...rodPart(4,16, c),                                   // core rod
+      ...capPart(15,20,+1, MAT[s.wand.emitter].color, true), // emitter (top)
+    ];
+  } else {
+    const c   = MAT[s.stave.core].color;
+    const eT  = MAT[s.stave.emitterTop].color;
+    const eB  = MAT[s.stave.linked ? s.stave.emitterTop : s.stave.emitterBottom].color;
+    const g   = MAT[s.stave.grip].color;
+    return [
+      ...capPart(0,5,-1, eB, true),      // bottom emitter (double-bladed)
+      ...rodPart(4,16, c),               // lower core half
+      ...gripPart(14,24, g),             // central grip / connector
+      ...rodPart(22,34, c),              // upper core half
+      ...capPart(33,38,+1, eT, true),    // top emitter
+    ];
+  }
+}
+
+/* ---------- colour helpers ---------- */
+function hexToRgb(h){ h=h.replace("#",""); return [parseInt(h.slice(0,2),16)/255,parseInt(h.slice(2,4),16)/255,parseInt(h.slice(4,6),16)/255]; }
+function tint(hex,f){ const c=hexToRgb(hex).map(v=>Math.max(0,Math.min(1,v*f))); const h=x=>("0"+Math.round(x*255).toString(16)).slice(-2); return "#"+h(c[0])+h(c[1])+h(c[2]); }
+
+/* ======================================================================
+   MINI mat4 (column-major) — no library.
+   ====================================================================== */
+const M4 = {
+  mul(a,b){ const o=new Float32Array(16);
+    for(let c=0;c<4;c++)for(let r=0;r<4;r++){ let s=0; for(let k=0;k<4;k++) s+=a[k*4+r]*b[c*4+k]; o[c*4+r]=s; } return o; },
+  perspective(fovy,asp,n,f){ const t=1/Math.tan(fovy/2); const o=new Float32Array(16);
+    o[0]=t/asp; o[5]=t; o[10]=(f+n)/(n-f); o[11]=-1; o[14]=(2*f*n)/(n-f); return o; },
+  lookAt(e,c,u){ const z=norm(sub(e,c)), x=norm(cross(u,z)), y=cross(z,x); const o=new Float32Array(16);
+    o[0]=x[0];o[1]=y[0];o[2]=z[0];o[4]=x[1];o[5]=y[1];o[6]=z[1];o[8]=x[2];o[9]=y[2];o[10]=z[2];
+    o[12]=-dot(x,e);o[13]=-dot(y,e);o[14]=-dot(z,e);o[15]=1; return o; },
+};
+function sub(a,b){return [a[0]-b[0],a[1]-b[1],a[2]-b[2]];}
+function cross(a,b){return [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];}
+function dot(a,b){return a[0]*b[0]+a[1]*b[1]+a[2]*b[2];}
+function norm(a){const l=Math.hypot(a[0],a[1],a[2])||1;return [a[0]/l,a[1]/l,a[2]/l];}
+
+/* ======================================================================
+   WEBGL renderer
+   ====================================================================== */
+const canvas = document.getElementById("gl");
+const gl = canvas.getContext("webgl", {antialias:true, alpha:true, premultipliedAlpha:false});
+let prog, loc, buf, vertCount=0, center=[8,17,8];
+
+function initGL(){
+  const vs = `attribute vec3 aPos; attribute vec3 aNormal; attribute vec3 aColor;
+    uniform mat4 uMVP; varying vec3 vN; varying vec3 vC;
+    void main(){ gl_Position=uMVP*vec4(aPos,1.0); vN=aNormal; vC=aColor; }`;
+  const fs = `precision mediump float; varying vec3 vN; varying vec3 vC;
+    void main(){
+      vec3 n=normalize(vN);
+      vec3 L=normalize(vec3(0.35,0.82,0.45));
+      float d=max(dot(n,L),0.0);
+      float top=max(n.y,0.0)*0.12;
+      float shade=0.46 + d*0.62 + top;
+      gl_FragColor=vec4(vC*shade,1.0);
+    }`;
+  prog = link(vs,fs);
+  loc = {
+    aPos:gl.getAttribLocation(prog,"aPos"),
+    aNormal:gl.getAttribLocation(prog,"aNormal"),
+    aColor:gl.getAttribLocation(prog,"aColor"),
+    uMVP:gl.getUniformLocation(prog,"uMVP"),
+  };
+  buf = gl.createBuffer();
+  gl.enable(gl.DEPTH_TEST);
+  gl.clearColor(0,0,0,0);
+}
+function compile(type,src){ const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s);
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+function link(vs,fs){ const p=gl.createProgram();
+  gl.attachShader(p,compile(gl.VERTEX_SHADER,vs)); gl.attachShader(p,compile(gl.FRAGMENT_SHADER,fs));
+  gl.linkProgram(p); if(!gl.getProgramParameter(p,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); return p; }
+
+const FACES = [
+  {n:[ 1,0,0], c:[[1,0,0],[1,1,0],[1,1,1],[1,0,1]]},
+  {n:[-1,0,0], c:[[0,0,1],[0,1,1],[0,1,0],[0,0,0]]},
+  {n:[0, 1,0], c:[[0,1,0],[0,1,1],[1,1,1],[1,1,0]]},
+  {n:[0,-1,0], c:[[0,0,1],[0,0,0],[1,0,0],[1,0,1]]},
+  {n:[0,0, 1], c:[[1,0,1],[1,1,1],[0,1,1],[0,0,1]]},
+  {n:[0,0,-1], c:[[0,0,0],[0,1,0],[1,1,0],[1,0,0]]},
+];
+function buildBuffer(){
+  if(!gl) return;
+  const parts = buildParts();
+  const data=[];
+  let lo=[1e9,1e9,1e9], hi=[-1e9,-1e9,-1e9];
+  for(const b of parts){
+    const rgb=hexToRgb(b.color);
+    const p=[b.min,b.max];
+    for(let i=0;i<3;i++){ lo[i]=Math.min(lo[i],b.min[i]); hi[i]=Math.max(hi[i],b.max[i]); }
+    for(const f of FACES){
+      const v=f.c.map(cc=>[p[cc[0]][0],p[cc[1]][1],p[cc[2]][2]]);
+      const tri=[v[0],v[1],v[2], v[0],v[2],v[3]];
+      for(const t of tri){ data.push(t[0],t[1],t[2], f.n[0],f.n[1],f.n[2], rgb[0],rgb[1],rgb[2]); }
+    }
+  }
+  center=[(lo[0]+hi[0])/2,(lo[1]+hi[1])/2,(lo[2]+hi[2])/2];
+  vertCount = data.length/9;
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+}
+
+/* ---------- orbit camera ---------- */
+const EL_MAX = 1.35;
+const cam = { az:-0.7, el:0.32, r:44 };
+function resize(){
+  const dpr=Math.min(window.devicePixelRatio||1, 2.5);
+  const w=canvas.clientWidth, h=canvas.clientHeight;
+  if(canvas.width!==Math.round(w*dpr)||canvas.height!==Math.round(h*dpr)){
+    canvas.width=Math.round(w*dpr); canvas.height=Math.round(h*dpr);
+  }
+  gl.viewport(0,0,canvas.width,canvas.height);
+}
+function render(){
+  resize();
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  const asp = canvas.width/Math.max(1,canvas.height);
+  const P = M4.perspective(45*Math.PI/180, asp, 1, 400);
+  const el=Math.max(-1.35,Math.min(1.35,cam.el));
+  const eye=[
+    center[0]+cam.r*Math.cos(el)*Math.sin(cam.az),
+    center[1]+cam.r*Math.sin(el),
+    center[2]+cam.r*Math.cos(el)*Math.cos(cam.az),
+  ];
+  const V = M4.lookAt(eye, center, [0,1,0]);
+  const MVP = M4.mul(P,V);
+  gl.useProgram(prog);
+  gl.uniformMatrix4fv(loc.uMVP,false,MVP);
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  const S=9*4;
+  gl.enableVertexAttribArray(loc.aPos);    gl.vertexAttribPointer(loc.aPos,3,gl.FLOAT,false,S,0);
+  gl.enableVertexAttribArray(loc.aNormal); gl.vertexAttribPointer(loc.aNormal,3,gl.FLOAT,false,S,12);
+  gl.enableVertexAttribArray(loc.aColor);  gl.vertexAttribPointer(loc.aColor,3,gl.FLOAT,false,S,24);
+  gl.drawArrays(gl.TRIANGLES,0,vertCount);
+}
+let spinning = !matchMedia("(prefers-reduced-motion: reduce)").matches;
+function interacting(){ return pointers.size>0; }
+function loop(){
+  if(spinning && !interacting()) cam.az+=0.006;
+  render();
+  requestAnimationFrame(loop);
+}
+
+/* ---------- pointers (mouse + touch, unified) ----------
+   1 pointer down → drag-rotate; 2 down → pinch-zoom. Using pointer
+   events only avoids the mouse/touch double-handling that made a
+   two-finger pinch also rotate the camera. */
+const pointers=new Map(); let pinchD=0;
+canvas.addEventListener("pointerdown",e=>{ canvas.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY}); pinchD=0; });
+canvas.addEventListener("pointermove",e=>{
+  const p=pointers.get(e.pointerId); if(!p) return;
+  if(pointers.size===1){
+    cam.az -= (e.clientX-p.x)*0.01;
+    cam.el = Math.max(-EL_MAX, Math.min(EL_MAX, cam.el + (e.clientY-p.y)*0.01));
+  }
+  p.x=e.clientX; p.y=e.clientY;
+  if(pointers.size===2){
+    const pts=[...pointers.values()];
+    const d=Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
+    if(pinchD) cam.r=Math.max(18,Math.min(120,cam.r*(pinchD/d)));
+    pinchD=d;
+  }
+});
+function endPtr(e){ pointers.delete(e.pointerId); if(pointers.size<2) pinchD=0; }
+canvas.addEventListener("pointerup",endPtr);
+canvas.addEventListener("pointercancel",endPtr);
+canvas.addEventListener("wheel",e=>{ e.preventDefault();
+  cam.r=Math.max(18,Math.min(120,cam.r*(1+Math.sign(e.deltaY)*0.09))); },{passive:false});
+
+/* ======================================================================
+   STATS  (mirrors WandStats.compute)
+   ====================================================================== */
+function activeCaps(){
+  if(state.form==="wand") return [state.wand.emitter, state.wand.pommel];
+  const s=state.stave; return [s.emitterTop, s.linked?s.emitterTop:s.emitterBottom];
+}
+function activeCore(){ return state.form==="wand"?state.wand.core:state.stave.core; }
+function computeStats(){
+  const core=MAT[activeCore()];
+  const [a,b]=activeCaps().map(id=>MAT[id]);
+  const capacity = core.capacity * FORM_MULT[state.form];
+  const discount = Math.min(MAX_DISCOUNT, (a.discount||0)+(b.discount||0));
+  const potency  = (a.potency||0)+(b.potency||0);
+  return { capacity, discount, potency, affinity:core.affinity };
+}
+function displayName(){
+  const core=MAT[activeCore()], [a,b]=activeCaps();
+  const formName=state.form==="wand"?"Wand":"Stave";
+  let caps;
+  if(a===b) caps=MAT[a].name;
+  else { const [x,y]=[MAT[a].name,MAT[b].name].sort(); caps=`${x} and ${y}`; }
+  return `${caps} Capped ${core.name} ${formName}`;
+}
+
+/* ======================================================================
+   UI
+   ====================================================================== */
+const $=s=>document.querySelector(s);
+const slotsEl=$("#slots");
+
+function optHTML(matId, groupSel, current){
+  const m=MAT[matId];
+  const meta = m.kind==="core"
+    ? `${m.capacity} vis · ${AFF[m.affinity].name}`
+    : `−${Math.round(m.discount*100)}% cost${m.potency?` · +${m.potency} pot`:""}`;
+  return `<button class="opt ${matId===current?"on":""}" data-group="${groupSel}" data-mat="${matId}">
+    <span class="sw" style="background:${m.color}"></span>
+    <span><span class="nm">${m.name}</span><br><span class="mt">${meta}</span></span></button>`;
+}
+function slotHTML(label, role, dotColor, group, choices, current, extra=""){
+  return `<div class="slot"><div class="slot-head">
+      <span class="slot-label"><span class="dot" style="background:${dotColor}"></span>${label}
+        <span class="slot-role">${role}</span></span>${extra}</div>
+    <div class="opts">${choices.map(c=>optHTML(c,group,current)).join("")}</div></div>`;
+}
+function renderSlots(){
+  let h="";
+  if(state.form==="wand"){
+    h+=slotHTML("Emitter","top cap",MAT[state.wand.emitter].color,"wand.emitter",CAPS,state.wand.emitter);
+    h+=slotHTML("Core","rod",MAT[state.wand.core].color,"wand.core",CORES,state.wand.core);
+    h+=slotHTML("Pommel","bottom cap",MAT[state.wand.pommel].color,"wand.pommel",CAPS,state.wand.pommel);
+  }else{
+    const s=state.stave;
+    const linkBtn=`<button class="link-toggle ${s.linked?"on":""}" id="linkBtn">${s.linked?"🔗 linked":"🔓 split"}</button>`;
+    if(s.linked){
+      h+=slotHTML("Emitters","both ends · mirrored",MAT[s.emitterTop].color,"stave.emitterTop",CAPS,s.emitterTop,linkBtn);
+    }else{
+      h+=`<div class="slot"><div class="slot-head">
+          <span class="slot-label"><span class="dot" style="background:${MAT[s.emitterTop].color}"></span>Emitters
+            <span class="slot-role">independent ends</span></span>${linkBtn}</div>
+        <div class="sub-slot"><div class="slot-role">↑ top end</div>
+          <div class="opts">${CAPS.map(c=>optHTML(c,"stave.emitterTop",s.emitterTop)).join("")}</div></div>
+        <div class="sub-slot" style="margin-top:12px"><div class="slot-role">↓ bottom end</div>
+          <div class="opts">${CAPS.map(c=>optHTML(c,"stave.emitterBottom",s.emitterBottom)).join("")}</div></div></div>`;
+    }
+    h+=slotHTML("Grip","central connector · cosmetic",MAT[s.grip].color,"stave.grip",GRIPS,s.grip);
+    h+=slotHTML("Core","twin rods · same core",MAT[s.core].color,"stave.core",CORES,s.core);
+  }
+  slotsEl.innerHTML=h;
+  bindSlots();
+}
+function bindSlots(){
+  slotsEl.querySelectorAll(".opt").forEach(b=>b.addEventListener("click",()=>{
+    const [obj,key]=b.dataset.group.split(".");
+    state[obj][key]=b.dataset.mat;
+    if(obj==="stave" && key==="emitterTop" && state.stave.linked) state.stave.emitterBottom=b.dataset.mat;
+    refresh();
+  }));
+  const lb=$("#linkBtn");
+  if(lb) lb.addEventListener("click",()=>{
+    state.stave.linked=!state.stave.linked;
+    if(state.stave.linked) state.stave.emitterBottom=state.stave.emitterTop;
+    refresh();
+  });
+}
+
+function fmt(n){ return Number.isInteger(n)?n:n.toFixed(0); }
+function updateStats(){
+  const st=computeStats();
+  $("#wandName").textContent=displayName();
+  $("#formTag").textContent=state.form.toUpperCase();
+  $("#vCap").textContent=fmt(st.capacity)+" vis";
+  $("#barCap").style.width=Math.min(100,st.capacity/CAP_REF*100)+"%";
+  $("#vDisc").textContent=Math.round(st.discount*100)+"%";
+  $("#barDisc").style.width=(st.discount/MAX_DISCOUNT*100)+"%";
+  $("#vPot").textContent="+"+st.potency.toFixed(2);
+  $("#barPot").style.width=Math.min(100,st.potency/POT_REF*100)+"%";
+  const aff=AFF[st.affinity];
+  const chip=$("#vAff"); chip.querySelector(".dot").style.background=aff.color;
+  chip.querySelector("span:last-child").textContent=aff.name;
+  chip.style.borderColor=aff.color; chip.style.color=aff.color;
+  $("#foot").innerHTML = state.form==="stave"
+    ? `<b>Double-bladed stave.</b> Two emitter ends joined by a central grip/connector over twin cores — the double-blade reframe of the shipped stave. Capacity ×1.6; both emitters add discount &amp; potency.`
+    : `<b>Wand.</b> Emitter + core + pommel. Discount is additive across both caps, capped at 50%. Numbers mirror <b>WandStats.compute</b>.`;
+}
+function refresh(){ renderSlots(); updateStats(); buildBuffer(); }
+
+/* form toggle */
+$("#formSeg").addEventListener("click",e=>{
+  const btn=e.target.closest("button[data-form]"); if(!btn)return;
+  state.form=btn.dataset.form;
+  $("#formSeg").querySelectorAll("button").forEach(b=>{
+    const on=b===btn; b.classList.toggle("on",on); b.setAttribute("aria-selected",on);
+  });
+  cam.r = state.form==="stave"?58:44;
+  refresh();
+});
+/* stage buttons */
+$("#btnSpin").addEventListener("click",()=>{ spinning=!spinning;
+  $("#btnSpin").style.color=spinning?"":"var(--accent)";
+  $("#btnSpin").setAttribute("aria-pressed",spinning); });
+$("#btnRandom").addEventListener("click",()=>{
+  const pick=a=>a[Math.floor(Math.random()*a.length)];
+  if(state.form==="wand"){ state.wand.emitter=pick(CAPS); state.wand.core=pick(CORES); state.wand.pommel=pick(CAPS); }
+  else{ const s=state.stave; s.emitterTop=pick(CAPS); s.emitterBottom=s.linked?s.emitterTop:pick(CAPS); s.core=pick(CORES); s.grip=pick(GRIPS); }
+  refresh();
+});
+$("#btnTheme").addEventListener("click",()=>{
+  const cur=document.documentElement.getAttribute("data-theme");
+  const next = cur==="light" ? "dark" : (cur==="dark" ? "light"
+      : (matchMedia("(prefers-color-scheme: dark)").matches ? "light":"dark"));
+  document.documentElement.setAttribute("data-theme",next);
+});
+window.addEventListener("resize",render);
+
+/* boot */
+if(gl){
+  initGL();
+  $("#btnSpin").style.color = spinning ? "" : "var(--accent)";
+  $("#btnSpin").setAttribute("aria-pressed", spinning);
+  refresh();
+  loop();
+}else{
+  document.querySelector(".stage").insertAdjacentHTML("beforeend",
+    '<div class="glfail">The 3D preview needs WebGL, which is unavailable in this browser.<br>The customizer and stats still work.</div>');
+  refresh();
+}
+</script>
+</body>
+</html>
