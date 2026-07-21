@@ -79,12 +79,19 @@ public class ArcaneWorktableScreen extends AbstractContainerScreen<ArcaneWorktab
         g.fill(x + imageWidth - 2, y, x + imageWidth, y + imageHeight, BEVEL_LO);
         g.renderOutline(x, y, imageWidth, imageHeight, BORDER);
         g.fill(x + 3, y + 3, x + imageWidth - 3, y + 14, CHROME); // brass title bar
-        // The red/gold runner sits behind the 3x3 grid; the slot cells cover its centre, so its
-        // embroidered border + tassels show around and between the grid.
-        g.blit(CLOTH, x + ArcaneWorktableMenu.GRID_X - 8, y + ArcaneWorktableMenu.GRID_Y - 8,
+        // The red/gold runner, centred on the 3x3 grid (its velvet field frames the grid with
+        // the gold border + tassels symmetric top and bottom).
+        g.blit(CLOTH, x + ArcaneWorktableMenu.GRID_X - 8, y + ArcaneWorktableMenu.GRID_Y - 11,
                 0, 0, CLOTH_W, CLOTH_H, CLOTH_W, CLOTH_H);
-        for (Slot slot : menu.slots) {
-            g.blit(VANILLA, x + slot.x - 1, y + slot.y - 1, SLOT_CELL_U, SLOT_CELL_V, 18, 18);
+        for (int i = 0; i < menu.slots.size(); i++) {
+            Slot slot = menu.slots.get(i);
+            int sx = x + slot.x;
+            int sy = y + slot.y;
+            if (i >= ArcaneWorktableMenu.GRID_START && i < ArcaneWorktableMenu.GRID_END) {
+                drawGlassSlot(g, sx, sy); // translucent — the runner shows through the crafting grid
+            } else {
+                g.blit(VANILLA, sx - 1, sy - 1, SLOT_CELL_U, SLOT_CELL_V, 18, 18);
+            }
         }
         drawPrimalRing(g);
 
@@ -97,6 +104,15 @@ public class ArcaneWorktableScreen extends AbstractContainerScreen<ArcaneWorktab
             g.renderFakeItem(ghostWand, wx, wy);
             g.fill(wx, wy, wx + 16, wy + 16, DIM_GLYPH);
         }
+    }
+
+    /** A translucent slot (used for the 3x3 grid) so the cloth runner shows through it. */
+    private void drawGlassSlot(GuiGraphics g, int x, int y) {
+        g.fill(x, y, x + 16, y + 16, 0x30000000);         // dim the cloth a touch for item contrast
+        g.fill(x - 1, y - 1, x + 17, y, 0x90000000);       // top inset shadow
+        g.fill(x - 1, y - 1, x, y + 17, 0x90000000);       // left inset shadow
+        g.fill(x - 1, y + 16, x + 17, y + 17, 0x50FFFFFF); // bottom highlight
+        g.fill(x + 16, y - 1, x + 17, y + 17, 0x50FFFFFF); // right highlight
     }
 
     /** The six primal glyphs ringing the grid, each with its cost, coloured by affordability. */
