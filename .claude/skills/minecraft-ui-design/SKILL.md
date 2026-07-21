@@ -8,6 +8,9 @@ description: >
   (1.20+, Fabric or NeoForge, Architectury or not) — including "make a block open a UI",
   "add a slot/inventory screen", "render X in the GUI", or fixing a screen that won't
   open or renders wrong. Even a "simple" screen hits these traps; consult this first.
+  For the pixel-art assets a UI needs — icons, sprites, widget chrome, block/item
+  textures — this skill does layout and wiring only and hands the actual pixels to the
+  pixel-artist skill (see "Pixel-art assets" below).
 ---
 
 # Minecraft UI Design (1.21.x, multi-loader)
@@ -18,6 +21,34 @@ onto a rotatable 3D sphere, and animated energy currents). For custom geometry r
 (Tesselator, projection, culling, animation) read
 [references/gui-3d-rendering.md](references/gui-3d-rendering.md) when the screen needs
 more than sprites and text.
+
+## Pixel-art assets → the pixel-artist skill
+
+This skill owns **layout, widget code, registration, and wiring**. It does **not** own
+pixels. Any bitmap the UI ships — HUD icons, the aspect/primal glyphs, widget chrome and
+frames, button faces, background panels drawn from a texture, and of course block/item
+textures — is authored by the **`pixel-artist` skill**, not hand-rolled here and not left
+as a raw-`fill` placeholder in shipped work.
+
+- **Where it lives:** the `pixel-artist` skill (`.claude/skills/pixel-artist`) in the
+  user's **`minerguy341/Pixel-Art-Aide`** repo, backed by its `aide` Python toolkit. If
+  that repo isn't already in the workspace, clone it first, then invoke the skill.
+- **What you hand it:** the subject, target size (16/32/64/128), whether it's a tiling
+  block or a cutout item/icon, and the palette/style (for Thaumaturgy, style card
+  `styles/thaumaturgy.md`, which mirrors `docs/art-direction.md` — the upstream source of
+  truth; don't invent palette values).
+- **What it hands back:** a rendered PNG plus its editable `.pxg` source, after its own
+  render → analyze → self-critique → contact-sheet → user-approval loop. Drop the PNG into
+  the resource pack (`assets/<modid>/textures/…`) and wire it up here — sprite/atlas entry,
+  `blit`/`GuiGraphics`, model json.
+- **The boundary line:** raw `graphics.fill` rectangles are fine for programmatic chrome,
+  quick prototypes, and geometry-driven bars (e.g. the vis HUD's fill bars). The moment the
+  UI wants an actual *drawn* asset — an icon, a glyph, a textured frame — that is a
+  pixel-artist job. Don't blur the two: keep the pixels in `.pxg` sources over there, keep
+  the wiring here.
+- **Honesty carries over:** pixel-artist verifies previews and metrics, never in-game
+  appearance; this skill verifies compile + client-boot, never rendering. Neither claims a
+  human-eyeball check it didn't do — hand off with what each actually verified.
 
 ## Architecture: menu + screen + server authority
 
