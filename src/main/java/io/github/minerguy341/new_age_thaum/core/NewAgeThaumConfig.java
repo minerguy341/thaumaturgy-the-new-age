@@ -55,6 +55,22 @@ public final class NewAgeThaumConfig {
     /** Vis pulled per primal per right-click on an aura node (node's own primal doubled). */
     public static double wandNodeChargePerUse = 8.0;
 
+    // Wand-HUD layout (client-only), editable in-game via /thaum hud. Anchor is one of
+    // 0/0.5/1 per axis; offset nudges from it; scale is per-bar. Defaults stack the off-hand
+    // bar just above the main-hand one, both centred above the health row.
+    public static double hudMainAnchorX = 0.5;
+    public static double hudMainAnchorY = 1.0;
+    public static int hudMainOffX = 0;
+    public static int hudMainOffY = -41;
+    public static double hudMainScale = 0.75;
+    public static double hudOffAnchorX = 0.5;
+    public static double hudOffAnchorY = 1.0;
+    public static int hudOffOffX = 0;
+    public static int hudOffOffY = -56;
+    public static double hudOffScale = 0.75;
+    /** Link the two bars' scale in the editor (scale only, not position). */
+    public static boolean hudWandScaleLink = true;
+
     /** "aspects" = ribbon blends the linked aspects; "custom" = fixed base + pulse gradient. */
     public static String currentColorMode = "aspects";
     public static int currentBaseColor = 0x8A6BB5;
@@ -93,6 +109,17 @@ public final class NewAgeThaumConfig {
         }
     }
 
+    /** Persist current in-memory values (the in-game HUD editor calls this on Save). */
+    public static void save() {
+        try {
+            Path path = file();
+            write(path);
+            loadedModified = Files.getLastModifiedTime(path).toMillis();
+        } catch (IOException e) {
+            NewAgeThaum.LOGGER.warn("Could not save config", e);
+        }
+    }
+
     /** Cheap mtime check; reloads when the file was edited since the last load. */
     public static void maybeReload() {
         try {
@@ -125,6 +152,17 @@ public final class NewAgeThaumConfig {
         wandAffinityFloor = parseDouble(values.get("wandAffinityFloor"), wandAffinityFloor, 0.0, 1.0);
         wandRechargeRate = parseDouble(values.get("wandRechargeRate"), wandRechargeRate, 0.0, 100.0);
         wandNodeChargePerUse = parseDouble(values.get("wandNodeChargePerUse"), wandNodeChargePerUse, 0.1, 100.0);
+        hudMainAnchorX = parseDouble(values.get("hudMainAnchorX"), hudMainAnchorX, 0.0, 1.0);
+        hudMainAnchorY = parseDouble(values.get("hudMainAnchorY"), hudMainAnchorY, 0.0, 1.0);
+        hudMainOffX = parseInt(values.get("hudMainOffX"), hudMainOffX, -4096, 4096);
+        hudMainOffY = parseInt(values.get("hudMainOffY"), hudMainOffY, -4096, 4096);
+        hudMainScale = parseDouble(values.get("hudMainScale"), hudMainScale, 0.3, 2.0);
+        hudOffAnchorX = parseDouble(values.get("hudOffAnchorX"), hudOffAnchorX, 0.0, 1.0);
+        hudOffAnchorY = parseDouble(values.get("hudOffAnchorY"), hudOffAnchorY, 0.0, 1.0);
+        hudOffOffX = parseInt(values.get("hudOffOffX"), hudOffOffX, -4096, 4096);
+        hudOffOffY = parseInt(values.get("hudOffOffY"), hudOffOffY, -4096, 4096);
+        hudOffScale = parseDouble(values.get("hudOffScale"), hudOffScale, 0.3, 2.0);
+        hudWandScaleLink = parseBool(values.get("hudWandScaleLink"), hudWandScaleLink);
         if (values.containsKey("currentColorMode")) {
             currentColorMode = values.get("currentColorMode");
         }
@@ -231,6 +269,22 @@ public final class NewAgeThaumConfig {
         out.append("# the node's chunk aura, which the node then re-pumps — so the node's recharge\n");
         out.append("# rate is the real rate limit. Default: 8.0. Accepted: 0.1 to 100.0 (clamped).\n");
         out.append("wandNodeChargePerUse = ").append(wandNodeChargePerUse).append("\n\n");
+
+        out.append("# Wand-HUD layout — reposition/scale it in-game with /thaum hud (this is where\n");
+        out.append("# that editor saves). anchor 0/0.5/1 = left/centre/right & top/middle/bottom;\n");
+        out.append("# off is the pixel nudge; scale 0.3 to 2.0. Main-hand bar, then off-hand bar.\n");
+        out.append("hudMainAnchorX = ").append(hudMainAnchorX).append("\n");
+        out.append("hudMainAnchorY = ").append(hudMainAnchorY).append("\n");
+        out.append("hudMainOffX = ").append(hudMainOffX).append("\n");
+        out.append("hudMainOffY = ").append(hudMainOffY).append("\n");
+        out.append("hudMainScale = ").append(hudMainScale).append("\n");
+        out.append("hudOffAnchorX = ").append(hudOffAnchorX).append("\n");
+        out.append("hudOffAnchorY = ").append(hudOffAnchorY).append("\n");
+        out.append("hudOffOffX = ").append(hudOffOffX).append("\n");
+        out.append("hudOffOffY = ").append(hudOffOffY).append("\n");
+        out.append("hudOffScale = ").append(hudOffScale).append("\n");
+        out.append("# Link the two bars' scale (only) in the editor. Default: true.\n");
+        out.append("hudWandScaleLink = ").append(hudWandScaleLink).append("\n\n");
 
         out.append("# \"aspects\" = each current blends the colors of its two linked aspects.\n");
         out.append("# \"custom\"  = currents use currentBaseColor and the pulse grades\n");
