@@ -41,6 +41,27 @@ public class AetherlensItem extends Item {
         super(properties);
     }
 
+    // Raise-to-look-through: right-clicking AIR holds the lens up to the eye using the
+    // vanilla spyglass use-pose (which centres the model on the camera), so you literally
+    // peer through the loupe. Right-clicking a block/entity still routes to useOn/
+    // interactLivingEntity below, so scanning and the raise never collide.
+    @Override
+    public net.minecraft.world.item.UseAnim getUseAnimation(ItemStack stack) {
+        return net.minecraft.world.item.UseAnim.SPYGLASS;
+    }
+
+    @Override
+    public int getUseDuration(ItemStack stack, LivingEntity entity) {
+        return 1200; // effectively "held until released"
+    }
+
+    @Override
+    public net.minecraft.world.InteractionResultHolder<ItemStack> use(Level level, Player player,
+            InteractionHand hand) {
+        player.startUsingItem(hand);
+        return net.minecraft.world.InteractionResultHolder.consume(player.getItemInHand(hand));
+    }
+
     @Override
     public InteractionResult useOn(UseOnContext context) {
         Level level = context.getLevel();

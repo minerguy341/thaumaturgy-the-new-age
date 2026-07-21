@@ -20,14 +20,23 @@ dependencies {
     "modApi"("dev.architectury:architectury-${mod.loader}:${mod.prop("architectury_version")}")
 }
 
-// Second dev client for multiplayer testing: `./gradlew :1.21.1-neoforge:runClient2`
-// joins the first client's LAN world as "Dev2" (own run dir, so no file-lock clashes).
+// Second dev client for multiplayer testing, e.g. `./gradlew :1.21.1-fabric:runClient2`
+// (match the loader of the first client) — joins the first client's LAN world as "Dev2".
 // If a Stonecraft/loom update ever breaks this block, it is safe to delete wholesale.
 extensions.configure<net.fabricmc.loom.api.LoomGradleExtensionAPI> {
     runs.create("client2") {
         client()
-        runDir("run/client2")
-        programArgs("--username", "Dev2")
         ideConfigGenerated(false)
+    }
+}
+// Stonecraft reconfigures all runs in afterEvaluate (shared run dir, injects
+// --username=developer), so client2's overrides must be applied after that.
+afterEvaluate {
+    extensions.configure<net.fabricmc.loom.api.LoomGradleExtensionAPI> {
+        runs.named("client2") {
+            runDir("run/client2")
+            programArgs.removeIf { it.startsWith("--username") }
+            programArgs("--username", "Dev2")
+        }
     }
 }
