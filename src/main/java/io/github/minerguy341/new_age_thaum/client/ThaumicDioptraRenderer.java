@@ -162,11 +162,19 @@ public final class ThaumicDioptraRenderer {
         double dcy = cam.y - (y + BASE_Y + 0.3);
         double dcz = cam.z - (minZ + blocksD * 0.5);
         double distSqr = dcx * dcx + dcy * dcy + dcz * dcz;
-        LateHolograms.enqueue(distSqr, buffer -> drawMap(buffer, pose, gw, gd, fracs, fluxFracs, present, ownCells));
+        // Camera position in combined-grid cell units. drawMap emits cells farthest-first
+        // from it so the translucent quads composite in painter's order — the color pass
+        // writes no depth, so blend order IS emission order, and fixed grid order made the
+        // overlapping rim quads blend wrong and darken (worse as the camera panned).
+        float camCellX = (float) ((cam.x - minX) * GRID);
+        float camCellZ = (float) ((cam.z - minZ) * GRID);
+        LateHolograms.enqueue(distSqr, buffer ->
+                drawMap(buffer, pose, gw, gd, fracs, fluxFracs, present, ownCells, camCellX, camCellZ));
     }
 
     private static void drawMap(VertexConsumer buffer, Matrix4f pose, int gw, int gd,
-            float[] fracs, float[] fluxFracs, boolean[] present, Set<Integer> ownCells) {
+            float[] fracs, float[] fluxFracs, boolean[] present, Set<Integer> ownCells,
+            float camCellX, float camCellZ) {
         // Smoothed corner heights over the whole combined grid — averaging across seams
         // so a slab is one continuous surface, not tiled sheets.
         float[][] cornerY = new float[gw + 1][gd + 1];
@@ -188,8 +196,15 @@ public final class ThaumicDioptraRenderer {
             }
         }
 
-        for (int cz = 0; cz < gd; cz++) {
-            for (int cx = 0; cx < gw; cx++) {
+        // Farthest-first along each axis → cells paint back-to-front for the depth-write-off
+        // color pass (blend order = emission order). Descend an axis when the camera sits on
+        // its low half, so the far (high-index) end is emitted first.
+        boolean descX = camCellX < gw * 0.5f;
+        boolean descZ = camCellZ < gd * 0.5f;
+        for (int zi = 0; zi < gd; zi++) {
+            int cz = descZ ? gd - 1 - zi : zi;
+            for (int xi = 0; xi < gw; xi++) {
+                int cx = descX ? gw - 1 - xi : xi;
                 int index = cz * gw + cx;
                 if (!present[index]) {
                     continue;
