@@ -52,6 +52,7 @@ public final class NewAgeThaumClient {
         WandVisHud.register();
         AetherlensHud.register();
         OrreryDebugCommand.register();
+        HudEditorCommand.register();
         // listen() fires the moment the menu type is actually registered: late enough to
         // avoid the NeoForge early-.get() crash, early enough for RegisterMenuScreensEvent
         // (CLIENT_SETUP would be too late — the screen factory would never register).

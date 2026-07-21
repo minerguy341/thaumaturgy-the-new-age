@@ -51,10 +51,10 @@ public final class WandVisHud {
     private static final int TOTAL_W = 182 * SCALE; // full bar width (2x space) — matches the hotbar
     private static final int SEAT = 3;            // rod underlap into each cap's full-height seat
 
-    // Screen layout (native HUD pixels).
-    private static final int BAR_HALF_W = TOTAL_W / (2 * SCALE);   // 91: half the on-screen width
-    private static final int BAR_BOTTOM = 41;   // bar bottom sits this far above guiHeight (clears health)
-    private static final int BAR_GAP = 2;       // vertical gap between stacked dual-wield bars
+    // Each bar's on-screen anchor/offset/scale is read from config (HudLayout), editable
+    // in-game via /thaum hud. The two bars are independent movable elements.
+    public static final double MIN_SCALE = 0.3;
+    public static final double MAX_SCALE = 2.0;
 
     // Static chrome colors (ARGB), matching the art builder.
     private static final int CH = 0xFF0E0910;   // chamber recess
@@ -97,32 +97,22 @@ public final class WandVisHud {
         if (player == null || minecraft.options.hideGui) {
             return;
         }
-        ItemStack main = player.getMainHandItem();
-        ItemStack off = player.getOffhandItem();
-        boolean mainHeld = assembled(main);
-        boolean offHeld = assembled(off);
-        if (!mainHeld && !offHeld) {
+        // The editor draws its own mock bars — suppress the live HUD while it's open.
+        if (minecraft.screen instanceof HudTransformScreen) {
             return;
         }
-
-        int guiWidth = graphics.guiWidth();
-        int guiHeight = graphics.guiHeight();
-        int left = guiWidth / 2 - BAR_HALF_W;
-        int bottom = guiHeight - BAR_BOTTOM;
-
-        // Both hands drawn: the main-hand bar sits at the base, the off-hand bar stacks
-        // above it. Facing follows the design — the main hand points its emitter left, the
-        // off hand points it right — so a glance tells the two apart.
-        if (mainHeld) {
-            int barH = onScreenHeight(main);
-            drawBar(graphics, main, left, bottom - barH, true);
-            if (offHeld) {
-                int offH = onScreenHeight(off);
-                drawBar(graphics, off, left, bottom - barH - BAR_GAP - offH, false);
-            }
-        } else {
-            int barH = onScreenHeight(off);
-            drawBar(graphics, off, left, bottom - barH, false);
+        // Two independent movable elements: main-hand bar (emitter left) and off-hand bar
+        // (emitter right), each at its own configured layout, drawn only when that hand
+        // holds an assembled implement.
+        int guiW = graphics.guiWidth();
+        int guiH = graphics.guiHeight();
+        ItemStack main = player.getMainHandItem();
+        if (assembled(main)) {
+            drawAt(graphics, layout(false), guiW, guiH, barDataOf(main), true);
+        }
+        ItemStack off = player.getOffhandItem();
+        if (assembled(off)) {
+            drawAt(graphics, layout(true), guiW, guiH, barDataOf(off), false);
         }
     }
 
@@ -135,46 +125,70 @@ public final class WandVisHud {
                 && WandStats.compute(component, implement.form()).capacity() > 0;
     }
 
-    private static int onScreenHeight(ItemStack stack) {
-        boolean stave = ((CastingImplementItem) stack.getItem()).form() == WandForm.STAVE;
-        return (stave ? ST_H : CH_H) / SCALE;
+    /** Resolve a layout's screen position for a bar's content box, then draw it there. */
+    private static void drawAt(GuiGraphics graphics, HudLayout layout, int guiW, int guiH,
+                               BarData data, boolean tipLeft) {
+        int cw = contentW(layout.scale);
+        int ch = contentH(layout.scale, data.stave());
+        drawBar(graphics, layout.screenX(guiW, cw), layout.screenY(guiH, ch), layout.scale, data, tipLeft);
     }
 
-    /**
-     * Draw one implement's bar with its top-left at ({@code screenLeft}, {@code screenTop})
-     * in native HUD pixels. {@code tipLeft} points the emitter cap to the left (main hand).
-     */
-    private static void drawBar(GuiGraphics graphics, ItemStack stack, int screenLeft, int screenTop,
-                                boolean tipLeft) {
+    // ---- editor-facing API (same package) --------------------------------------------
+    static int contentW(double scale) {
+        return (int) Math.round(TOTAL_W * scale / SCALE);
+    }
+
+    static int contentH(double scale, boolean stave) {
+        return (int) Math.round((stave ? ST_H : CH_H) * scale / SCALE);
+    }
+
+    /** Read a bar's layout from config (off-hand when {@code off}). */
+    static HudLayout layout(boolean off) {
+        return off
+                ? new HudLayout(NewAgeThaumConfig.hudOffAnchorX, NewAgeThaumConfig.hudOffAnchorY,
+                        NewAgeThaumConfig.hudOffOffX, NewAgeThaumConfig.hudOffOffY, NewAgeThaumConfig.hudOffScale)
+                : new HudLayout(NewAgeThaumConfig.hudMainAnchorX, NewAgeThaumConfig.hudMainAnchorY,
+                        NewAgeThaumConfig.hudMainOffX, NewAgeThaumConfig.hudMainOffY, NewAgeThaumConfig.hudMainScale);
+    }
+
+    /** Write both layouts + the scale-link flag back to config and persist. */
+    static void saveLayouts(HudLayout main, HudLayout off, boolean scaleLink) {
+        NewAgeThaumConfig.hudMainAnchorX = main.anchorX;
+        NewAgeThaumConfig.hudMainAnchorY = main.anchorY;
+        NewAgeThaumConfig.hudMainOffX = main.offX;
+        NewAgeThaumConfig.hudMainOffY = main.offY;
+        NewAgeThaumConfig.hudMainScale = main.scale;
+        NewAgeThaumConfig.hudOffAnchorX = off.anchorX;
+        NewAgeThaumConfig.hudOffAnchorY = off.anchorY;
+        NewAgeThaumConfig.hudOffOffX = off.offX;
+        NewAgeThaumConfig.hudOffOffY = off.offY;
+        NewAgeThaumConfig.hudOffScale = off.scale;
+        NewAgeThaumConfig.hudWandScaleLink = scaleLink;
+        NewAgeThaumConfig.save();
+    }
+
+    /** A representative bar for the editor (greatwood core, brass tip + aetherium pommel). */
+    static BarData mockBar(boolean stave) {
+        float[] fills = {0.85f, 0.0f, 0.62f, 0.2f, 1.0f, 0.45f};
+        float[] floors = {0.3f, 0.55f, 0.3f, 0.55f, 0.3f, 0.3f};
+        int[] colors = new int[6];
+        for (int i = 0; i < 6; i++) {
+            colors[i] = 0xFF000000 | PRIMAL_FALLBACK[i];
+        }
+        return new BarData("greatwood", NewAgeThaum.id("brass"), NewAgeThaum.id("aetherium"),
+                stave, fills, floors, colors);
+    }
+
+    /** Everything drawBar needs, resolved once per frame (real) or faked (editor). */
+    record BarData(String core, ResourceLocation capA, ResourceLocation capB, boolean stave,
+                   float[] fills, float[] floors, int[] colors) {
+    }
+
+    private static BarData barDataOf(ItemStack stack) {
         CastingImplementItem implement = (CastingImplementItem) stack.getItem();
         WandComponent component = CastingImplementItem.componentOf(stack);
         WandStats stats = WandStats.compute(component, implement.form());
         boolean stave = implement.form() == WandForm.STAVE;
-        int h = stave ? ST_H : CH_H;
-
-        String core = corePath(component.core());
-        int[] tipRamp = capRamp(component.capA());
-        int[] pommelRamp = capRamp(component.capB());
-
-        // Emitter (tip) = capA, butt (pommel) = capB. When the emitter faces left we use the
-        // re-lit "_faceleft" sprite variants so the shine stays top-left after the mirror.
-        Sprite leftSprite;
-        Sprite rightSprite;
-        int[] leftRamp;
-        int[] rightRamp;
-        if (tipLeft) {
-            leftSprite = capSprite(component.capA(), true, stave, true);
-            rightSprite = capSprite(component.capB(), false, stave, true);
-            leftRamp = tipRamp;
-            rightRamp = pommelRamp;
-        } else {
-            leftSprite = capSprite(component.capB(), false, stave, false);
-            rightSprite = capSprite(component.capA(), true, stave, false);
-            leftRamp = pommelRamp;
-            rightRamp = tipRamp;
-        }
-        Sprite shaft = sprite("hshaft_" + core + (stave ? "_stave" : ""), 48, h);
-
         float capacity = (float) stats.capacity();
         Set<ResourceLocation> affinity =
                 stats.rechargeAffinity().map(Primals::primalsOf).orElse(Set.of());
@@ -191,13 +205,52 @@ public final class WandVisHud {
             colors[i] = 0xFF000000 | AspectRegistry.get(primal).map(Aspect::color)
                     .orElse(PRIMAL_FALLBACK[i]);
         }
+        return new BarData(corePath(component.core()), component.capA(), component.capB(),
+                stave, fills, floors, colors);
+    }
 
-        // Everything below is authored in 2x space; the half-scale pose lands it at native
-        // HUD size while keeping the sprites' extra pixel density.
+    /**
+     * Draw a bar's chrome at ({@code screenLeft}, {@code screenTop}) in native HUD pixels,
+     * scaled by {@code scale}. {@code tipLeft} points the emitter cap left (main hand). The
+     * 2x sprites are drawn under a {@code scale/SCALE} pose so detail is preserved.
+     */
+    static void drawBar(GuiGraphics graphics, int screenLeft, int screenTop, double scale,
+                        BarData d, boolean tipLeft) {
+        boolean stave = d.stave();
+        int h = stave ? ST_H : CH_H;
+        String core = d.core();
+        int[] tipRamp = capRamp(d.capA());
+        int[] pommelRamp = capRamp(d.capB());
+
+        // Emitter (tip) = capA, butt (pommel) = capB. When the emitter faces left we use the
+        // re-lit "_faceleft" sprite variants so the shine stays top-left after the mirror.
+        Sprite leftSprite;
+        Sprite rightSprite;
+        int[] leftRamp;
+        int[] rightRamp;
+        if (tipLeft) {
+            leftSprite = capSprite(d.capA(), true, stave, true);
+            rightSprite = capSprite(d.capB(), false, stave, true);
+            leftRamp = tipRamp;
+            rightRamp = pommelRamp;
+        } else {
+            leftSprite = capSprite(d.capB(), false, stave, false);
+            rightSprite = capSprite(d.capA(), true, stave, false);
+            leftRamp = pommelRamp;
+            rightRamp = tipRamp;
+        }
+        Sprite shaft = sprite("hshaft_" + core + (stave ? "_stave" : ""), 48, h);
+
+        float[] fills = d.fills();
+        float[] floors = d.floors();
+        int[] colors = d.colors();
+
+        // Authored in 2x space; the scale/SCALE pose lands it on screen at `scale` of native
+        // size while keeping the sprites' extra pixel density.
         PoseStack pose = graphics.pose();
         pose.pushPose();
         pose.translate(screenLeft, screenTop, 0);
-        pose.scale(1f / SCALE, 1f / SCALE, 1f);
+        pose.scale((float) scale / SCALE, (float) scale / SCALE, 1f);
 
         int sx0 = leftSprite.w() - SEAT;
         int sx1 = TOTAL_W - rightSprite.w() + SEAT;
