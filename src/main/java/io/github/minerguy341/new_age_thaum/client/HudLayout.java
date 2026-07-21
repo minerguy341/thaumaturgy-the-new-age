@@ -37,6 +37,11 @@ public final class HudLayout {
         this.scale = other.scale;
     }
 
+    /** An independent copy — used by the editor's undo/redo snapshots. */
+    public HudLayout copy() {
+        return new HudLayout(anchorX, anchorY, offX, offY, scale);
+    }
+
     /** The anchor's pixel X (offset excluded) for a {@code contentW}-wide box. */
     public int anchorPxX(int guiW, int contentW) {
         return (int) Math.round(anchorX * (guiW - contentW));

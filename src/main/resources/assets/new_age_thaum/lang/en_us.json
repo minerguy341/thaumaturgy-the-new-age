@@ -98,6 +98,7 @@
   "aspect.new_age_thaum.barathrum": "Barathrum",
   "screen.new_age_thaum.hud_editor": "HUD Transform Editor",
   "screen.new_age_thaum.hud_editor.hint": "Drag to move · scroll to scale · Shift = freehand",
+  "screen.new_age_thaum.hud_editor.hint2": "Arrow keys nudge · R resets a bar · Ctrl+Z / Ctrl+Y undo · Reset = all",
   "screen.new_age_thaum.hud_editor.reset": "Reset",
   "screen.new_age_thaum.hud_editor.link_on": "Link Scale: On",
   "screen.new_age_thaum.hud_editor.link_off": "Link Scale: Off",
