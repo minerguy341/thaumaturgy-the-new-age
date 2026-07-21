@@ -63,6 +63,10 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
     private static final int SWATCH = 12;
     private static final int SCROLLBAR_W = 5;
 
+    /** Study-desk backdrop, authored at 2x (840x480) and blitted at half scale. */
+    private static final ResourceLocation STUDY_BG =
+            ResourceLocation.fromNamespaceAndPath("new_age_thaum", "textures/gui/orrery_study_bg.png");
+
     /** Fill shrink from the configurable border width — shared with the hologram. */
     private static double cellShrink() {
         return SphereColors.cellShrink();
@@ -272,15 +276,21 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
 
     @Override
     protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
-        graphics.fill(leftPos, topPos, leftPos + imageWidth, topPos + imageHeight, 0xF0100A18);
-        graphics.fill(leftPos, topPos, leftPos + imageWidth, topPos + 20, 0xFF241B33);
-        graphics.fill(listLeft - 2, listTop - 2, listLeft + listW + 2, listTop + listH + 2, 0xFF0B0713);
+        // Study-desk backdrop: wood, the parchment list panel, the sphere well + brass
+        // stand, title/button plaques and clutter, authored at 2x and shrunk to fit so its
+        // regions land on the real list, sphere, and buttons. Slot wells and the list rows
+        // draw over it below.
+        graphics.pose().pushPose();
+        graphics.pose().translate(leftPos, topPos, 0);
+        graphics.pose().scale(0.5f, 0.5f, 1f);
+        graphics.blit(STUDY_BG, 0, 0, 0, 0, 840, 480, 840, 480);
+        graphics.pose().popPose();
 
         for (Slot slot : this.menu.slots) {
             int x = leftPos + slot.x - 1;
             int y = topPos + slot.y - 1;
-            graphics.fill(x, y, x + 18, y + 18, 0xFF373045);
-            graphics.renderOutline(x, y, 18, 18, 0xFF000000);
+            graphics.fill(x, y, x + 18, y + 18, 0xFF241610);   // inset well, desk-toned
+            graphics.renderOutline(x, y, 18, 18, 0xFF120A06);
         }
 
         renderList(graphics, mouseX, mouseY);
@@ -288,9 +298,9 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
 
     @Override
     protected void renderLabels(GuiGraphics graphics, int mouseX, int mouseY) {
-        graphics.drawString(this.font, this.title, 8, 6, 0xE8D9FF, false);
+        graphics.drawString(this.font, this.title, 8, 6, 0xF0E4C0, false);
         graphics.drawString(this.font, Component.translatable("screen.new_age_thaum.paper_slot"),
-                ArcaneOrreryMenu.PAPER_SLOT_X + 22, ArcaneOrreryMenu.PAPER_SLOT_Y + 5, 0x9A8CBF, false);
+                ArcaneOrreryMenu.PAPER_SLOT_X + 22, ArcaneOrreryMenu.PAPER_SLOT_Y + 5, 0xC9B583, false);
     }
 
     @Override
@@ -333,16 +343,18 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
                 boolean broke = points <= 0;
                 boolean hover = mouseX >= listLeft && mouseX < listLeft + rowW && mouseY >= y && mouseY < y + ROW_HEIGHT;
                 if (hover) {
-                    graphics.fill(listLeft, y, listLeft + rowW, y + ROW_HEIGHT, 0x40FFFFFF);
+                    // Warm ink wash — the row darkens on parchment instead of a white flash.
+                    graphics.fill(listLeft, y, listLeft + rowW, y + ROW_HEIGHT, 0x22321E0A);
                 }
-                int swatch = broke ? SphereColors.blend(SphereColors.colorOf(id), 0x1A1524, 0.6) : SphereColors.colorOf(id);
+                int swatch = broke ? SphereColors.blend(SphereColors.colorOf(id), 0x5A4A32, 0.55) : SphereColors.colorOf(id);
                 graphics.fill(listLeft + 4, y + 3, listLeft + 4 + SWATCH, y + 3 + SWATCH, 0xFF000000 | swatch);
-                graphics.renderOutline(listLeft + 4, y + 3, SWATCH, SWATCH, 0xFF000000);
+                graphics.renderOutline(listLeft + 4, y + 3, SWATCH, SWATCH, 0xFF241610);
+                // Ink on parchment: dark brown for known aspects, a faded brown once spent.
                 graphics.drawString(this.font, AspectNames.displayName(id), listLeft + 22, y + 5,
-                        broke ? 0x5F5876 : 0xD8CCEE, false);
+                        broke ? 0x9A875F : 0x2E2012, false);
                 String count = String.valueOf(points);
                 graphics.drawString(this.font, count, listLeft + rowW - 4 - this.font.width(count), y + 5,
-                        broke ? 0x4A4560 : 0x9A8CBF, false);
+                        broke ? 0xA8996F : 0x5A4426, false);
             }
             y += ROW_HEIGHT;
         }
@@ -351,10 +363,10 @@ public class ResearchSphereScreen extends AbstractContainerScreen<ArcaneOrreryMe
         int contentH = aspects.size() * ROW_HEIGHT;
         if (contentH > listH) {
             int trackX = listLeft + listW - SCROLLBAR_W;
-            graphics.fill(trackX, listTop, trackX + SCROLLBAR_W, listTop + listH, 0xFF000000);
+            graphics.fill(trackX, listTop, trackX + SCROLLBAR_W, listTop + listH, 0x77241610);
             int barH = Math.max(12, (int) ((double) listH * listH / contentH));
             int barY = listTop + (int) (scroll * (listH - barH) / (contentH - listH));
-            graphics.fill(trackX, barY, trackX + SCROLLBAR_W, barY + barH, 0xFF6A4FB0);
+            graphics.fill(trackX, barY, trackX + SCROLLBAR_W, barY + barH, 0xFF8A6B38);
         }
     }
 
