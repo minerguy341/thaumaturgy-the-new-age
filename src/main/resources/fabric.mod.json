@@ -37,7 +37,10 @@
       "${group}.gametest.OrrerySolveGameTest",
       "${group}.gametest.OrreryValidationGameTest",
       "${group}.gametest.AuraGameTest",
-      "${group}.gametest.ArcaneWorktableGameTest"
+      "${group}.gametest.ArcaneWorktableGameTest",
+      "${group}.gametest.DioptraGameTest",
+      "${group}.gametest.WandRechargeGameTest",
+      "${group}.gametest.TreeGenGameTest"
     ]
   },
   "depends": {

@@ -1,0 +1,6 @@
+{
+  "type": "neoforge:add_features",
+  "biomes": "#new_age_thaum:has_silverwood",
+  "features": "new_age_thaum:silverwood_trees",
+  "step": "vegetal_decoration"
+}

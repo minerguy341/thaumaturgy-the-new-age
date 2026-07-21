@@ -3,36 +3,61 @@ package io.github.minerguy341.new_age_thaum.core.aspect;
 import io.github.minerguy341.new_age_thaum.NewAgeThaum;
 import net.minecraft.resources.ResourceLocation;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 
 /**
- * The six primal aspects — the vis currencies a wand collects and an arcane recipe spends.
- * Fixed order (used for the worktable's aspect ring and its data-slot layout) with each
- * primal's canonical colour (mirrors the datapack {@code aspects/*.json}). These six are the
- * datapack aspects with no components; listing them here is a UI/vis convenience, not a
- * second source of truth for the aspect graph itself.
+ * The six primal aspects in canonical display order (the TC element order: air, earth,
+ * fire, water, order, entropy). Wand vis storage and the HUD iterate this list so both
+ * sides agree on slots; the registry stays the authority on colors and existence.
+ * A datapack-added seventh primal would not gain a wand slot — deliberate for now.
  */
 public final class Primals {
-    public static final ResourceLocation VENTUS = NewAgeThaum.id("ventus");
-    public static final ResourceLocation TELLUS = NewAgeThaum.id("tellus");
-    public static final ResourceLocation FLAMMA = NewAgeThaum.id("flamma");
-    public static final ResourceLocation UNDA = NewAgeThaum.id("unda");
-    public static final ResourceLocation FORMA = NewAgeThaum.id("forma");
-    public static final ResourceLocation DISCORDIA = NewAgeThaum.id("discordia");
-
-    /** Ring/display order (also the worktable data-slot order). */
-    public static final List<ResourceLocation> LIST = List.of(VENTUS, TELLUS, FLAMMA, UNDA, FORMA, DISCORDIA);
-
-    /** Canonical colours, index-aligned with {@link #LIST}. */
-    public static final int[] COLORS = {0xCDE8F5, 0x6BA84F, 0xF0552B, 0x3D9BE0, 0xEDE9DC, 0x4A3459};
-
-    public static final int COUNT = 6;
+    public static final List<ResourceLocation> ORDER = List.of(
+            NewAgeThaum.id("ventus"),
+            NewAgeThaum.id("tellus"),
+            NewAgeThaum.id("flamma"),
+            NewAgeThaum.id("unda"),
+            NewAgeThaum.id("forma"),
+            NewAgeThaum.id("discordia"));
 
     private Primals() {
     }
 
-    /** The GUI glyph texture for the primal at ring index {@code i}. */
+    /** The 16×16 GUI glyph texture for the primal at ORDER index {@code i} (worktable ring). */
     public static ResourceLocation glyph(int i) {
-        return NewAgeThaum.id("textures/gui/aspect/" + LIST.get(i).getPath() + ".png");
+        return NewAgeThaum.id("textures/gui/aspect/" + ORDER.get(i).getPath() + ".png");
+    }
+
+    /**
+     * The primal leaves of an aspect's composition tree (the aspect itself if primal).
+     * Wand cores name a compound recharge affinity (greatwood: silva); the recharge
+     * floor boost applies to the primals it decomposes into. Bounded and cycle-safe
+     * even against a malformed registry.
+     */
+    public static Set<ResourceLocation> primalsOf(ResourceLocation aspectId) {
+        Set<ResourceLocation> primals = new HashSet<>();
+        collect(aspectId, primals, new HashSet<>(), 0);
+        return primals;
+    }
+
+    private static void collect(ResourceLocation id, Set<ResourceLocation> primals,
+            Set<ResourceLocation> visited, int depth) {
+        if (depth > 16 || !visited.add(id)) {
+            return;
+        }
+        Optional<Aspect> aspect = AspectRegistry.get(id);
+        if (aspect.isEmpty()) {
+            return;
+        }
+        if (aspect.get().isPrimal()) {
+            primals.add(id);
+            return;
+        }
+        for (ResourceLocation component : aspect.get().components()) {
+            collect(component, primals, visited, depth + 1);
+        }
     }
 }

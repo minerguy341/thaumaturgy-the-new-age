@@ -46,3 +46,6 @@ replay_*.log
 
 
 run-client.log
+
+# stray javac argfiles from parse-checks
+javac.*.args

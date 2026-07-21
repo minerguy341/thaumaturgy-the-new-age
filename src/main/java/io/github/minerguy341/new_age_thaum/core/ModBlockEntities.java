@@ -5,6 +5,7 @@ import dev.architectury.registry.registries.RegistrySupplier;
 import io.github.minerguy341.new_age_thaum.NewAgeThaum;
 import io.github.minerguy341.new_age_thaum.content.ArcaneOrreryBlockEntity;
 import io.github.minerguy341.new_age_thaum.content.AuraNodeBlockEntity;
+import io.github.minerguy341.new_age_thaum.content.ThaumicDioptraBlockEntity;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 
@@ -21,6 +22,11 @@ public final class ModBlockEntities {
             BLOCK_ENTITIES.register("aura_node", () -> BlockEntityType.Builder.of(
                     AuraNodeBlockEntity::new,
                     ModRegistries.AURA_NODE.get()).build(null));
+
+    public static final RegistrySupplier<BlockEntityType<ThaumicDioptraBlockEntity>> THAUMIC_DIOPTRA =
+            BLOCK_ENTITIES.register("thaumic_dioptra", () -> BlockEntityType.Builder.of(
+                    ThaumicDioptraBlockEntity::new,
+                    ModRegistries.THAUMIC_DIOPTRA.get()).build(null));
 
     private ModBlockEntities() {
     }

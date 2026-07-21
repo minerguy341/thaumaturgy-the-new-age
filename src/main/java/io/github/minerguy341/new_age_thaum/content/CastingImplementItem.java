@@ -5,7 +5,6 @@ import io.github.minerguy341.new_age_thaum.core.aspect.AspectNames;
 import io.github.minerguy341.new_age_thaum.core.casting.WandComponent;
 import io.github.minerguy341.new_age_thaum.core.casting.WandForm;
 import io.github.minerguy341.new_age_thaum.core.casting.WandStats;
-import io.github.minerguy341.new_age_thaum.core.casting.WandVis;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
@@ -40,6 +39,41 @@ public class CastingImplementItem extends Item {
     }
 
     @Override
+    public void inventoryTick(ItemStack stack, Level level, net.minecraft.world.entity.Entity entity,
+            int slotId, boolean isSelected) {
+        // Ambient recharge anywhere in a player's inventory (TC-style trickle), once a
+        // second. Charging beyond the ambient floor is a manual node right-click (useOn).
+        if (level instanceof net.minecraft.server.level.ServerLevel serverLevel
+                && entity instanceof net.minecraft.world.entity.player.Player
+                && level.getGameTime() % WandRecharge.INTERVAL_TICKS == 0) {
+            WandRecharge.tick(serverLevel, entity.blockPosition(), stack);
+        }
+    }
+
+    @Override
+    public net.minecraft.world.InteractionResult useOn(net.minecraft.world.item.context.UseOnContext context) {
+        Level level = context.getLevel();
+        net.minecraft.core.BlockPos pos = context.getClickedPos();
+        // Right-clicking an aura node channels its chunk's vis into the wand. The node's
+        // block entity exists on both sides (it syncs), but only the server moves vis.
+        if (!(level.getBlockEntity(pos) instanceof AuraNodeBlockEntity node)) {
+            return net.minecraft.world.InteractionResult.PASS;
+        }
+        if (level instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+            float moved = WandRecharge.chargeFromNode(serverLevel, pos, context.getItemInHand(), node);
+            boolean gained = moved > 0f;
+            // Feedback: a chime when vis flows, a dull step when the wand's full or the
+            // node's chunk is spent — a silent no-op reads as a broken interaction.
+            level.playSound(null, pos,
+                    gained ? net.minecraft.sounds.SoundEvents.AMETHYST_BLOCK_CHIME
+                            : net.minecraft.sounds.SoundEvents.AMETHYST_BLOCK_STEP,
+                    net.minecraft.sounds.SoundSource.BLOCKS, 0.6f,
+                    gained ? 0.9f + level.random.nextFloat() * 0.2f : 0.7f);
+        }
+        return net.minecraft.world.InteractionResult.sidedSuccess(level.isClientSide);
+    }
+
+    @Override
     public void appendHoverText(ItemStack stack, TooltipContext context, List<Component> tooltip, TooltipFlag flag) {
         WandComponent component = componentOf(stack);
         if (component == null) {
@@ -52,9 +86,8 @@ public class CastingImplementItem extends Item {
         tooltip.add(Component.translatable("tooltip.new_age_thaum.wand.caps",
                 Component.translatable(materialKey(component.capA())),
                 Component.translatable(materialKey(component.capB()))).withStyle(ChatFormatting.GRAY));
-        tooltip.add(Component.translatable("tooltip.new_age_thaum.wand.vis",
-                WandVis.get(stack).total(),
-                WandVis.capacity(stack)).withStyle(ChatFormatting.AQUA));
+        tooltip.add(Component.translatable("tooltip.new_age_thaum.wand.capacity",
+                (int) Math.round(stats.capacity())).withStyle(ChatFormatting.AQUA));
         tooltip.add(Component.translatable("tooltip.new_age_thaum.wand.discount",
                 (int) Math.round(stats.discount() * 100)).withStyle(ChatFormatting.GOLD));
         stats.rechargeAffinity().ifPresent(affinity -> tooltip.add(

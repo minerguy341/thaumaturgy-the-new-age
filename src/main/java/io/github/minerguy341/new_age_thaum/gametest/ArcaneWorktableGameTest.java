@@ -23,8 +23,9 @@ import java.util.Map;
 
 /**
  * Server-side logic for the Arcane Worktable's per-primal vis: the recipe matches/assembles and
- * carries per-primal costs, the wand reservoir stores/clamps vis per primal, and the cap discount
- * lowers each primal's cost. The menu's click-to-craft flow is UI-driven (human smoke test).
+ * carries per-primal costs (an {@link AspectBag}), the wand's {@link WandVis} store round-trips
+ * per primal, and the cap discount lowers each primal's cost. The menu's click-to-craft flow is
+ * UI-driven (human smoke test); wand recharge is covered by WandRechargeGameTest.
  */
 //? if neoforge {
 @net.neoforged.neoforge.gametest.GameTestHolder(NewAgeThaum.MOD_ID)
@@ -92,21 +93,20 @@ public class ArcaneWorktableGameTest {
     //?} else {
     /*@GameTest(template = "new_age_thaum:empty")
     *///?}
-    public void wandReservoirIsPerPrimalAndClamps(GameTestHelper helper) {
+    public void wandVisStorePerPrimalRoundtrips(GameTestHelper helper) {
         ItemStack wand = greatwoodWand();
-        helper.assertTrue(WandVis.capacity(wand) == 50, "Greatwood per-primal capacity should be 50");
+        double capacity = WandStats.compute(
+                new WandComponent(NewAgeThaum.id("greatwood"), NewAgeThaum.id("brass"), NewAgeThaum.id("aetherium")),
+                WandForm.WAND).capacity();
+        helper.assertTrue(Math.round(capacity) == 50, "Greatwood per-primal capacity should be 50");
 
-        WandVis.set(wand, Primals.TELLUS, 999);
-        helper.assertTrue(WandVis.amountOf(wand, Primals.TELLUS) == 50, "Tellus must clamp to capacity (50)");
-        helper.assertTrue(WandVis.amountOf(wand, Primals.FORMA) == 0, "Setting Tellus must not touch Forma");
-        WandVis.set(wand, Primals.TELLUS, 30);
-        WandVis.add(wand, Primals.TELLUS, -40);
-        helper.assertTrue(WandVis.amountOf(wand, Primals.TELLUS) == 0, "Draining below 0 must clamp to 0");
-
-        WandVis.chargeAll(wand, 25);
-        for (var primal : Primals.LIST) {
-            helper.assertTrue(WandVis.amountOf(wand, primal) == 25, "chargeAll should fill every primal to 25");
-        }
+        WandVis vis = WandVis.EMPTY.with(Primals.TELLUS, 40f);
+        wand.set(ModComponents.WAND_VIS.get(), vis);
+        WandVis read = wand.getOrDefault(ModComponents.WAND_VIS.get(), WandVis.EMPTY);
+        helper.assertTrue(read.get(Primals.TELLUS) == 40f, "Tellus vis should round-trip as 40");
+        helper.assertTrue(read.get(Primals.FORMA) == 0f, "Setting Tellus must not touch Forma");
+        // Zero/negative amounts are dropped by WandVis' normalization.
+        helper.assertTrue(read.with(Primals.TELLUS, 0f).isEmpty(), "Zeroing the only primal empties the store");
         helper.succeed();
     }
 

@@ -84,7 +84,7 @@ public class ArcaneWorktableScreen extends AbstractContainerScreen<ArcaneWorktab
         boolean arcane = status == ArcaneWorktableMenu.STATUS_ARCANE_READY
                 || status == ArcaneWorktableMenu.STATUS_INSUFFICIENT
                 || status == ArcaneWorktableMenu.STATUS_NEED_WAND;
-        for (int i = 0; i < Primals.COUNT; i++) {
+        for (int i = 0; i < Primals.ORDER.size(); i++) {
             int[] p = glyphPos(i);
             g.blit(Primals.glyph(i), p[0], p[1], 0, 0, 16, 16, 16, 16);
             int cost = menu.costOf(i);
@@ -107,11 +107,11 @@ public class ArcaneWorktableScreen extends AbstractContainerScreen<ArcaneWorktab
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         super.render(g, mouseX, mouseY, partialTick); // hovered-slot item tooltips
         // Per-primal tooltip on glyph hover: "Ventus  need X / have Y".
-        for (int i = 0; i < Primals.COUNT; i++) {
+        for (int i = 0; i < Primals.ORDER.size(); i++) {
             int[] p = glyphPos(i);
             if (mouseX >= p[0] && mouseX < p[0] + 16 && mouseY >= p[1] && mouseY < p[1] + 16) {
                 List<Component> lines = new ArrayList<>();
-                lines.add(AspectNames.colored(Primals.LIST.get(i)));
+                lines.add(AspectNames.colored(Primals.ORDER.get(i)));
                 int cost = menu.costOf(i);
                 if (cost > 0) {
                     lines.add(Component.translatable("screen.new_age_thaum.vis_need", cost, menu.availOf(i))

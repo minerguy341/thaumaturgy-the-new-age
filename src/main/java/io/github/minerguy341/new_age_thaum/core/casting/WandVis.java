@@ -1,85 +1,77 @@
 package io.github.minerguy341.new_age_thaum.core.casting;
 
-import io.github.minerguy341.new_age_thaum.content.CastingImplementItem;
-import io.github.minerguy341.new_age_thaum.core.ModComponents;
-import io.github.minerguy341.new_age_thaum.core.aspect.AspectBag;
-import io.github.minerguy341.new_age_thaum.core.aspect.Primals;
+import com.mojang.serialization.Codec;
+import io.github.minerguy341.new_age_thaum.network.NetworkLimits;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.ItemStack;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
- * Read/write helpers for the per-primal vis reservoir stored on a casting implement (the
- * WAND_VIS {@link AspectBag} component). Capacity is a single derived number
- * ({@link WandStats#capacity()}) applied as the per-primal cap, so a wand holds up to that
- * much of EACH primal. All clamping lives here so no caller can over-fill a wand.
+ * Per-primal vis stored on a wand or stave (TC4-style: the implement holds each of the
+ * six primals separately, up to {@link WandStats#capacity} of each). A sibling
+ * component to {@link WandComponent} rather than a new field on it, so already-shipped
+ * wands keep loading unchanged. Immutable; absent/zero entries are dropped so an empty
+ * store is exactly {@link #EMPTY}.
  */
-public final class WandVis {
-    private WandVis() {
-    }
+public record WandVis(Map<ResourceLocation, Float> stored) {
+    public static final WandVis EMPTY = new WandVis(Map.of());
 
-    /** The full per-primal reservoir; empty bag if never charged (or not a wand). */
-    public static AspectBag get(ItemStack stack) {
-        AspectBag bag = stack.get(ModComponents.WAND_VIS.get());
-        return bag == null ? AspectBag.EMPTY : bag;
-    }
-
-    /** Stored vis of one primal, 0 if none. */
-    public static int amountOf(ItemStack stack, ResourceLocation primal) {
-        return get(stack).amountOf(primal);
-    }
-
-    /** The per-primal capacity (0 for an unassembled or non-wand stack). */
-    public static int capacity(ItemStack stack) {
-        if (stack.getItem() instanceof CastingImplementItem impl) {
-            WandComponent component = CastingImplementItem.componentOf(stack);
-            if (component != null) {
-                return (int) Math.round(WandStats.compute(component, impl.form()).capacity());
+    public WandVis {
+        // Defensive normalization (also the codec's validation): drop non-finite and
+        // non-positive entries so hand-edited NBT can't smuggle NaN into the math.
+        Map<ResourceLocation, Float> clean = new HashMap<>();
+        for (Map.Entry<ResourceLocation, Float> entry : stored.entrySet()) {
+            float value = entry.getValue();
+            if (Float.isFinite(value) && value > 0f) {
+                clean.put(entry.getKey(), value);
             }
         }
-        return 0;
+        stored = Map.copyOf(clean);
     }
 
-    /** Sets one primal's stored vis, clamped to [0, capacity]. */
-    public static void set(ItemStack stack, ResourceLocation primal, int value) {
-        int cap = capacity(stack);
-        if (cap <= 0) {
-            return;
+    public float get(ResourceLocation primal) {
+        return stored.getOrDefault(primal, 0f);
+    }
+
+    /** Copy with one primal's amount replaced (dropped when zero or below). */
+    public WandVis with(ResourceLocation primal, float amount) {
+        Map<ResourceLocation, Float> next = new HashMap<>(stored);
+        if (amount <= 0f) {
+            next.remove(primal);
+        } else {
+            next.put(primal, amount);
         }
-        int clamped = Math.max(0, Math.min(value, cap));
-        stack.set(ModComponents.WAND_VIS.get(), get(stack).with(primal, clamped));
+        return new WandVis(next);
     }
 
-    /** Adds (or drains, negative) one primal's vis; returns the amount actually applied. */
-    public static int add(ItemStack stack, ResourceLocation primal, int delta) {
-        int before = amountOf(stack, primal);
-        set(stack, primal, before + delta);
-        return amountOf(stack, primal) - before;
+    public boolean isEmpty() {
+        return stored.isEmpty();
     }
 
-    /**
-     * Tops every primal up by {@code amount} (clamped per primal). Used by the aura-node
-     * charge — a testing simplification (real per-aspect sourcing is a follow-up). Returns the
-     * largest single-primal gain, so the caller knows whether anything was actually added.
-     */
-    public static int chargeAll(ItemStack stack, int amount) {
-        int cap = capacity(stack);
-        if (cap <= 0 || amount <= 0) {
-            return 0;
+    // xmap is total: the compact constructor normalizes rather than throws.
+    public static final Codec<WandVis> CODEC =
+            Codec.unboundedMap(ResourceLocation.CODEC, Codec.FLOAT).xmap(WandVis::new, WandVis::stored);
+
+    public static final StreamCodec<RegistryFriendlyByteBuf, WandVis> STREAM_CODEC =
+            StreamCodec.of(WandVis::write, WandVis::read);
+
+    private static void write(RegistryFriendlyByteBuf buf, WandVis value) {
+        buf.writeVarInt(value.stored.size());
+        for (Map.Entry<ResourceLocation, Float> entry : value.stored.entrySet()) {
+            buf.writeResourceLocation(entry.getKey());
+            buf.writeFloat(entry.getValue());
         }
-        AspectBag bag = get(stack);
-        int maxGain = 0;
-        for (ResourceLocation primal : Primals.LIST) {
-            int before = bag.amountOf(primal);
-            int next = Math.min(cap, before + amount);
-            bag = bag.with(primal, next);
-            maxGain = Math.max(maxGain, next - before);
-        }
-        stack.set(ModComponents.WAND_VIS.get(), bag);
-        return maxGain;
     }
 
-    /** True when this stack is a wand/stave that can hold vis (assembled, capacity &gt; 0). */
-    public static boolean isReservoir(ItemStack stack) {
-        return stack.getItem() instanceof CastingImplementItem && capacity(stack) > 0;
+    private static WandVis read(RegistryFriendlyByteBuf buf) {
+        int count = buf.readVarInt();
+        Map<ResourceLocation, Float> map = new HashMap<>(NetworkLimits.safeCapacity(count));
+        for (int i = 0; i < count; i++) {
+            map.put(buf.readResourceLocation(), buf.readFloat());
+        }
+        return new WandVis(map);
     }
 }

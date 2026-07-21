@@ -3,7 +3,6 @@ package io.github.minerguy341.new_age_thaum.core;
 import dev.architectury.registry.registries.DeferredRegister;
 import dev.architectury.registry.registries.RegistrySupplier;
 import io.github.minerguy341.new_age_thaum.NewAgeThaum;
-import io.github.minerguy341.new_age_thaum.core.aspect.AspectBag;
 import io.github.minerguy341.new_age_thaum.core.casting.WandComponent;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.registries.Registries;
@@ -19,17 +18,13 @@ public final class ModComponents {
                     .networkSynchronized(WandComponent.STREAM_CODEC)
                     .build());
 
-    /**
-     * Stored vis on an assembled wand/stave, per primal (the reservoir crafts draw from). Each
-     * primal is capped at the derived
-     * {@link io.github.minerguy341.new_age_thaum.core.casting.WandStats#capacity()}; charged by
-     * siphoning an aura node, spent per-primal at the Arcane Worktable. Absent = empty bag.
-     */
-    public static final RegistrySupplier<DataComponentType<AspectBag>> WAND_VIS = COMPONENTS.register("wand_vis",
-            () -> DataComponentType.<AspectBag>builder()
-                    .persistent(AspectBag.CODEC)
-                    .networkSynchronized(AspectBag.STREAM_CODEC)
-                    .build());
+    /** Per-primal vis stored on a wand/stave (sibling of WAND so shipped wands keep loading). */
+    public static final RegistrySupplier<DataComponentType<io.github.minerguy341.new_age_thaum.core.casting.WandVis>> WAND_VIS =
+            COMPONENTS.register("wand_vis",
+                    () -> DataComponentType.<io.github.minerguy341.new_age_thaum.core.casting.WandVis>builder()
+                            .persistent(io.github.minerguy341.new_age_thaum.core.casting.WandVis.CODEC)
+                            .networkSynchronized(io.github.minerguy341.new_age_thaum.core.casting.WandVis.STREAM_CODEC)
+                            .build());
 
     /** The generated puzzle definition (frequency, endpoints, gaps) on a research paper. */
     public static final RegistrySupplier<DataComponentType<io.github.minerguy341.new_age_thaum.core.research.ResearchPuzzle>> RESEARCH_PUZZLE =

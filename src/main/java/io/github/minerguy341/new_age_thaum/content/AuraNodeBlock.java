@@ -1,20 +1,10 @@
 package io.github.minerguy341.new_age_thaum.content;
 
 import io.github.minerguy341.new_age_thaum.core.ModBlockEntities;
-import io.github.minerguy341.new_age_thaum.core.aura.AuraField;
-import io.github.minerguy341.new_age_thaum.core.casting.WandVis;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
-import net.minecraft.world.InteractionHand;
-import net.minecraft.world.ItemInteractionResult;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.BlockGetter;
-import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.RenderShape;
@@ -35,8 +25,6 @@ import org.jetbrains.annotations.Nullable;
  */
 public class AuraNodeBlock extends Block implements EntityBlock {
     private static final VoxelShape SHAPE = Shapes.box(0.25, 0.25, 0.25, 0.75, 0.75, 0.75);
-    /** Vis drawn from the chunk aura per wand-charge use, added to every primal. */
-    private static final int CHARGE_PER_USE = 20;
 
     public AuraNodeBlock(BlockBehaviour.Properties properties) {
         super(properties);
@@ -51,34 +39,6 @@ public class AuraNodeBlock extends Block implements EntityBlock {
     @Override
     protected RenderShape getRenderShape(BlockState state) {
         return RenderShape.INVISIBLE; // the BER draws the orb
-    }
-
-    /**
-     * Right-click with a wand/stave to siphon this chunk's ambient aura into the wand's vis
-     * reservoir (up to the wand's capacity, limited by what the chunk holds). This is the
-     * charging half of the vis loop: aura node → wand → Arcane Worktable craft.
-     */
-    @Override
-    protected ItemInteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos,
-            Player player, InteractionHand hand, BlockHitResult hit) {
-        if (!WandVis.isReservoir(stack)) {
-            return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
-        }
-        if (level instanceof ServerLevel serverLevel) {
-            AuraField field = AuraField.get(serverLevel);
-            long chunk = new ChunkPos(pos).toLong();
-            // Draw a slug of chunk aura and top up every primal by that much (a testing
-            // simplification — real per-aspect sourcing from the node's own aspect is a follow-up).
-            int drawn = (int) Math.min(CHARGE_PER_USE, field.vis(chunk));
-            int gained = drawn > 0 ? WandVis.chargeAll(stack, drawn) : 0;
-            if (gained <= 0) {
-                level.playSound(null, pos, SoundEvents.AMETHYST_BLOCK_STEP, SoundSource.BLOCKS, 0.5f, 0.7f);
-                return ItemInteractionResult.CONSUME; // wand full, or chunk aura depleted
-            }
-            field.add(chunk, -gained);
-            level.playSound(null, pos, SoundEvents.AMETHYST_BLOCK_CHIME, SoundSource.BLOCKS, 0.7f, 1.2f);
-        }
-        return ItemInteractionResult.sidedSuccess(level.isClientSide);
     }
 
     @Override

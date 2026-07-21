@@ -1,16 +1,18 @@
 package io.github.minerguy341.new_age_thaum.content;
 
+import io.github.minerguy341.new_age_thaum.core.ModComponents;
 import io.github.minerguy341.new_age_thaum.core.ModMenus;
 import io.github.minerguy341.new_age_thaum.core.ModRecipes;
 import io.github.minerguy341.new_age_thaum.core.ModRegistries;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectBag;
 import io.github.minerguy341.new_age_thaum.core.aspect.Primals;
+import io.github.minerguy341.new_age_thaum.core.casting.WandComponent;
 import io.github.minerguy341.new_age_thaum.core.casting.WandStats;
 import io.github.minerguy341.new_age_thaum.core.casting.WandVis;
 import net.minecraft.core.BlockPos;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.SimpleContainerData;
@@ -31,10 +33,11 @@ import net.minecraft.world.level.Level;
 import java.util.Optional;
 
 /**
- * Arcane Worktable menu — a vanilla-shaped 3×3 grid + result, AUGMENTED with a wand slot
- * and a live vis-cost readout (the "augment don't replace" grammar from the workbench-UI
- * study). It resolves {@link ArcaneCraftingRecipe}s first (vis-gated on the wand), then falls
- * back to plain vanilla crafting recipes so the block still doubles as a crafting table.
+ * Arcane Worktable menu — a centred 3×3 grid + wand slot + result, AUGMENTED with the six
+ * primal vis costs (the "augment don't replace" grammar from the workbench-UI study, TC4's
+ * Arcane Worktable). It resolves {@link ArcaneCraftingRecipe}s first (vis-gated on the wand's
+ * per-primal {@link WandVis}), then falls back to plain vanilla crafting so it still doubles as
+ * a crafting table.
  *
  * <p>Like the vanilla crafting table the grid is a {@link TransientCraftingContainer} — no
  * block entity, contents drop back to the player on close — so grid, wand slot, and result all
@@ -50,7 +53,6 @@ public class ArcaneWorktableMenu extends AbstractContainerMenu {
     public static final int HOTBAR_START = 38;   // 38..46
     public static final int HOTBAR_END = 47;     // exclusive
 
-    // Status codes shared with the screen via data slot 2.
     public static final int STATUS_EMPTY = 0;
     public static final int STATUS_ARCANE_READY = 1;
     public static final int STATUS_NEED_WAND = 2;
@@ -68,15 +70,17 @@ public class ArcaneWorktableMenu extends AbstractContainerMenu {
     // Grid centre — the hexagon of six primal aspect glyphs is drawn around this.
     public static final int GRID_CX = GRID_X + 27, GRID_CY = GRID_Y + 27; // 3x3 @18 = 54px
 
+    private static final int PRIMAL_COUNT = Primals.ORDER.size();
+
     private final CraftingContainer craftSlots = new TransientCraftingContainer(this, 3, 3);
     private final SimpleContainer wandContainer = new SimpleContainer(1);
     private final ResultContainer resultSlots = new ResultContainer();
     private final ContainerLevelAccess access;
     private final Player player;
     private final BlockPos pos;
-    // Data slots: [0..5] effective per-primal cost, [6..11] wand's per-primal vis, [12] status
-    // — all indexed in Primals.LIST order.
-    private final SimpleContainerData data = new SimpleContainerData(2 * Primals.COUNT + 1);
+    // Data slots: [0..N-1] effective per-primal cost, [N..2N-1] wand's per-primal vis (rounded),
+    // [2N] status — all indexed in Primals.ORDER order.
+    private final SimpleContainerData data = new SimpleContainerData(2 * PRIMAL_COUNT + 1);
 
     // The effective per-primal cost of the currently-ready arcane recipe; spent on take.
     private AspectBag activeCost = AspectBag.EMPTY;
@@ -102,7 +106,7 @@ public class ArcaneWorktableMenu extends AbstractContainerMenu {
         addSlot(new Slot(wandContainer, 0, WAND_X, WAND_Y) {
             @Override
             public boolean mayPlace(ItemStack stack) {
-                return WandVis.isReservoir(stack);
+                return isReservoir(stack);
             }
 
             @Override
@@ -138,13 +142,13 @@ public class ArcaneWorktableMenu extends AbstractContainerMenu {
         return data.get(i);
     }
 
-    /** Wand's available vis of the primal at ring-index {@code i}. */
+    /** Wand's available vis of the primal at ring-index {@code i} (rounded). */
     public int availOf(int i) {
-        return data.get(Primals.COUNT + i);
+        return data.get(PRIMAL_COUNT + i);
     }
 
     public int status() {
-        return data.get(2 * Primals.COUNT);
+        return data.get(2 * PRIMAL_COUNT);
     }
 
     /** True when the wand slot holds a vis reservoir — the screen uses this for the ghost hint. */
@@ -157,7 +161,7 @@ public class ArcaneWorktableMenu extends AbstractContainerMenu {
         access.execute((level, blockPos) -> updateResult(level, player));
     }
 
-    /** Server-authoritative: resolve arcane (then vanilla) recipe, set result + cost readout. */
+    /** Server-authoritative: resolve arcane (then vanilla) recipe, set result + per-primal readout. */
     private void updateResult(Level level, Player who) {
         if (level.isClientSide || !(who instanceof ServerPlayer serverPlayer)) {
             return;
@@ -175,7 +179,7 @@ public class ArcaneWorktableMenu extends AbstractContainerMenu {
         if (arcane.isPresent()) {
             ArcaneCraftingRecipe recipe = arcane.get().value();
             cost = effectiveCost(recipe.visCost(), wand);
-            if (!WandVis.isReservoir(wand)) {
+            if (!isReservoir(wand)) {
                 status = STATUS_NEED_WAND;
             } else if (affordable(cost, wand)) {
                 result = recipe.assemble(input, level.registryAccess());
@@ -194,13 +198,14 @@ public class ArcaneWorktableMenu extends AbstractContainerMenu {
             }
         }
 
-        boolean reservoir = WandVis.isReservoir(wand);
-        for (int i = 0; i < Primals.COUNT; i++) {
-            ResourceLocation primal = Primals.LIST.get(i);
+        WandVis vis = visOf(wand);
+        boolean reservoir = isReservoir(wand);
+        for (int i = 0; i < PRIMAL_COUNT; i++) {
+            ResourceLocation primal = Primals.ORDER.get(i);
             data.set(i, cost.amountOf(primal));
-            data.set(Primals.COUNT + i, reservoir ? WandVis.amountOf(wand, primal) : 0);
+            data.set(PRIMAL_COUNT + i, reservoir ? Math.round(vis.get(primal)) : 0);
         }
-        data.set(2 * Primals.COUNT, status);
+        data.set(2 * PRIMAL_COUNT, status);
         resultSlots.setItem(0, result);
         setRemoteSlot(RESULT_SLOT, result);
         serverPlayer.connection.send(
@@ -213,11 +218,9 @@ public class ArcaneWorktableMenu extends AbstractContainerMenu {
             return AspectBag.EMPTY;
         }
         double discount = 0.0;
-        if (WandVis.isReservoir(wand)) {
-            var component = CastingImplementItem.componentOf(wand);
-            if (component != null && wand.getItem() instanceof CastingImplementItem impl) {
-                discount = WandStats.compute(component, impl.form()).discount();
-            }
+        WandStats stats = statsOf(wand);
+        if (stats != null) {
+            discount = stats.discount();
         }
         AspectBag result = AspectBag.EMPTY;
         for (var entry : base.amounts().entrySet()) {
@@ -229,8 +232,9 @@ public class ArcaneWorktableMenu extends AbstractContainerMenu {
 
     /** True when the wand holds at least the required vis of every primal in {@code cost}. */
     private static boolean affordable(AspectBag cost, ItemStack wand) {
+        WandVis vis = visOf(wand);
         for (var entry : cost.amounts().entrySet()) {
-            if (WandVis.amountOf(wand, entry.getKey()) < entry.getValue()) {
+            if (vis.get(entry.getKey()) < entry.getValue()) {
                 return false;
             }
         }
@@ -241,9 +245,11 @@ public class ArcaneWorktableMenu extends AbstractContainerMenu {
     private void onCrafted() {
         if (activeIsArcane && !activeCost.isEmpty()) {
             ItemStack wand = wandContainer.getItem(0);
+            WandVis vis = visOf(wand);
             for (var entry : activeCost.amounts().entrySet()) {
-                WandVis.add(wand, entry.getKey(), -entry.getValue());
+                vis = vis.with(entry.getKey(), vis.get(entry.getKey()) - entry.getValue());
             }
+            wand.set(ModComponents.WAND_VIS.get(), vis);
         }
         for (int i = 0; i < craftSlots.getContainerSize(); i++) {
             ItemStack stack = craftSlots.getItem(i);
@@ -254,6 +260,27 @@ public class ArcaneWorktableMenu extends AbstractContainerMenu {
         access.execute((level, blockPos) -> updateResult(level, player));
     }
 
+    // --- wand-vis helpers (main's WandVis is a data record; capacity/reservoir come from WandStats) --
+
+    private static WandVis visOf(ItemStack wand) {
+        return wand.getOrDefault(ModComponents.WAND_VIS.get(), WandVis.EMPTY);
+    }
+
+    private static WandStats statsOf(ItemStack wand) {
+        if (wand.getItem() instanceof CastingImplementItem impl) {
+            WandComponent component = CastingImplementItem.componentOf(wand);
+            if (component != null) {
+                return WandStats.compute(component, impl.form());
+            }
+        }
+        return null;
+    }
+
+    private static boolean isReservoir(ItemStack wand) {
+        WandStats stats = statsOf(wand);
+        return stats != null && stats.capacity() > 0;
+    }
+
     @Override
     public boolean stillValid(Player player) {
         return stillValid(access, player, ModRegistries.ARCANE_WORKTABLE.get());
@@ -262,7 +289,6 @@ public class ArcaneWorktableMenu extends AbstractContainerMenu {
     @Override
     public void removed(Player player) {
         super.removed(player);
-        // Transient grid + wand slot: hand contents back to the player on close (vanilla table).
         access.execute((level, blockPos) -> {
             clearContainer(player, craftSlots);
             clearContainer(player, wandContainer);
@@ -277,14 +303,12 @@ public class ArcaneWorktableMenu extends AbstractContainerMenu {
             ItemStack stack = slot.getItem();
             moved = stack.copy();
             if (index == RESULT_SLOT) {
-                // Shift-craft: doClick loops quickMoveStack while the result slot keeps
-                // repopulating (onTake recomputes), so this crafts as many as the grid allows.
                 if (!moveItemStackTo(stack, INV_START, HOTBAR_END, true)) {
                     return ItemStack.EMPTY;
                 }
                 slot.onQuickCraft(stack, moved);
             } else if (index >= INV_START) {
-                if (WandVis.isReservoir(stack) && !getSlot(WAND_SLOT).hasItem()) {
+                if (isReservoir(stack) && !getSlot(WAND_SLOT).hasItem()) {
                     if (!moveItemStackTo(stack, WAND_SLOT, WAND_SLOT + 1, false)) {
                         return ItemStack.EMPTY;
                     }
