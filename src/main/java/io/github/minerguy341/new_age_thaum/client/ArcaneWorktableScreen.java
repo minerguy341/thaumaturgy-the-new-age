@@ -1,5 +1,6 @@
 package io.github.minerguy341.new_age_thaum.client;
 
+import io.github.minerguy341.new_age_thaum.NewAgeThaum;
 import io.github.minerguy341.new_age_thaum.content.ArcaneWorktableMenu;
 import io.github.minerguy341.new_age_thaum.core.ModRegistries;
 import io.github.minerguy341.new_age_thaum.core.aspect.AspectNames;
@@ -28,13 +29,23 @@ public class ArcaneWorktableScreen extends AbstractContainerScreen<ArcaneWorktab
             ResourceLocation.withDefaultNamespace("textures/gui/container/crafting_table.png");
     private static final int SLOT_CELL_U = 29, SLOT_CELL_V = 16;
 
-    private static final int PANEL = 0xF0100A18;
-    private static final int CHROME = 0xFF241B33;
+    // The red/gold runner behind the grid — this mod's own texture (70x76).
+    private static final ResourceLocation CLOTH = NewAgeThaum.id("textures/gui/worktable_cloth.png");
+    private static final int CLOTH_W = 70, CLOTH_H = 76;
+
+    // Greatwood + brass panel (the warm workshop; dark arcane-purple is reserved for the
+    // research UIs — Orrery/Codex — so the two families read distinctly).
+    private static final int PANEL = 0xFF4A3A28;      // greatwood board
+    private static final int BEVEL_HI = 0xFF60492C;
+    private static final int BEVEL_LO = 0xFF302418;
+    private static final int BORDER = 0xFF231A14;
+    private static final int CHROME = 0xFF8B6938;     // brass title bar
+    private static final int LABEL = 0xE8DCBE;        // cream label text on the warm panel
     private static final int TEAL_TEXT = 0x7FE8D8;
     private static final int WARN_TEXT = 0xE08A8A;
-    private static final int DIM_GLYPH = 0x90100A18;   // overlay to fade an unused primal glyph
+    private static final int DIM_GLYPH = 0x90241A10;  // warm dark overlay to fade an unused glyph
     private static final int RING_RADIUS = 44;
-    // Flat-top hexagon vertex angles (deg), index-aligned with Primals.LIST.
+    // Flat-top hexagon vertex angles (deg), index-aligned with Primals.ORDER.
     private static final int[] RING_ANGLES = {240, 300, 0, 60, 120, 180};
 
     private ItemStack ghostWand = ItemStack.EMPTY;
@@ -61,7 +72,17 @@ public class ArcaneWorktableScreen extends AbstractContainerScreen<ArcaneWorktab
         int x = leftPos;
         int y = topPos;
         g.fill(x, y, x + imageWidth, y + imageHeight, PANEL);
-        g.fill(x, y, x + imageWidth, y + 14, CHROME);
+        // Raised-panel bevel: light top/left, dark bottom/right, a hard border.
+        g.fill(x, y, x + imageWidth, y + 2, BEVEL_HI);
+        g.fill(x, y, x + 2, y + imageHeight, BEVEL_HI);
+        g.fill(x, y + imageHeight - 2, x + imageWidth, y + imageHeight, BEVEL_LO);
+        g.fill(x + imageWidth - 2, y, x + imageWidth, y + imageHeight, BEVEL_LO);
+        g.renderOutline(x, y, imageWidth, imageHeight, BORDER);
+        g.fill(x + 3, y + 3, x + imageWidth - 3, y + 14, CHROME); // brass title bar
+        // The red/gold runner sits behind the 3x3 grid; the slot cells cover its centre, so its
+        // embroidered border + tassels show around and between the grid.
+        g.blit(CLOTH, x + ArcaneWorktableMenu.GRID_X - 8, y + ArcaneWorktableMenu.GRID_Y - 8,
+                0, 0, CLOTH_W, CLOTH_H, CLOTH_W, CLOTH_H);
         for (Slot slot : menu.slots) {
             g.blit(VANILLA, x + slot.x - 1, y + slot.y - 1, SLOT_CELL_U, SLOT_CELL_V, 18, 18);
         }
@@ -100,7 +121,9 @@ public class ArcaneWorktableScreen extends AbstractContainerScreen<ArcaneWorktab
 
     @Override
     protected void renderLabels(GuiGraphics g, int mouseX, int mouseY) {
-        super.renderLabels(g, mouseX, mouseY); // title + "Inventory"
+        // Cream text (not vanilla's dark grey) so the labels read on the warm greatwood panel.
+        g.drawString(font, title, titleLabelX, titleLabelY, LABEL, false);
+        g.drawString(font, playerInventoryTitle, inventoryLabelX, inventoryLabelY, LABEL, false);
     }
 
     @Override
