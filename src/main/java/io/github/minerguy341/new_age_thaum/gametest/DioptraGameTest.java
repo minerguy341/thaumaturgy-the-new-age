@@ -165,7 +165,13 @@ public class DioptraGameTest {
         aura.add(ownChunk, 33f);
         aura.add(cornerChunk, -AuraField.CHUNK_CAP * 2);
         aura.add(cornerChunk, 77f);
-        aura.addFlux(cornerChunk, 44f); // flux rides the same snapshot
+        // Flux rides the same snapshot. Zero both chunks' flux first (the subtract clamps at
+        // 0) so the assertions hold no matter what flux the shared per-level AuraField carried
+        // in from other gametests via diffusion — mirrors the vis zeroing above. Without the
+        // ownChunk zero, leaked flux made "flux-free cell reads zero" flaky.
+        aura.addFlux(ownChunk, -AuraField.FLUX_CAP * 2);
+        aura.addFlux(cornerChunk, -AuraField.FLUX_CAP * 2);
+        aura.addFlux(cornerChunk, 44f);
         dioptra.refreshSnapshot(level);
 
         float[] window = dioptra.visWindow();
