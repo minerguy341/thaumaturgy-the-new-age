@@ -15,13 +15,14 @@ import java.util.Set;
  * A datapack-added seventh primal would not gain a wand slot — deliberate for now.
  */
 public final class Primals {
-    public static final List<ResourceLocation> ORDER = List.of(
-            NewAgeThaum.id("ventus"),
-            NewAgeThaum.id("tellus"),
-            NewAgeThaum.id("flamma"),
-            NewAgeThaum.id("unda"),
-            NewAgeThaum.id("forma"),
-            NewAgeThaum.id("discordia"));
+    public static final ResourceLocation VENTUS = NewAgeThaum.id("ventus");
+    public static final ResourceLocation TELLUS = NewAgeThaum.id("tellus");
+    public static final ResourceLocation FLAMMA = NewAgeThaum.id("flamma");
+    public static final ResourceLocation UNDA = NewAgeThaum.id("unda");
+    public static final ResourceLocation FORMA = NewAgeThaum.id("forma");
+    public static final ResourceLocation DISCORDIA = NewAgeThaum.id("discordia");
+
+    public static final List<ResourceLocation> ORDER = List.of(VENTUS, TELLUS, FLAMMA, UNDA, FORMA, DISCORDIA);
 
     private Primals() {
     }
