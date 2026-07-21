@@ -52,7 +52,10 @@ public final class WandVisHud {
     private static final int SEAT = 3;            // rod underlap into each cap's full-height seat
 
     // Screen layout (native HUD pixels).
-    private static final int BAR_HALF_W = TOTAL_W / (2 * SCALE);   // 91: half the on-screen width
+    // Shrinks the whole on-screen projection WITHOUT touching the 2x sprite resolution —
+    // lower reads as less bulky; 1.0 is the original hotbar-width bar.
+    private static final float PROJECTION = 0.75f;
+    private static final int BAR_HALF_W = Math.round(TOTAL_W * PROJECTION / (2f * SCALE));  // half the on-screen width
     private static final int BAR_BOTTOM = 41;   // bar bottom sits this far above guiHeight (clears health)
     private static final int BAR_GAP = 2;       // vertical gap between stacked dual-wield bars
 
@@ -137,7 +140,7 @@ public final class WandVisHud {
 
     private static int onScreenHeight(ItemStack stack) {
         boolean stave = ((CastingImplementItem) stack.getItem()).form() == WandForm.STAVE;
-        return (stave ? ST_H : CH_H) / SCALE;
+        return Math.round((stave ? ST_H : CH_H) * PROJECTION / SCALE);
     }
 
     /**
@@ -192,12 +195,13 @@ public final class WandVisHud {
                     .orElse(PRIMAL_FALLBACK[i]);
         }
 
-        // Everything below is authored in 2x space; the half-scale pose lands it at native
-        // HUD size while keeping the sprites' extra pixel density.
+        // Everything below is authored in 2x space; the pose scale lands it on screen at
+        // PROJECTION of native size while keeping the sprites' extra pixel density (so the
+        // bar reads crisper, just smaller).
         PoseStack pose = graphics.pose();
         pose.pushPose();
         pose.translate(screenLeft, screenTop, 0);
-        pose.scale(1f / SCALE, 1f / SCALE, 1f);
+        pose.scale(PROJECTION / SCALE, PROJECTION / SCALE, 1f);
 
         int sx0 = leftSprite.w() - SEAT;
         int sx1 = TOTAL_W - rightSprite.w() + SEAT;
