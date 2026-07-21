@@ -29,9 +29,9 @@ public class ArcaneWorktableScreen extends AbstractContainerScreen<ArcaneWorktab
             ResourceLocation.withDefaultNamespace("textures/gui/container/crafting_table.png");
     private static final int SLOT_CELL_U = 29, SLOT_CELL_V = 16;
 
-    // The red/gold runner behind the grid — this mod's own texture (70x76).
+    // The red/gold runner — this mod's own texture, sized to hug the 3x3 grid (62x62).
     private static final ResourceLocation CLOTH = NewAgeThaum.id("textures/gui/worktable_cloth.png");
-    private static final int CLOTH_W = 70, CLOTH_H = 76;
+    private static final int CLOTH_W = 62, CLOTH_H = 62;
 
     // Greatwood + brass panel (the warm workshop; dark arcane-purple is reserved for the
     // research UIs — Orrery/Codex — so the two families read distinctly).
@@ -79,9 +79,8 @@ public class ArcaneWorktableScreen extends AbstractContainerScreen<ArcaneWorktab
         g.fill(x + imageWidth - 2, y, x + imageWidth, y + imageHeight, BEVEL_LO);
         g.renderOutline(x, y, imageWidth, imageHeight, BORDER);
         g.fill(x + 3, y + 3, x + imageWidth - 3, y + 14, CHROME); // brass title bar
-        // The red/gold runner, centred on the 3x3 grid (its velvet field frames the grid with
-        // the gold border + tassels symmetric top and bottom).
-        g.blit(CLOTH, x + ArcaneWorktableMenu.GRID_X - 8, y + ArcaneWorktableMenu.GRID_Y - 11,
+        // The red/gold runner, fitted snugly around the 3x3 grid (~4px margin all round).
+        g.blit(CLOTH, x + ArcaneWorktableMenu.GRID_X - 4, y + ArcaneWorktableMenu.GRID_Y - 4,
                 0, 0, CLOTH_W, CLOTH_H, CLOTH_W, CLOTH_H);
         for (int i = 0; i < menu.slots.size(); i++) {
             Slot slot = menu.slots.get(i);
