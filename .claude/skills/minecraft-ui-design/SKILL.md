@@ -180,6 +180,65 @@ per-loader hook behind a `platform/` service:
   loader-specific. Skipping this entirely — parking your overlay in the free space *above*
   the health row — is a legitimate v1 that needs no mixin at all.
 
+## Placing a HUD element so it survives resize + GUI-scale (anchor + offset + scale)
+
+A HUD element pinned with raw `x, y` pixels drifts the moment the window resizes or the
+player changes GUI scale. Store each movable element's placement as a small transform
+instead — proven on the two wand-vis bars, editable in-game via `/thaum hud`:
+
+- **9-point anchor + pixel offset + scale.** `anchorX, anchorY ∈ {0, 0.5, 1}` (left/centre/
+  right, top/middle/bottom) name a screen reference point; `offX, offY` nudge from there;
+  `scale` is per-element. The element's top-left is
+  `round(anchorX*(guiW - contentW)) + offX`, `round(anchorY*(guiH - contentH)) + offY`.
+  A corner-anchored element then stays welded to that corner across any resize; only the
+  offset (a few px) is resolution-specific.
+- **Re-anchor to the nearest reference point on drop.** After a free drag, pick the nearest
+  of the nine points to the element's centre and rewrite the offset to keep its on-screen
+  position identical (`offX = absX - anchorPxX(...)`). Without this every element keeps the
+  anchor it started with, so dragging a bar into the top-right corner still makes it crawl
+  on a bottom-anchored resize.
+- **One transform class, shared by renderer and editor.** Put the placement math on the
+  transform object (`screenX/screenY`, `anchorPxX/anchorPxY`, `clampScale`, `reanchorNearest`)
+  and have *both* the live `RENDER_HUD` path and the editor call it. The instant the editor
+  computes placement even slightly differently from the renderer, saved layouts land wrong.
+- **Persist as flat config keys**, one set per element (`hud{Elem}Anchor{X,Y}`,
+  `hud{Elem}Off{X,Y}`, `hud{Elem}Scale`) — see the `minecraft-mod-config` skill. The
+  renderer reads them each frame; the editor writes them on Save.
+
+### In-game transform editor (a `Screen` that repositions HUD elements)
+
+If the user wants to move/scale HUD elements in-game, a plain `Screen` does it — but a few
+traps make the difference between a toy and a tool:
+
+- **Renderer yields via a `static boolean editorActive` flag, not `instanceof YourScreen`.**
+  The editor draws its own mock copies; the live HUD must suppress itself while it's open.
+  Set the flag in `init()`, clear it in `removed()`. An `instanceof` check couples the
+  renderer to the editor class and misses the "closing" frame ordering.
+- **Mock-render, so the editor needs no live game state.** Feed the same draw routine fake
+  data (sample fills/colors) — the user lays out HUD without holding the item or being in
+  the right situation.
+- **Buttons win the click.** Call `super.mouseClicked(...)` (widgets) *first* and return if
+  it handled; only then hit-test your draggable elements. A wide element parked at the
+  bottom overlaps the control row, and Save/Cancel must stay clickable — the user grabs the
+  element by an un-covered end.
+- **Clamp on-screen on every mutation** (drag, scroll-scale, arrow-nudge). Compute the box,
+  clamp its top-left into `[0, guiW-w]×[0, guiH-h]`, and absorb the correction back into the
+  offset. Otherwise an element scrolls or drags past an edge and is lost.
+- **Undo/redo is cheap and expected.** Snapshot the whole editable state (every element's
+  transform + any flags) onto an `ArrayDeque`; `Ctrl+Z`/`Ctrl+Y` (and `Ctrl+Shift+Z`) pop
+  and restore. Record **one** entry per drag *gesture* (capture on first `mouseDragged`, not
+  per event) and **coalesce** a held arrow-nudge burst into one entry — otherwise a single
+  action costs a dozen undos.
+- **Key handling.** Override `keyPressed(int keyCode, int scanCode, int modifiers)`; use
+  `org.lwjgl.glfw.GLFW.GLFW_KEY_*` constants and the static `hasControlDown()/hasShiftDown()`.
+  Arrow keys nudge a *selected* element (track it, and keep it outlined so it's obvious which
+  one the keys act on); Shift = coarse step. `mouseScrolled` is the **4-arg**
+  `(double,double,double,double)` override in 1.21.x — the older 3-arg one silently never
+  fires.
+- **Any widget label derived from state must be re-synced when state changes underneath it.**
+  A toggle button that sets its own label in its `onPress` goes stale after Reset/undo change
+  the flag by another path — keep a reference and call `setMessage` from those paths too.
+
 ## Reusing vanilla GUI textures directly (safe — nothing is shipped)
 
 Blitting a vanilla GUI texture by `ResourceLocation` references the client's own atlas; your
