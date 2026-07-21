@@ -13,10 +13,9 @@
   --bg-0:#14101c; --bg-1:#1d1730; --panel:#211a33cc; --panel-solid:#211a33;
   --ink:#efe9dd; --ink-dim:#b9b0c8; --ink-faint:#8f86a4;
   --line:#3a3152; --line-soft:#2c2540;
-  --brass:#C79A55; --aetherium:#8A6BB5; --teal:#7FE8D8;
-  --silva:#5FB04A; --aether:#9d7fe8;
+  --aetherium:#8A6BB5;
   --accent:var(--aetherium); --glow:rgba(138,107,181,.45);
-  --radius:14px; --radius-sm:10px;
+  --radius-sm:10px;
   --shadow:0 10px 40px rgba(0,0,0,.45);
   --sans:"Segoe UI",Roboto,-apple-system,BlinkMacSystemFont,sans-serif;
 }
@@ -169,7 +168,6 @@ body{
   .opt{ min-width:calc(50% - 4px) }
   .stage .brand{ font-size:13px }
 }
-.sr-only{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0) }
 :focus-visible{ outline:2px solid var(--accent); outline-offset:2px; border-radius:6px }
 .glfail{ position:absolute; inset:0; display:grid; place-items:center; text-align:center;
   padding:24px; color:var(--ink-dim); font-size:14px; line-height:1.5 }
@@ -249,13 +247,24 @@ const GRIPS = ["brass","aetherium","greatwood","silverwood"];
 const FORM_MULT = { wand:1.0, stave:1.6 };
 const MAX_DISCOUNT = 0.5;
 const CAP_REF = 100, POT_REF = 0.6; // bar normalisers
+const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+const R_MIN=18, R_MAX=120;          // zoom (camera radius) bounds
 
+// A wand's data is core + two caps — capA = top (emitter), capB = bottom
+// (pommel on a wand, second emitter on a stave) — matching the mod's
+// WandComponent(core, capA, capB). `linked`/`grip` are the stave extras.
 const state = {
   form:"wand",
-  wand:  { emitter:"brass", core:"greatwood", pommel:"aetherium" },
-  stave: { emitterTop:"aetherium", emitterBottom:"aetherium", linked:true,
-           core:"silverwood", grip:"brass" },
+  wand:  { core:"greatwood",  capA:"brass",     capB:"aetherium" },
+  stave: { core:"silverwood", capA:"aetherium", capB:"aetherium", linked:true, grip:"brass" },
 };
+// The only writer of part state: on a linked stave, editing either cap
+// mirrors both ends, so the mirror invariant lives in exactly one place.
+function setPart(form,key,mat){
+  const s=state[form]; s[key]=mat;
+  if(form==="stave" && s.linked && (key==="capA"||key==="capB")) s.capA=s.capB=mat;
+}
+function setLinked(on){ state.stave.linked=on; if(on) state.stave.capB=state.stave.capA; }
 
 /* ======================================================================
    GEOMETRY — Minecraft-style box parts (0..16 space, Y up), tinted by
@@ -288,32 +297,27 @@ function gripPart(y0,y1,color){
 
 // Parts overlap at their seams so the implement reads as one connected object.
 function buildParts(){
-  const s = state;
-  if(s.form==="wand"){
-    const c = MAT[s.wand.core].color;
+  const s = state[state.form];
+  const c = MAT[s.core].color, capA = MAT[s.capA].color, capB = MAT[s.capB].color;
+  if(state.form==="wand"){
     return [
-      ...capPart(0,5,-1, MAT[s.wand.pommel].color, false),   // pommel (bottom)
-      ...rodPart(4,16, c),                                   // core rod
-      ...capPart(15,20,+1, MAT[s.wand.emitter].color, true), // emitter (top)
-    ];
-  } else {
-    const c   = MAT[s.stave.core].color;
-    const eT  = MAT[s.stave.emitterTop].color;
-    const eB  = MAT[s.stave.linked ? s.stave.emitterTop : s.stave.emitterBottom].color;
-    const g   = MAT[s.stave.grip].color;
-    return [
-      ...capPart(0,5,-1, eB, true),      // bottom emitter (double-bladed)
-      ...rodPart(4,16, c),               // lower core half
-      ...gripPart(14,24, g),             // central grip / connector
-      ...rodPart(22,34, c),              // upper core half
-      ...capPart(33,38,+1, eT, true),    // top emitter
+      ...capPart(0,5,-1, capB, false),   // pommel   (bottom = capB)
+      ...rodPart(4,16, c),               // core rod
+      ...capPart(15,20,+1, capA, true),  // emitter  (top = capA)
     ];
   }
+  return [
+    ...capPart(0,5,-1, capB, true),          // bottom emitter (capB)
+    ...rodPart(4,16, c),                     // lower core half
+    ...gripPart(14,24, MAT[s.grip].color),   // central grip / connector
+    ...rodPart(22,34, c),                    // upper core half
+    ...capPart(33,38,+1, capA, true),        // top emitter (capA)
+  ];
 }
 
 /* ---------- colour helpers ---------- */
 function hexToRgb(h){ h=h.replace("#",""); return [parseInt(h.slice(0,2),16)/255,parseInt(h.slice(2,4),16)/255,parseInt(h.slice(4,6),16)/255]; }
-function tint(hex,f){ const c=hexToRgb(hex).map(v=>Math.max(0,Math.min(1,v*f))); const h=x=>("0"+Math.round(x*255).toString(16)).slice(-2); return "#"+h(c[0])+h(c[1])+h(c[2]); }
+function tint(hex,f){ const c=hexToRgb(hex).map(v=>clamp(v*f,0,1)); const h=x=>("0"+Math.round(x*255).toString(16)).slice(-2); return "#"+h(c[0])+h(c[1])+h(c[2]); }
 
 /* ======================================================================
    MINI mat4 (column-major) — no library.
@@ -416,7 +420,7 @@ function render(){
   gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
   const asp = canvas.width/Math.max(1,canvas.height);
   const P = M4.perspective(45*Math.PI/180, asp, 1, 400);
-  const el=Math.max(-1.35,Math.min(1.35,cam.el));
+  const el=cam.el;   // already clamped to ±EL_MAX at its write site
   const eye=[
     center[0]+cam.r*Math.cos(el)*Math.sin(cam.az),
     center[1]+cam.r*Math.sin(el),
@@ -446,10 +450,16 @@ function render(){
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 let spinning = !reduceMotion;
 let assembleAt = -1e9;   // timestamp of last part change → a quick "seat" squash
+let dirty = true;        // demand-driven: only draw when something changed
+function requestDraw(){ dirty=true; }
 function interacting(){ return pointers.size>0; }
+// rAF keeps ticking, but GL work happens only while spinning, interacting,
+// mid-seat-animation, or after an explicit change — idle frames cost a branch.
 function loop(){
-  if(spinning && !interacting()) cam.az+=0.006;
-  render();
+  const e=(performance.now()-assembleAt)/1000;
+  const animating = !reduceMotion && e>=0 && e<0.34;
+  if(spinning && !interacting()){ cam.az+=0.006; render(); }
+  else if(interacting() || animating || dirty){ render(); dirty=false; }
   requestAnimationFrame(loop);
 }
 
@@ -464,13 +474,13 @@ canvas.addEventListener("pointermove",e=>{
   const p=pointers.get(e.pointerId); if(!p) return;
   if(pointers.size===1){
     cam.az -= (e.clientX-p.x)*0.01;
-    cam.el = Math.max(-EL_MAX, Math.min(EL_MAX, cam.el + (e.clientY-p.y)*0.01));
+    cam.el = clamp(cam.el + (e.clientY-p.y)*0.01, -EL_MAX, EL_MAX);
   }
   p.x=e.clientX; p.y=e.clientY;
   if(pointers.size===2){
     const pts=[...pointers.values()];
     const d=Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
-    if(pinchD) cam.r=Math.max(18,Math.min(120,cam.r*(pinchD/d)));
+    if(pinchD) cam.r=clamp(cam.r*(pinchD/d), R_MIN, R_MAX);
     pinchD=d;
   }
 });
@@ -478,16 +488,14 @@ function endPtr(e){ pointers.delete(e.pointerId); if(pointers.size<2) pinchD=0; 
 canvas.addEventListener("pointerup",endPtr);
 canvas.addEventListener("pointercancel",endPtr);
 canvas.addEventListener("wheel",e=>{ e.preventDefault();
-  cam.r=Math.max(18,Math.min(120,cam.r*(1+Math.sign(e.deltaY)*0.09))); },{passive:false});
+  cam.r=clamp(cam.r*(1+Math.sign(e.deltaY)*0.09), R_MIN, R_MAX); requestDraw(); },{passive:false});
 
 /* ======================================================================
    STATS  (mirrors WandStats.compute)
    ====================================================================== */
-function activeCaps(){
-  if(state.form==="wand") return [state.wand.emitter, state.wand.pommel];
-  const s=state.stave; return [s.emitterTop, s.linked?s.emitterTop:s.emitterBottom];
-}
-function activeCore(){ return state.form==="wand"?state.wand.core:state.stave.core; }
+// Uniform {core, capA, capB} state means these need no per-form branching.
+function activeCaps(){ const s=state[state.form]; return [s.capA, s.capB]; }
+function activeCore(){ return state[state.form].core; }
 function computeStats(){
   const core=MAT[activeCore()];
   const [a,b]=activeCaps().map(id=>MAT[id]);
@@ -520,31 +528,32 @@ function optHTML(matId, groupSel, current){
     <span class="sw" style="background:${m.color}"></span>
     <span><span class="nm">${m.name}</span><br><span class="mt">${meta}</span></span></button>`;
 }
+const optsHTML=(choices,group,current)=>choices.map(c=>optHTML(c,group,current)).join("");
 function slotHTML(label, role, dotColor, group, choices, current, extra=""){
   return `<div class="slot"><div class="slot-head">
       <span class="slot-label"><span class="dot" style="background:${dotColor}"></span>${label}
         <span class="slot-role">${role}</span></span>${extra}</div>
-    <div class="opts">${choices.map(c=>optHTML(c,group,current)).join("")}</div></div>`;
+    <div class="opts">${optsHTML(choices,group,current)}</div></div>`;
 }
+const subSlotHTML=(role,group,current,top)=>`<div class="sub-slot"${top?"":' style="margin-top:12px"'}>
+    <div class="slot-role">${role}</div><div class="opts">${optsHTML(CAPS,group,current)}</div></div>`;
 function renderSlots(){
+  const s=state[state.form];
   let h="";
   if(state.form==="wand"){
-    h+=slotHTML("Emitter","top cap",MAT[state.wand.emitter].color,"wand.emitter",CAPS,state.wand.emitter);
-    h+=slotHTML("Core","rod",MAT[state.wand.core].color,"wand.core",CORES,state.wand.core);
-    h+=slotHTML("Pommel","bottom cap",MAT[state.wand.pommel].color,"wand.pommel",CAPS,state.wand.pommel);
+    h+=slotHTML("Emitter","top cap",MAT[s.capA].color,"wand.capA",CAPS,s.capA);
+    h+=slotHTML("Core","rod",MAT[s.core].color,"wand.core",CORES,s.core);
+    h+=slotHTML("Pommel","bottom cap",MAT[s.capB].color,"wand.capB",CAPS,s.capB);
   }else{
-    const s=state.stave;
     const linkBtn=`<button class="link-toggle ${s.linked?"on":""}" id="linkBtn">${s.linked?"🔗 linked":"🔓 split"}</button>`;
     if(s.linked){
-      h+=slotHTML("Emitters","both ends · mirrored",MAT[s.emitterTop].color,"stave.emitterTop",CAPS,s.emitterTop,linkBtn);
+      h+=slotHTML("Emitters","both ends · mirrored",MAT[s.capA].color,"stave.capA",CAPS,s.capA,linkBtn);
     }else{
       h+=`<div class="slot"><div class="slot-head">
-          <span class="slot-label"><span class="dot" style="background:${MAT[s.emitterTop].color}"></span>Emitters
+          <span class="slot-label"><span class="dot" style="background:${MAT[s.capA].color}"></span>Emitters
             <span class="slot-role">independent ends</span></span>${linkBtn}</div>
-        <div class="sub-slot"><div class="slot-role">↑ top end</div>
-          <div class="opts">${CAPS.map(c=>optHTML(c,"stave.emitterTop",s.emitterTop)).join("")}</div></div>
-        <div class="sub-slot" style="margin-top:12px"><div class="slot-role">↓ bottom end</div>
-          <div class="opts">${CAPS.map(c=>optHTML(c,"stave.emitterBottom",s.emitterBottom)).join("")}</div></div></div>`;
+        ${subSlotHTML("↑ top end","stave.capA",s.capA,true)}
+        ${subSlotHTML("↓ bottom end","stave.capB",s.capB,false)}</div>`;
     }
     h+=slotHTML("Grip","central connector · cosmetic",MAT[s.grip].color,"stave.grip",GRIPS,s.grip);
     h+=slotHTML("Core","twin rods · same core",MAT[s.core].color,"stave.core",CORES,s.core);
@@ -554,17 +563,12 @@ function renderSlots(){
 }
 function bindSlots(){
   slotsEl.querySelectorAll(".opt").forEach(b=>b.addEventListener("click",()=>{
-    const [obj,key]=b.dataset.group.split(".");
-    state[obj][key]=b.dataset.mat;
-    if(obj==="stave" && key==="emitterTop" && state.stave.linked) state.stave.emitterBottom=b.dataset.mat;
+    const [form,key]=b.dataset.group.split(".");
+    setPart(form,key,b.dataset.mat);
     refresh();
   }));
   const lb=$("#linkBtn");
-  if(lb) lb.addEventListener("click",()=>{
-    state.stave.linked=!state.stave.linked;
-    if(state.stave.linked) state.stave.emitterBottom=state.stave.emitterTop;
-    refresh();
-  });
+  if(lb) lb.addEventListener("click",()=>{ setLinked(!state.stave.linked); refresh(); });
 }
 
 function fmt(n){ return Number.isInteger(n)?n:n.toFixed(0); }
@@ -586,7 +590,7 @@ function updateStats(){
     ? `<b>Double-bladed stave.</b> Two emitter ends joined by a central grip/connector over twin cores — the double-blade reframe of the shipped stave. Capacity ×1.6; both emitters add discount &amp; potency.`
     : `<b>Wand.</b> Emitter + core + pommel. Discount is additive across both caps, capped at 50%. Numbers mirror <b>WandStats.compute</b>.`;
 }
-function refresh(){ renderSlots(); updateStats(); buildBuffer(); assembleAt=performance.now(); }
+function refresh(){ renderSlots(); updateStats(); buildBuffer(); assembleAt=performance.now(); requestDraw(); }
 
 /* form toggle */
 $("#formSeg").addEventListener("click",e=>{
@@ -599,13 +603,16 @@ $("#formSeg").addEventListener("click",e=>{
   refresh();
 });
 /* stage buttons */
-$("#btnSpin").addEventListener("click",()=>{ spinning=!spinning;
-  $("#btnSpin").style.color=spinning?"":"var(--accent)";
-  $("#btnSpin").setAttribute("aria-pressed",spinning); });
+function syncSpinBtn(){ const b=$("#btnSpin");
+  b.style.color=spinning?"":"var(--accent)"; b.setAttribute("aria-pressed",spinning); }
+$("#btnSpin").addEventListener("click",()=>{ spinning=!spinning; syncSpinBtn(); requestDraw(); });
 $("#btnRandom").addEventListener("click",()=>{
   const pick=a=>a[Math.floor(Math.random()*a.length)];
-  if(state.form==="wand"){ state.wand.emitter=pick(CAPS); state.wand.core=pick(CORES); state.wand.pommel=pick(CAPS); }
-  else{ const s=state.stave; s.emitterTop=pick(CAPS); s.emitterBottom=s.linked?s.emitterTop:pick(CAPS); s.core=pick(CORES); s.grip=pick(GRIPS); }
+  const s=state[state.form];
+  s.core=pick(CORES);
+  s.capA=pick(CAPS);
+  s.capB=(state.form==="stave" && s.linked) ? s.capA : pick(CAPS);
+  if(state.form==="stave") s.grip=pick(GRIPS);
   refresh();
 });
 $("#btnTheme").addEventListener("click",()=>{
@@ -614,13 +621,12 @@ $("#btnTheme").addEventListener("click",()=>{
       : (matchMedia("(prefers-color-scheme: dark)").matches ? "light":"dark"));
   document.documentElement.setAttribute("data-theme",next);
 });
-window.addEventListener("resize",render);
+window.addEventListener("resize",requestDraw);
 
 /* boot */
 if(gl){
   initGL();
-  $("#btnSpin").style.color = spinning ? "" : "var(--accent)";
-  $("#btnSpin").setAttribute("aria-pressed", spinning);
+  syncSpinBtn();
   refresh();
   loop();
 }else{
