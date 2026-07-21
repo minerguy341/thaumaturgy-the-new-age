@@ -326,6 +326,8 @@ const M4 = {
   lookAt(e,c,u){ const z=norm(sub(e,c)), x=norm(cross(u,z)), y=cross(z,x); const o=new Float32Array(16);
     o[0]=x[0];o[1]=y[0];o[2]=z[0];o[4]=x[1];o[5]=y[1];o[6]=z[1];o[8]=x[2];o[9]=y[2];o[10]=z[2];
     o[12]=-dot(x,e);o[13]=-dot(y,e);o[14]=-dot(z,e);o[15]=1; return o; },
+  translation(t){ const o=new Float32Array(16); o[0]=o[5]=o[10]=o[15]=1; o[12]=t[0];o[13]=t[1];o[14]=t[2]; return o; },
+  scaleY(sy){ const o=new Float32Array(16); o[0]=o[10]=o[15]=1; o[5]=sy; return o; },
 };
 function sub(a,b){return [a[0]-b[0],a[1]-b[1],a[2]-b[2]];}
 function cross(a,b){return [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];}
@@ -421,7 +423,17 @@ function render(){
     center[2]+cam.r*Math.cos(el)*Math.cos(cam.az),
   ];
   const V = M4.lookAt(eye, center, [0,1,0]);
-  const MVP = M4.mul(P,V);
+  // "seat" squash: on a part swap the implement compresses and rebounds
+  // about its centre, so a change reads as a satisfying click-into-place.
+  let VM = V;
+  const e=(performance.now()-assembleAt)/1000;
+  if(!reduceMotion && e>=0 && e<0.34){
+    const sy = 1 - 0.12*Math.sin(e/0.34*Math.PI);
+    const M = M4.mul(M4.mul(M4.translation(center), M4.scaleY(sy)),
+                     M4.translation([-center[0],-center[1],-center[2]]));
+    VM = M4.mul(V,M);
+  }
+  const MVP = M4.mul(P,VM);
   gl.useProgram(prog);
   gl.uniformMatrix4fv(loc.uMVP,false,MVP);
   gl.bindBuffer(gl.ARRAY_BUFFER, buf);
@@ -431,7 +443,9 @@ function render(){
   gl.enableVertexAttribArray(loc.aColor);  gl.vertexAttribPointer(loc.aColor,3,gl.FLOAT,false,S,24);
   gl.drawArrays(gl.TRIANGLES,0,vertCount);
 }
-let spinning = !matchMedia("(prefers-reduced-motion: reduce)").matches;
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let spinning = !reduceMotion;
+let assembleAt = -1e9;   // timestamp of last part change → a quick "seat" squash
 function interacting(){ return pointers.size>0; }
 function loop(){
   if(spinning && !interacting()) cam.az+=0.006;
@@ -572,7 +586,7 @@ function updateStats(){
     ? `<b>Double-bladed stave.</b> Two emitter ends joined by a central grip/connector over twin cores — the double-blade reframe of the shipped stave. Capacity ×1.6; both emitters add discount &amp; potency.`
     : `<b>Wand.</b> Emitter + core + pommel. Discount is additive across both caps, capped at 50%. Numbers mirror <b>WandStats.compute</b>.`;
 }
-function refresh(){ renderSlots(); updateStats(); buildBuffer(); }
+function refresh(){ renderSlots(); updateStats(); buildBuffer(); assembleAt=performance.now(); }
 
 /* form toggle */
 $("#formSeg").addEventListener("click",e=>{
