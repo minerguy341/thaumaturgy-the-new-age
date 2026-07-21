@@ -29,10 +29,6 @@ public final class HudLayout {
         this.scale = scale;
     }
 
-    public HudLayout copy() {
-        return new HudLayout(anchorX, anchorY, offX, offY, scale);
-    }
-
     public void set(HudLayout other) {
         this.anchorX = other.anchorX;
         this.anchorY = other.anchorY;
@@ -41,14 +37,24 @@ public final class HudLayout {
         this.scale = other.scale;
     }
 
+    /** The anchor's pixel X (offset excluded) for a {@code contentW}-wide box. */
+    public int anchorPxX(int guiW, int contentW) {
+        return (int) Math.round(anchorX * (guiW - contentW));
+    }
+
+    /** The anchor's pixel Y (offset excluded) for a {@code contentH}-tall box. */
+    public int anchorPxY(int guiH, int contentH) {
+        return (int) Math.round(anchorY * (guiH - contentH));
+    }
+
     /** Top-left X for a content box {@code contentW} wide on a {@code guiW}-wide screen. */
     public int screenX(int guiW, int contentW) {
-        return (int) Math.round(anchorX * (guiW - contentW)) + offX;
+        return anchorPxX(guiW, contentW) + offX;
     }
 
     /** Top-left Y for a content box {@code contentH} tall on a {@code guiH}-tall screen. */
     public int screenY(int guiH, int contentH) {
-        return (int) Math.round(anchorY * (guiH - contentH)) + offY;
+        return anchorPxY(guiH, contentH) + offY;
     }
 
     /**
@@ -61,8 +67,8 @@ public final class HudLayout {
         int absY = screenY(guiH, contentH);
         anchorX = nearestThird((absX + contentW / 2.0) / Math.max(1, guiW));
         anchorY = nearestThird((absY + contentH / 2.0) / Math.max(1, guiH));
-        offX = absX - (int) Math.round(anchorX * (guiW - contentW));
-        offY = absY - (int) Math.round(anchorY * (guiH - contentH));
+        offX = absX - anchorPxX(guiW, contentW);
+        offY = absY - anchorPxY(guiH, contentH);
     }
 
     private static double nearestThird(double f) {

@@ -56,6 +56,9 @@ public final class WandVisHud {
     public static final double MIN_SCALE = 0.3;
     public static final double MAX_SCALE = 2.0;
 
+    /** Set by the transform editor while it's open, so the live HUD yields to its mock bars. */
+    public static boolean editorActive;
+
     // Static chrome colors (ARGB), matching the art builder.
     private static final int CH = 0xFF0E0910;   // chamber recess
     private static final int CHS = 0xFF060309;  // chamber inner shadow
@@ -98,7 +101,7 @@ public final class WandVisHud {
             return;
         }
         // The editor draws its own mock bars — suppress the live HUD while it's open.
-        if (minecraft.screen instanceof HudTransformScreen) {
+        if (editorActive) {
             return;
         }
         // Two independent movable elements: main-hand bar (emitter left) and off-hand bar
