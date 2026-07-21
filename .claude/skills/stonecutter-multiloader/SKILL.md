@@ -99,6 +99,31 @@ discovering it after writing code. In such a session:
    never claim green. The definition of done in CLAUDE.md still requires a real
    `chiseledBuild` + `chiseledGameTest` somewhere.
 
+### CI is the real build gate when the sandbox can't compile
+When the sandbox can't run Gradle, GitHub Actions (`.github/workflows/build.yml` runs
+`chiseledBuild` + `chiseledGameTest` on every push and PR) is the ONLY place your code
+actually compiles and the gametests actually run. Treat it as the build gate, not a
+formality: after pushing, poll the workflow run (`actions_list` → newest run →
+`actions_get`/`get_job_logs`) and read the result before telling the user it's done. A
+green run is the remote-session equivalent of a local `chiseledBuild`; a red one is your
+compile error — read the log, fix, push again, re-poll. Do NOT declare a task done on
+"it should compile" — wait for the actual CI verdict. (This is how the reconciled Arcane
+Worktable merge was verified: two CI compile errors — a wrong `SimpleContainerData`
+import, a missing `Primals` constant — surfaced only in the Actions log, not locally.)
+
+### Diff against `main` before landing a long-lived branch
+A feature branch that has lived a while can silently collide with work that landed on
+`main` in parallel — not a textual merge conflict, but two independent implementations of
+the SAME system. Before merging, actually `git fetch origin main` and read what changed in
+the areas you touched. (Here `main` had independently grown a per-primal `WandVis` float
+record + `WandRecharge`; our branch carried an `AspectBag`-based vis system for the same
+wands. Nothing textually conflicted, but both couldn't coexist.) When you find a competing
+system, adopt the one already on `main` as the base and rewrite your feature onto its API,
+rather than forcing your parallel version through — main is shared ground, your branch is
+not. Catching this at merge time (by diffing) is far cheaper than after a green-looking
+merge quietly ships two rival APIs. For the full pre-flight + pre-land procedure (ranking
+branches by recent activity, adopt-vs-rebuild triage), see the `parallel-session-survey` skill.
+
 ## Ground-truth unfamiliar APIs before writing code
 
 Mapped-name guesses against Architectury/loader APIs waste build cycles. Inspect the
