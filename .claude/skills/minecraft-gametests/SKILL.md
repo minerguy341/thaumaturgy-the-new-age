@@ -103,6 +103,22 @@ level-dependent (lazy generation, random sources), attach the test level:
 - **Persistence round trips**: `saveWithFullMetadata` → `BlockEntity.loadStatic` →
   assert the data survived; then remove the item and assert the data traveled with it.
 
+## Shared-world SavedData leaks between gametests — zero it, don't assume it
+
+Gametests run in adjacent regions of ONE shared level, so any per-level `SavedData`
+(here `AuraField` — the aura/vis/flux store) is SHARED across every test, and a diffusing
+field (flux spreads chunk-to-chunk each tick) can leak values into a chunk another test
+later asserts is empty. This makes an assertion like "a flux-free cell reads zero"
+flaky: it passes alone, then fails once enough other tests run and diffusion carries flux
+into the window. The symptom is a value-dependent failure that only appears as the test
+COUNT grows (adding four worktable tests pushed the suite to 64 and tipped
+`DioptraGameTest.snapshotMirrorsAuraField` red at `0.1128125` instead of `0`).
+
+Rule: never assume shared-world SavedData starts at a known value. Explicitly zero every
+chunk/field a test reads before asserting on it — subtract past the cap so it clamps to 0
+(`aura.addFlux(chunk, -FLUX_CAP*2)`), for flux as well as vis, mirroring whatever reset you
+already do for the primary quantity. A test that asserts "empty" must FIRST make it empty.
+
 ## What gametests cannot catch
 
 Client registration order ("Registry Object not present" on NeoForge), screen factory
