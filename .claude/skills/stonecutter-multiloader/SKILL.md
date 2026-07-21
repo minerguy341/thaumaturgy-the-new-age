@@ -121,7 +121,8 @@ wands. Nothing textually conflicted, but both couldn't coexist.) When you find a
 system, adopt the one already on `main` as the base and rewrite your feature onto its API,
 rather than forcing your parallel version through — main is shared ground, your branch is
 not. Catching this at merge time (by diffing) is far cheaper than after a green-looking
-merge quietly ships two rival APIs.
+merge quietly ships two rival APIs. For the full pre-flight + pre-land procedure (ranking
+branches by recent activity, adopt-vs-rebuild triage), see the `parallel-session-survey` skill.
 
 ## Ground-truth unfamiliar APIs before writing code
 
