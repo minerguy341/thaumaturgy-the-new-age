@@ -86,6 +86,12 @@ public class AuraGameTest {
         // Baselines AFTER serverTick — it pumps on its own cadence; the explicit pump
         // below is the measured one. Output scales by the rolled personality's multiplier.
         float expectedCenter = node.size() * node.personality().visMultiplier();
+        // Drain both measured chunks first (the subtract clamps at 0). The node auto-pumps
+        // every serverTick and the shared per-level AuraField accumulates across concurrent
+        // gametests, so without this the chunk can already sit at CHUNK_CAP and the measured
+        // pump clamps to a 0 gain — the flaky failure this guards against.
+        aura.add(centerKey, -AuraField.CHUNK_CAP * 2);
+        aura.add(neighborKey, -AuraField.CHUNK_CAP * 2);
         float centerBefore = aura.vis(centerKey);
         float neighborBefore = aura.vis(neighborKey);
         node.pump(level);
@@ -172,6 +178,10 @@ public class AuraGameTest {
 
         AuraField aura = AuraField.get(level);
         long chunk = new ChunkPos(helper.absolutePos(pos)).toLong();
+        // Drain first (the subtract clamps at 0) so `before` is a clean 50 with headroom.
+        // The shared per-level AuraField accumulates flux across concurrent gametests, which
+        // could otherwise pin the chunk near FLUX_CAP and defeat the tainted-raises-flux check.
+        aura.addFlux(chunk, -AuraField.FLUX_CAP * 2);
         aura.addFlux(chunk, 50f); // headroom for tainted, something for pure to burn
         float before = aura.flux(chunk);
         node.pump(level);
