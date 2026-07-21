@@ -1,7 +1,10 @@
 {
   "variants": {
-    "": {
-      "model": "new_age_thaum:block/silverwood_leaves"
-    }
+    "": [
+      { "model": "new_age_thaum:block/silverwood_leaves" },
+      { "model": "new_age_thaum:block/silverwood_leaves", "y": 90 },
+      { "model": "new_age_thaum:block/silverwood_leaves", "y": 180 },
+      { "model": "new_age_thaum:block/silverwood_leaves", "y": 270 }
+    ]
   }
 }
