@@ -64,6 +64,20 @@ public final class ModRegistries {
     public static final RegistrySupplier<Item> AURA_NODE_ITEM = ITEMS.register("aura_node",
             () -> new BlockItem(AURA_NODE.get(), new Item.Properties()));
 
+    /** The arcane crafting station: a 3×3 grid + wand slot, vis-gated (see ArcaneWorktableMenu). */
+    public static final RegistrySupplier<Block> ARCANE_WORKTABLE = BLOCKS.register("arcane_worktable",
+            () -> new io.github.minerguy341.new_age_thaum.content.ArcaneWorktableBlock(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_BROWN).strength(2.5f)
+                    .sound(net.minecraft.world.level.block.SoundType.WOOD)));
+    public static final RegistrySupplier<Item> ARCANE_WORKTABLE_ITEM = ITEMS.register("arcane_worktable",
+            () -> new BlockItem(ARCANE_WORKTABLE.get(), new Item.Properties()));
+
+    /** Dressed arcane blue-grey stone — the neutral apparatus material, and a worktable output. */
+    public static final RegistrySupplier<Block> ARCANE_STONE = BLOCKS.register("arcane_stone",
+            () -> new Block(BlockBehaviour.Properties.of()
+                    .mapColor(MapColor.COLOR_BLUE).strength(1.5f, 6.0f).requiresCorrectToolForDrops()));
+    public static final RegistrySupplier<Item> ARCANE_STONE_ITEM = ITEMS.register("arcane_stone",
+            () -> new BlockItem(ARCANE_STONE.get(), new Item.Properties()));
     /** Pedestal that projects a holographic vis map of the surrounding chunks. */
     public static final RegistrySupplier<Block> THAUMIC_DIOPTRA = BLOCKS.register("thaumic_dioptra",
             () -> new io.github.minerguy341.new_age_thaum.content.ThaumicDioptraBlock(BlockBehaviour.Properties.of()
@@ -196,6 +210,8 @@ public final class ModRegistries {
                     .icon(() -> new ItemStack(WAND.get()))
                     .displayItems((parameters, output) -> {
                         output.accept(ARCANE_ORRERY_ITEM.get());
+                        output.accept(ARCANE_WORKTABLE_ITEM.get());
+                        output.accept(ARCANE_STONE_ITEM.get());
                         output.accept(AURA_NODE_ITEM.get());
                         output.accept(THAUMIC_DIOPTRA_ITEM.get());
                         output.accept(GREATWOOD_LOG_ITEM.get());

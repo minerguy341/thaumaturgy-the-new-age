@@ -100,6 +100,30 @@ started").
 - Dark-purple UI palette pattern: panel fill `0xF0100A18`, chrome `0xFF241B33`, inset
   wells near-black, primary text `0xE8D9FF`, secondary `0x9A8CBF`, dimmed `0x5F5876`.
 
+## Reusing vanilla GUI textures directly (safe — nothing is shipped)
+
+Blitting a vanilla GUI texture by `ResourceLocation` references the client's own atlas; your
+mod ships none of those pixels, so it does not run afoul of "don't ship others' art." Prefer
+this over hand-authoring chrome when the screen wants the familiar look — for a **crafting
+station it's the strongest form of "augment don't replace"**: the player literally sees the
+crafting table they know, plus your augments. (Worked example: `ArcaneWorktableScreen` blits
+the vanilla table and overlays a wand slot + vis chip.)
+
+- **Reference, don't copy:** `ResourceLocation.withDefaultNamespace("textures/gui/container/crafting_table.png")`
+  (256×256). Other stable paths: `.../container/inventory.png`, `.../container/generic_54.png`,
+  `.../container/furnace.png`, `.../container/hopper.png`.
+- **Standard container background is 176×166**; vanilla crafting-table slots: grid `(30,17)` 3×3
+  @18px, result `(124,35)`, player inv `(8,84)`, hotbar `(8,142)`, title inset `titleLabelX=29`,
+  `inventoryLabelY = imageHeight-94`. Set your menu's `Slot` x/y to match the texture.
+- **Need one extra slot** the texture lacks? Stamp a real 18×18 slot cell from the same texture:
+  `g.blit(BG, x+slotX-1, y+slotY-1, 29, 16, 18, 18)` (the top-left grid slot's inset), then place
+  your `Slot` at `(slotX, slotY)` over blank background.
+- **1.21.1 blit signature:** `g.blit(ResourceLocation, int x, int y, int u, int v, int w, int h)`
+  (256×256 assumed). NOTE the 1.21.2 refactor changes this to a `Function<ResourceLocation,
+  RenderType>` first arg — route version-conditional blits through a shim, don't scatter guards.
+- **Ghost/empty-state hint:** `g.renderFakeItem(stack, x, y)` then a translucent `fill` over it
+  (light overlay `0x90C6C6C6` on the beige vanilla bg; dark `0x90100A18` on a dark panel).
+
 ## Verification loop
 
 After any UI change: `chiseledBuild` + gametests for the logic, then boot the NeoForge

@@ -166,6 +166,10 @@ public class DioptraGameTest {
         aura.add(cornerChunk, -AuraField.CHUNK_CAP * 2);
         aura.add(cornerChunk, 77f);
         aura.addFlux(cornerChunk, 44f); // flux rides the same snapshot
+        // The gametest world's AuraField is shared across all concurrent tests, and flux
+        // diffuses — so the centre chunk can carry stray flux bled in from a neighbour. Zero
+        // it here (mirroring the vis reset above) so "flux-free cell" is genuinely flux-free.
+        aura.addFlux(ownChunk, -aura.flux(ownChunk));
         dioptra.refreshSnapshot(level);
 
         float[] window = dioptra.visWindow();

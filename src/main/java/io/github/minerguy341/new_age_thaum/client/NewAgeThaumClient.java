@@ -56,6 +56,8 @@ public final class NewAgeThaumClient {
         // (CLIENT_SETUP would be too late — the screen factory would never register).
         ModMenus.ARCANE_ORRERY.listen(type ->
                 MenuRegistry.registerScreenFactory(type, ResearchSphereScreen::new));
+        ModMenus.ARCANE_WORKTABLE.listen(type ->
+                MenuRegistry.registerScreenFactory(type, ArcaneWorktableScreen::new));
         // Same listen() timing rule as the screen factory: no eager .get() in client init.
         ModBlockEntities.ARCANE_ORRERY.listen(type ->
                 BlockEntityRendererRegistry
