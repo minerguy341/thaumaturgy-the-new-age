@@ -286,6 +286,31 @@ function capPart(mainY0, mainY1, nubDir, color, emitter){
   return parts;
 }
 function rodPart(y0,y1,color){ return [box(7.5,8.5, y0,y1, 7.5,8.5, color)]; }
+
+// --- Wand form: an original model in the classic wand silhouette ---
+// (a slim tapered core with flared, banded metal end-caps). Our own
+// geometry studied from the archetype — not lifted from any mod's asset.
+// An end-cap = a banded collar at the rod join, a flared cap body, a
+// stepped shoulder, and a finial (bright tip on the emitter, rounded knob
+// on the pommel). rodY = where it meets the rod; dir=+1 builds upward.
+function wandCap(rodY, dir, color, emitter){
+  const parts=[];
+  const B=(w,ya,yb,col)=>{ const y0=Math.min(ya,yb),y1=Math.max(ya,yb);
+    parts.push(box(8-w,8+w, y0,y1, 8-w,8+w, col)); };
+  const body=rodY+dir*3.4, shoulder=body+dir*1.0, finial=shoulder+dir*(emitter?1.6:1.2);
+  B(1.6, rodY-dir*0.6, rodY+dir*0.6, tint(color,0.85)); // collar band over the join
+  B(2.0, rodY, body,     color);                        // flared cap body
+  B(1.4, body, shoulder, tint(color,0.92));             // stepped shoulder
+  B(emitter?0.75:1.05, shoulder, finial,                // emitter tip / pommel knob
+    emitter?tint(color,1.4):tint(color,0.8));
+  return parts;
+}
+// Slim rod with a subtle two-segment taper (thinner toward the tip).
+function wandRod(y0,y1,color){
+  const mid=y0+(y1-y0)*0.6;
+  return [ box(7.4,8.6, y0,mid, 7.4,8.6, color),
+           box(7.6,8.4, mid,y1, 7.6,8.4, tint(color,1.06)) ];
+}
 // bare-bones grip: a body + a raised mid-band (the central connector)
 function gripPart(y0,y1,color){
   const cy=(y0+y1)/2;
@@ -301,9 +326,9 @@ function buildParts(){
   const c = MAT[s.core].color, capA = MAT[s.capA].color, capB = MAT[s.capB].color;
   if(state.form==="wand"){
     return [
-      ...capPart(0,5,-1, capB, false),   // pommel   (bottom = capB)
-      ...rodPart(4,16, c),               // core rod
-      ...capPart(15,20,+1, capA, true),  // emitter  (top = capA)
+      ...wandCap(4.5,-1, capB, false),   // pommel  (bottom = capB)
+      ...wandRod(4,15.5, c),             // slim tapered core rod
+      ...wandCap(15.5,+1, capA, true),   // emitter (top = capA)
     ];
   }
   return [
