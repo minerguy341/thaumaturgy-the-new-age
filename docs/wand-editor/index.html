@@ -325,12 +325,21 @@ function roundedRod(out, y0, y1, hex){
   cyl(out, R_ROD, y0, y1, rgb);
   disk(out, R_ROD, y0, -1, rgb); disk(out, R_ROD, y1, +1, rgb);
 }
-// short rounded cap seated on the rod end at rodY, doming outward (dir)
-function roundedCap(out, rodY, dir, hex, emitter){
-  const rgb=hexToRgb(hex), bodyH=CAP_H*0.5, domeH=CAP_H*0.5, yBody=rodY+dir*bodyH;
-  cyl(out, R_CAP, Math.min(rodY,yBody), Math.max(rodY,yBody), rgb);
-  disk(out, R_CAP, rodY, -dir, rgb);                                   // shoulder toward the rod
-  dome(out, R_CAP, yBody, dir, domeH, emitter?hexToRgb(tint(hex,1.3)):rgb);
+// A cap seated on the rod end at rodY, extending outward (dir). flat → a
+// flat disc outer face (the emitter tip); otherwise a rounded dome. r/h
+// size it (the pommel is a touch smaller); glow brightens the outer face.
+function capMesh(out, rodY, dir, hex, {r=R_CAP, h=CAP_H, flat=false, glow=false}={}){
+  const rgb=hexToRgb(hex), outer=glow?hexToRgb(tint(hex,1.3)):rgb;
+  disk(out, r, rodY, -dir, rgb);                       // shoulder toward the rod
+  if(flat){
+    const yEnd=rodY+dir*h;
+    cyl(out, r, Math.min(rodY,yEnd), Math.max(rodY,yEnd), rgb);
+    disk(out, r, yEnd, dir, outer);                    // flat outer face
+  }else{
+    const yBody=rodY+dir*h*0.5;
+    cyl(out, r, Math.min(rodY,yBody), Math.max(rodY,yBody), rgb);
+    dome(out, r, yBody, dir, h*0.5, outer);            // rounded outer end
+  }
 }
 // stave grip = a taller banded cylinder (the central connector)
 function gripMesh(out, y0, y1, hex){
@@ -347,16 +356,16 @@ function buildParts(){
   const out=[];
   if(state.form==="wand"){
     const r0=CAP_H, r1=CAP_H+WAND_ROD;
-    roundedCap(out, r0, -1, capB, false);   // pommel  (bottom = capB)
-    roundedRod(out, r0, r1, core);          // rounded core rod
-    roundedCap(out, r1, +1, capA, true);    // emitter (top = capA)
+    capMesh(out, r0, -1, capB, {r:R_CAP*0.8, h:CAP_H*0.8});  // smaller rounded pommel
+    roundedRod(out, r0, r1, core);                           // rounded core rod
+    capMesh(out, r1, +1, capA, {flat:true, glow:true});      // flat emitter (top)
   }else{
     const rA0=CAP_H, rA1=CAP_H+STAVE_ROD, g0=rA1, g1=rA1+GRIP_H, rB0=g1, rB1=g1+STAVE_ROD;
-    roundedCap(out, rA0, -1, capB, true);   // bottom emitter (capB)
-    roundedRod(out, rA0, rA1, core);        // lower core half
-    gripMesh(out, g0, g1, MAT[s.grip].color); // central grip / connector
-    roundedRod(out, rB0, rB1, core);        // upper core half
-    roundedCap(out, rB1, +1, capA, true);   // top emitter (capA)
+    capMesh(out, rA0, -1, capB, {flat:true, glow:true});     // bottom emitter (flat)
+    roundedRod(out, rA0, rA1, core);                         // lower core half
+    gripMesh(out, g0, g1, MAT[s.grip].color);                // central grip / connector
+    roundedRod(out, rB0, rB1, core);                         // upper core half
+    capMesh(out, rB1, +1, capA, {flat:true, glow:true});     // top emitter (flat)
   }
   return out;
 }
